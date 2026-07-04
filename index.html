@@ -1,0 +1,1952 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#0B1220; --bg2:#0E1626; --panel:#111C30; --panel2:#152238;
+    --line:#1E2C44; --line2:#28395A;
+    --ink:#E8EDF6; --ink2:#AEBBD2; --ink3:#7688A8;
+    --gold:#C9A24B; --gold2:#E4C879; --goldsoft:rgba(201,162,75,.14);
+    --live:#4ADE80; --live-bg:rgba(74,222,128,.12);
+    --warn:#F5A524; --danger:#F26D6D; --blue:#6AA9FF; --purple:#C86DD7;
+    --radius:12px; --radius-sm:8px;
+    --shadow:0 8px 28px rgba(0,0,0,.42);
+    --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);
+    font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow:hidden}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,textarea,select{font-family:inherit;font-size:14px}
+  a{color:var(--gold2);text-decoration:none}
+
+  #app{display:flex;height:100vh}
+  .sidebar{width:236px;background:var(--bg2);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;flex-shrink:0}
+  .brand{padding:20px 20px 16px;display:flex;align-items:center;gap:11px}
+  .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--gold),#8f6f28);
+    display:flex;align-items:center;justify-content:center;font-weight:800;color:#0B1220;font-size:17px}
+  .brand h1{font-size:16px;font-weight:800;letter-spacing:.3px}
+  .brand .sub{font-size:10px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-top:1px}
+  .nav{flex:1;overflow-y:auto;padding:6px 10px 20px}
+  .nav-group{margin-top:14px}
+  .nav-group-label{font-size:10px;text-transform:uppercase;letter-spacing:1.3px;color:var(--ink3);
+    padding:6px 10px 4px;font-weight:600}
+  .nav-item{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:8px;
+    color:var(--ink2);font-weight:500;font-size:13.5px;cursor:pointer;transition:.12s;position:relative}
+  .nav-item:hover{background:var(--panel);color:var(--ink)}
+  .nav-item.active{background:var(--goldsoft);color:var(--gold2)}
+  .nav-item .ico{width:17px;text-align:center;font-size:15px;flex-shrink:0}
+  .nav-item .badge{margin-left:auto;background:var(--line2);color:var(--ink2);font-size:10.5px;
+    padding:1px 7px;border-radius:20px;font-weight:600}
+  .nav-item.active .badge{background:var(--gold);color:#0B1220}
+
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{height:56px;border-bottom:1px solid var(--line);display:flex;align-items:center;
+    gap:14px;padding:0 22px;flex-shrink:0;background:var(--bg)}
+  .search-wrap{flex:1;max-width:520px;position:relative}
+  .search-wrap input{width:100%;background:var(--panel);border:1px solid var(--line);
+    color:var(--ink);border-radius:9px;padding:9px 14px 9px 38px;outline:none;transition:.15s}
+  .search-wrap input:focus{border-color:var(--gold);background:var(--panel2)}
+  .search-wrap .si{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--ink3);font-size:14px}
+  .btn{background:var(--panel);border:1px solid var(--line2);color:var(--ink);padding:9px 15px;
+    border-radius:9px;font-weight:600;font-size:13px;transition:.13s;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{background:var(--panel2);border-color:var(--gold)}
+  .btn-gold{background:linear-gradient(135deg,var(--gold),#a9852f);color:#0B1220;border:none}
+  .btn-gold:hover{background:linear-gradient(135deg,var(--gold2),var(--gold));border:none}
+  .btn-sm{padding:6px 11px;font-size:12px;border-radius:7px}
+  .btn-ghost{background:transparent;border:1px solid var(--line2)}
+  .btn-danger{color:var(--danger);border-color:transparent;background:transparent}
+  .btn-danger:hover{background:rgba(242,109,109,.1);border-color:transparent}
+
+  .content{flex:1;overflow-y:auto;padding:26px 30px 60px}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px;gap:16px;flex-wrap:wrap}
+  .page-head h2{font-size:24px;font-weight:800;letter-spacing:-.3px}
+  .page-head .desc{color:var(--ink3);font-size:13px;margin-top:3px}
+  .page-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:22px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+  .kpi .label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:600}
+  .kpi .val{font-size:26px;font-weight:800;margin-top:7px;letter-spacing:-.5px}
+  .kpi .val.gold{color:var(--gold2)}
+  .kpi .val.green{color:var(--live)}
+  .kpi .sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
+
+  .dash-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}
+  @media(max-width:1100px){.dash-grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .card-h{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;
+    justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .card-h h3{font-size:14px;font-weight:700}
+  .card-h .link{font-size:12px;color:var(--ink3);cursor:pointer}
+  .card-h .link:hover{color:var(--gold2)}
+  .card-b{padding:8px 0}
+  .empty{padding:26px 18px;text-align:center;color:var(--ink3);font-size:13px}
+  .empty button{color:var(--gold2);font-weight:600;margin-top:8px}
+
+  .row-item{padding:10px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);
+    cursor:pointer;transition:.1s}
+  .row-item:last-child{border-bottom:none}
+  .row-item:hover{background:var(--panel2)}
+  .row-item .tick{width:17px;height:17px;border:1.7px solid var(--line2);border-radius:5px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;transition:.12s}
+  .row-item .tick:hover{border-color:var(--gold)}
+  .row-item .tick.done{background:var(--gold);border-color:var(--gold);color:#0B1220;font-size:11px;font-weight:800}
+  .row-item .txt{flex:1;min-width:0}
+  .row-item .txt .t{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row-item .txt.done .t{text-decoration:line-through;color:var(--ink3)}
+  .row-item .meta{font-size:11.5px;color:var(--ink3);margin-top:1px}
+  .pill{font-size:10.5px;padding:2px 9px;border-radius:20px;font-weight:600;white-space:nowrap;flex-shrink:0}
+  .pill-live{background:var(--live-bg);color:var(--live)}
+  .pill-draft{background:var(--line2);color:var(--ink2)}
+  .pill-upcoming{background:rgba(106,169,255,.13);color:var(--blue)}
+  .pill-done{background:var(--goldsoft);color:var(--gold2)}
+  .pill-closed{background:rgba(242,109,109,.12);color:var(--danger)}
+  .pill-type{background:var(--panel2);color:var(--ink2);border:1px solid var(--line2)}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+  .gcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;cursor:pointer;transition:.14s}
+  .gcard:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:var(--shadow)}
+  .gcard .thumb{height:120px;background:linear-gradient(135deg,var(--panel2),var(--bg2));
+    display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--line2);position:relative;overflow:hidden}
+  .gcard .thumb img{width:100%;height:100%;object-fit:cover}
+  .gcard .gbody{padding:13px 15px}
+  .gcard .gtitle{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gcard .gsub{font-size:12px;color:var(--ink3);margin-top:3px}
+  .gcard .gmeta{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
+  .tbl{width:100%;border-collapse:collapse}
+  .tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);
+    font-weight:600;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--bg2)}
+  .tbl td{padding:12px 16px;border-bottom:1px solid var(--line);font-size:13.5px}
+  .tbl tr{cursor:pointer}
+  .tbl tbody tr:hover{background:var(--panel2)}
+  .tbl .strong{font-weight:600}
+
+  .hub-head{display:flex;align-items:flex-start;gap:18px;margin-bottom:20px;flex-wrap:wrap}
+  .hub-head .htitle h2{font-size:26px;font-weight:800}
+  .hub-head .hmeta{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;align-items:center}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:22px;overflow-x:auto}
+  .tab{padding:10px 15px;color:var(--ink3);font-weight:600;font-size:13.5px;border-bottom:2px solid transparent;
+    white-space:nowrap;transition:.12s}
+  .tab:hover{color:var(--ink)}
+  .tab.active{color:var(--gold2);border-bottom-color:var(--gold)}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.two-col{grid-template-columns:1fr}}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.7px;
+    color:var(--ink3);font-weight:600;margin-bottom:6px}
+  .field input,.field textarea{width:100%;background:var(--bg2);border:1px solid var(--line2);
+    color:var(--ink);border-radius:8px;padding:9px 12px;outline:none;transition:.13s}
+  .field input:focus,.field textarea:focus{border-color:var(--gold);background:var(--panel)}
+  .field textarea{resize:vertical;min-height:80px;line-height:1.5}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .field-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+  .timeline{position:relative;padding-left:22px}
+  .timeline:before{content:'';position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--line2)}
+  .tl-item{position:relative;padding:0 0 18px}
+  .tl-item:before{content:'';position:absolute;left:-19px;top:4px;width:9px;height:9px;border-radius:50%;
+    background:var(--gold);box-shadow:0 0 0 3px var(--bg)}
+  .tl-item .tl-t{font-weight:600;font-size:13.5px}
+  .tl-item .tl-d{font-size:11.5px;color:var(--ink3);margin-top:1px}
+
+  .overlay{position:fixed;inset:0;background:rgba(4,8,16,.7);backdrop-filter:blur(3px);
+    z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:60px 20px;overflow-y:auto}
+  .modal{background:var(--bg2);border:1px solid var(--line2);border-radius:16px;width:100%;max-width:560px;
+    box-shadow:var(--shadow);animation:pop .18s ease}
+  .modal.wide{max-width:760px}
+  @keyframes pop{from{transform:scale(.96) translateY(8px);opacity:0}to{transform:none;opacity:1}}
+  .modal-h{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .modal-h h3{font-size:17px;font-weight:800}
+  .modal-h .x{color:var(--ink3);font-size:22px;line-height:1;cursor:pointer;padding:4px}
+  .modal-h .x:hover{color:var(--ink)}
+  .modal-b{padding:20px 22px;max-height:65vh;overflow-y:auto;position:relative}
+  .modal-f{padding:15px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px}
+
+  .sresults{position:absolute;top:46px;left:0;right:0;background:var(--bg2);border:1px solid var(--line2);
+    border-radius:11px;box-shadow:var(--shadow);z-index:60;max-height:60vh;overflow-y:auto;padding:6px;display:none}
+  .sresult-group{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);
+    padding:9px 12px 4px;font-weight:700}
+  .sresult{padding:9px 12px;border-radius:8px;display:flex;align-items:center;gap:11px;cursor:pointer}
+  .sresult:hover{background:var(--panel)}
+  .sresult .ri{width:16px;text-align:center;color:var(--gold)}
+  .sresult .rt{font-weight:500;flex:1}
+  .sresult .rtype{font-size:11px;color:var(--ink3)}
+
+  .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+  .fbtn{padding:6px 13px;border-radius:20px;font-size:12.5px;font-weight:600;background:var(--panel);
+    border:1px solid var(--line);color:var(--ink2)}
+  .fbtn:hover{border-color:var(--line2)}
+  .fbtn.active{background:var(--goldsoft);color:var(--gold2);border-color:var(--gold)}
+
+  .asset-tile{position:relative;border-radius:10px;overflow:hidden;aspect-ratio:1;background:var(--panel2);
+    border:1px solid var(--line);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--line2)}
+  .asset-tile img,.asset-tile video{width:100%;height:100%;object-fit:cover}
+  .asset-tile .atag{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.8));
+    padding:14px 8px 6px;font-size:11px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .asset-dl{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:7px;background:rgba(11,18,32,.75);
+    color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;text-decoration:none;backdrop-filter:blur(2px)}
+  .asset-dl:hover{background:var(--gold);color:#0B1220}
+  .asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--panel2);
+    border:1px solid var(--gold);color:var(--ink);padding:12px 20px;border-radius:11px;box-shadow:var(--shadow);
+    z-index:200;font-weight:600;font-size:13px;animation:pop .2s}
+
+  .divider{height:1px;background:var(--line);margin:22px 0}
+  .muted{color:var(--ink3)}
+  .mono{font-variant-numeric:tabular-nums}
+  .add-inline{display:flex;gap:8px;padding:10px 18px;flex-wrap:wrap;align-items:center}
+  .add-inline input{flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);
+    border-radius:8px;padding:8px 12px;outline:none}
+  .add-inline input:focus{border-color:var(--gold)}
+  .add-inline .dd{min-width:150px}
+  .loading{padding:60px;text-align:center;color:var(--ink3)}
+  .section-sub{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);
+    font-weight:700;margin:20px 0 12px}
+  .kanban{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;align-items:start}
+  .kcol{background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:12px}
+  .kcol-h{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink2);
+    margin-bottom:10px;display:flex;justify-content:space-between}
+  .kcard{background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:10px 12px;margin-bottom:9px;cursor:pointer}
+  .kcard:hover{border-color:var(--gold)}
+  .kcard .kt{font-weight:600;font-size:13px}
+  .kcard .km{font-size:11px;color:var(--ink3);margin-top:4px}
+
+  .dd{position:relative}
+  .dd-btn{width:100%;text-align:left;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);
+    border-radius:8px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .dd-btn:hover{border-color:var(--gold)}
+  .dd-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dd-car{color:var(--ink3);font-size:10px;flex-shrink:0}
+  .dd-menu{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg2);
+    border:1px solid var(--line2);border-radius:9px;box-shadow:var(--shadow);z-index:90;max-height:230px;overflow-y:auto;padding:4px}
+  .dd-menu.open{display:block}
+  .dd-opt{padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13.5px}
+  .dd-opt:hover{background:var(--panel)}
+  .dd-opt.sel{color:var(--gold2);font-weight:600}
+
+  .media-box{background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:9px}
+  .media-row{display:flex;gap:8px}
+  .media-row input{flex:1;background:var(--panel);border:1px solid var(--line2);border-radius:7px;padding:8px 10px;color:var(--ink);outline:none}
+  .media-row input:focus{border-color:var(--gold)}
+  .media-upload{white-space:nowrap;cursor:pointer}
+  .media-prev{width:100%;max-height:130px;object-fit:cover;border-radius:7px;margin-bottom:8px;display:block}
+
+  .mission-list{padding:4px 0}
+  .mission-item{display:flex;align-items:center;gap:11px;padding:11px 18px;border-bottom:1px solid var(--line);cursor:pointer}
+  .mission-item:last-child{border-bottom:none}
+  .mission-item:hover{background:var(--panel2)}
+  .m-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .m-time{font-size:12px;color:var(--ink3);width:44px;flex-shrink:0;font-variant-numeric:tabular-nums}
+  .m-ico{font-size:14px;flex-shrink:0}
+  .m-label{flex:1;font-weight:500;font-size:13.5px}
+
+  .ttype-dot{width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:11px;flex-shrink:0;opacity:.92}
+
+  .taskboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;padding:14px 18px}
+  .tb-col{background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:12px;display:flex;flex-direction:column;min-height:120px}
+  .tb-col.tb-urgent{border-color:var(--danger)}
+  .tb-col-h{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+  .tb-count{margin-left:auto;background:var(--line2);color:var(--ink2);font-size:10.5px;padding:1px 7px;border-radius:20px;font-weight:700}
+  .tb-col-list{flex:1;display:flex;flex-direction:column;gap:2px}
+  .tb-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-radius:7px;cursor:pointer;font-size:12.5px}
+  .tb-row:hover{background:var(--panel2)}
+  .tb-tick{width:15px;height:15px}
+  .tb-flag{font-size:11px}
+  .tb-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tb-empty{color:var(--ink3);font-size:12px;padding:6px 4px}
+  .tb-sub{font-size:10px;text-transform:uppercase;color:var(--ink3);font-weight:700;margin:8px 0 4px;letter-spacing:.5px}
+  .tb-col-f{margin-top:8px;text-align:right}
+  .tb-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+  .cal-nav{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+  .cal-nav h3{font-size:16px;font-weight:800;flex:1}
+  .cal-grid-head{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:6px}
+  .cal-grid-head div{font-size:11px;text-transform:uppercase;color:var(--ink3);font-weight:700;text-align:center}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .cal-cell{background:var(--panel);border:1px solid var(--line);border-radius:9px;min-height:96px;padding:7px;cursor:pointer}
+  .cal-cell.empty{background:transparent;border:none;cursor:default}
+  .cal-cell.today{border-color:var(--gold)}
+  .cal-cell:hover{border-color:var(--line2)}
+  .cal-daynum{font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:5px}
+  .cal-ev{display:block;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cal-more{font-size:10.5px;color:var(--ink3);margin-top:2px}
+
+  .brand-group{margin-bottom:26px}
+  .brand-head{display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .brand-head h3{font-size:16px;font-weight:800}
+  .bg-car{color:var(--ink3);font-size:12px;width:14px}
+  .brand-grid.collapsed{display:none}
+
+  .login-screen{height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+  .login-box{width:100%;max-width:360px;padding:36px 32px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+  .login-box .logo{width:44px;height:44px;font-size:22px;margin-bottom:18px}
+  .login-box h2{font-size:20px;font-weight:800;margin-bottom:4px}
+  .login-box .sub{color:var(--ink3);font-size:13px;margin-bottom:24px}
+  .login-box .field{margin-bottom:14px}
+  .login-box .btn-gold{width:100%;justify-content:center;padding:11px;margin-top:6px}
+  .login-err{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:16px}
+  .signout-row{padding:10px 14px;border-top:1px solid var(--line)}
+  .signout-row button{width:100%;justify-content:center;font-size:12px;color:var(--ink3)}
+  .signout-row button:hover{color:var(--danger)}
+</style>
+
+<div id="app" style="display:none">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">A</div>
+      <div>
+        <h1>Atlas</h1>
+        <div class="sub">The Watch Drop</div>
+      </div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="signout-row"><button class="btn btn-sm btn-ghost" onclick="doSignOut()" id="signoutBtn">Sign out</button></div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="search-wrap">
+        <span class="si">⌕</span>
+        <input id="search" placeholder="Search everything — drops, watches, winners, content…" autocomplete="off">
+        <div id="sresults" class="sresults"></div>
+      </div>
+      <button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button>
+    </div>
+    <div class="content" id="content"><div class="loading">Loading Atlas…</div></div>
+  </div>
+</div>
+
+<div id="loginScreen" class="login-screen">
+  <div class="login-box">
+    <div class="logo">A</div>
+    <h2>Sign in to Atlas</h2>
+    <div class="sub">The Watch Drop — internal operating system</div>
+    <div class="field"><label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;margin-bottom:6px">Email</label>
+      <input id="loginEmail" type="email" autocomplete="username" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 12px;outline:none" onkeydown="if(event.key==='Enter')doSignIn()"></div>
+    <div class="field"><label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;margin-bottom:6px">Password</label>
+      <input id="loginPassword" type="password" autocomplete="current-password" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 12px;outline:none" onkeydown="if(event.key==='Enter')doSignIn()"></div>
+    <button class="btn btn-gold" id="loginBtn" onclick="doSignIn()">Sign in</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ============================================================
+   ATLAS — The Watch Drop internal OS (live / multi-user build)
+   Backed by Supabase for storage + login (multi-user, persistent)
+   ============================================================ */
+
+/* ---------- Supabase config ---------- */
+/* NOTE: our client is named "sb", not "supabase" — the Supabase library
+   itself creates a global called "supabase" when it loads from the CDN,
+   so naming our own variable the same thing causes the whole script to
+   fail to parse (duplicate global declaration). */
+const SUPABASE_URL = 'https://dkhvgzqfograzcrhsedz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_WCJwO2il8A3sXFpamAxOQQ_uJXOmDOp';
+let sb = null;
+let supabaseLoadError = '';
+try{
+  if(!window.supabase) throw new Error('Supabase library did not load');
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}catch(e){
+  console.error('Supabase failed to initialise:', e);
+  supabaseLoadError = 'Login system failed to load. This is usually an ad blocker or network filter blocking cdn.jsdelivr.net — try disabling any ad blocker for this page, or try a different network/browser, then refresh.';
+}
+function showLoginErr(msg){
+  const el=document.getElementById('loginErr'); if(el) el.textContent=msg;
+  const scr=document.getElementById('loginScreen'); if(scr) scr.style.display='flex';
+}
+
+/* ---------- Storage wrapper (same shape as window.storage, backed by a Supabase table) ---------- */
+const dbStorage = {
+  async get(key){
+    if(!sb) throw new Error(supabaseLoadError||'Not connected');
+    const { data, error } = await sb.from('atlas_kv').select('value').eq('key', key).maybeSingle();
+    if(error){ console.error('storage get error', error); return null; }
+    if(!data) return null;
+    return { key, value: data.value };
+  },
+  async set(key, value){
+    if(!sb) throw new Error(supabaseLoadError||'Not connected');
+    const { error } = await sb.from('atlas_kv').upsert({ key, value, updated_at: new Date().toISOString() });
+    if(error){ console.error('storage set error', error); return null; }
+    return { key, value };
+  }
+};
+
+/* ---------- Auth ---------- */
+async function doSignIn(){
+  if(!sb){ showLoginErr(supabaseLoadError); return; }
+  const email=document.getElementById('loginEmail').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const errEl=document.getElementById('loginErr'); errEl.textContent='';
+  if(!email || !password){ errEl.textContent='Enter both email and password.'; return; }
+  const btn=document.getElementById('loginBtn'); btn.textContent='Signing in…';
+  let result;
+  try{ result = await sb.auth.signInWithPassword({ email, password }); }
+  catch(e){ btn.textContent='Sign in'; errEl.textContent='Network error reaching Supabase — check your connection and try again.'; return; }
+  btn.textContent='Sign in';
+  if(result.error){ errEl.textContent = result.error.message || 'Could not sign in — check your email and password.'; return; }
+  await bootApp();
+}
+async function doSignOut(){
+  if(sb) await sb.auth.signOut();
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginEmail').value='';
+  document.getElementById('loginPassword').value='';
+}
+async function bootApp(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  await loadDB(); migrate(); render();
+}
+async function checkSessionAndBoot(){
+  if(!sb){ showLoginErr(supabaseLoadError); return; }
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session){ await bootApp(); }
+  else { document.getElementById('loginScreen').style.display='flex'; }
+}
+if(sb){
+  sb.auth.onAuthStateChange((event)=>{
+    if(event==='SIGNED_OUT'){
+      document.getElementById('app').style.display='none';
+      document.getElementById('loginScreen').style.display='flex';
+    }
+  });
+}
+
+const K = 'atlas:db:v1';
+let DB = null;
+const uid = (p='id') => p+'_'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
+const gbp = n => '£'+(Number(n)||0).toLocaleString('en-GB',{maximumFractionDigits:0});
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const today = () => new Date().toISOString().slice(0,10);
+const fmtDate = d => d? new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—';
+const now = () => new Date().toISOString();
+function addDays(d,n){const x=new Date(d+'T00:00:00');x.setDate(x.getDate()+n);return x.toISOString().slice(0,10);}
+function slug(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-');}
+function timeAgo(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
+function greet(){const h=new Date().getHours();return h<12?'morning':h<18?'afternoon':'evening';}
+function inThisMonth(d){const m=new Date().toISOString().slice(0,7);return (d.launch||'').slice(0,7)===m||(d.draw||'').slice(0,7)===m;}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+
+const STATUS_PILL = {Live:'pill-live',Draft:'pill-draft',Upcoming:'pill-upcoming',Complete:'pill-done',Closed:'pill-closed'};
+const CAL_TYPE_PILL = {Launch:'pill-live',Draw:'pill-done',Task:'pill-draft',Delivery:'pill-upcoming'};
+const TASK_TYPES = {
+  Payment:{ico:'💰',color:'var(--gold)'},
+  Delivery:{ico:'📦',color:'var(--blue)'},
+  Content:{ico:'🎬',color:'var(--purple)'},
+  Purchasing:{ico:'🛒',color:'var(--warn)'},
+  Meeting:{ico:'🤝',color:'var(--ink2)'},
+  Photography:{ico:'📸',color:'var(--live)'},
+  Marketing:{ico:'✉️',color:'var(--blue)'},
+  Website:{ico:'🌐',color:'var(--blue)'},
+  'Winner Call':{ico:'☎️',color:'var(--gold)'},
+  Admin:{ico:'📝',color:'var(--ink3)'}
+};
+const CONTENT_CATS=['Ad Content','Social Content','Watch Still Content','Watch Unboxing','Educational Content','Funny Content','BTS Content','Evergreen Content'];
+const CONTENT_STATUSES=['Idea','Writing','Ready','Filmed','Edited','Posted','Archived'];
+
+/* ---------- Storage ---------- */
+async function loadDB(){
+  try{
+    const r = await dbStorage.get(K);
+    if(r && r.value){ DB = JSON.parse(r.value); return; }
+  }catch(e){ /* not found -> seed */ }
+  DB = seed();
+  await saveDB();
+}
+let saveTimer=null;
+async function saveDB(){
+  try{ await dbStorage.set(K, JSON.stringify(DB)); }
+  catch(e){ console.error('save failed',e); }
+}
+function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveDB,300); }
+
+/* ---------- Migration: fills in new fields on existing saved data ---------- */
+function migrate(){
+  DB.settings=DB.settings||{};
+  DB.settings.team=DB.settings.team&&DB.settings.team.length?DB.settings.team:['Felix','Leila'];
+  (DB.drops||[]).forEach(d=>{
+    d.websiteLink=d.websiteLink||'';
+    d.discountPrice=d.discountPrice||0;
+    d.copy=d.copy||{};
+    d.copy.headline=d.copy.headline||'';
+    d.copy.body=d.copy.body||'';
+    d.copy.seoKeyphrase=d.copy.seoKeyphrase||'';
+    d.copy.seoTitle=d.copy.seoTitle||'';
+    d.copy.slug=d.copy.slug||'';
+    d.copy.metaDescription=d.copy.metaDescription||'';
+    d.images=d.images||{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''};
+    d.entrants=d.entrants||{filename:'',headers:[],rows:[]};
+    d.perf=d.perf||{};
+    d.marketing=d.marketing||[];
+    d.links=d.links||{};
+    if(d.costWatch===undefined){
+      // migrating from the old flat "cost" field — park it under Fixed Costs so
+      // existing profit totals don't change until reconciled manually
+      d.costWatch=0;
+      d.costFixed=Number(d.cost)||0;
+      d.variableCosts=d.variableCosts||[];
+    }
+  });
+  (DB.watches||[]).forEach(w=>{ w.serial=w.serial||''; w.mediaLink=w.mediaLink||''; });
+  (DB.suppliers||[]).forEach(s=>{ delete s.outstanding; });
+  (DB.winners||[]).forEach(w=>{
+    w.deliveryInPerson=!!w.deliveryInPerson;
+    w.trackingNumber=w.trackingNumber||'';
+    w.reviewRequested=!!w.reviewRequested;
+    w.reviewGiven=!!w.reviewGiven;
+  });
+  (DB.tasks||[]).forEach(t=>{
+    t.type=t.type&&TASK_TYPES[t.type]?t.type:'Admin';
+    t.assignedTo=t.assignedTo||DB.settings.team[0];
+    t.time=t.time||'';
+    t.urgent=!!t.urgent;
+  });
+  const CAT_MIGRATE={'Ideas':'Social Content','Evergreen':'Evergreen Content','Educational':'Educational Content',
+    'Trust':'Social Content','Funny':'Funny Content','Behind the Scenes':'BTS Content',
+    'Winner Stories':'Social Content','Watch Comparisons':'Educational Content'};
+  (DB.content||[]).forEach(c=>{
+    c.video=c.video||''; c.assetId=c.assetId||''; c.tags=c.tags||[];
+    c.creator=c.creator||(DB.settings.team[0]); c.useCase=c.useCase||'Organic Post';
+    c.filmDate=c.filmDate||'';
+    if(!CONTENT_CATS.includes(c.category)){
+      if(c.type==='Unboxing') c.category='Watch Unboxing';
+      else if(c.useCase==='Paid Ad') c.category='Ad Content';
+      else c.category = CAT_MIGRATE[c.category] || 'Social Content';
+    }
+  });
+  (DB.assets||[]).forEach(a=>{ a.tags=a.tags||[]; });
+}
+
+/* ---------- Seed data ---------- */
+function seed(){
+  const d1=uid('drop'), d2=uid('drop'), d3=uid('drop');
+  const w1=uid('watch'), w2=uid('watch'), w3=uid('watch');
+  const s1=uid('sup');
+  const c1=uid('win');
+  return {
+    drops:[
+      {id:d1,number:'D35',type:'Main Drop',status:'Live',watchId:w1,supplierId:s1,
+       launch:today(),draw:addDays(today(),3),price:24.99,discountPrice:0,pool:349,entriesSold:214,
+       revenue:5347,costWatch:3900,costFixed:768,variableCosts:[{id:uid('vc'),label:'SMS reminder blast',amount:32}],
+       notes:'Football tie-in — Win Before The Whistle. Timed to England kickoff.',
+       websiteLink:'',copy:{headline:'',body:'',seoKeyphrase:'',seoTitle:'',slug:'',metaDescription:''},
+       images:{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''},
+       entrants:{filename:'',headers:[],rows:[]},
+       marketing:[
+         {id:uid('mk'),channel:'Email',title:'Launch Email',status:'Sent'},
+         {id:uid('mk'),channel:'Meta Ads',title:'Low-odds hook set',status:'Live'},
+         {id:uid('mk'),channel:'SMS',title:'48hr reminder',status:'Draft'},
+       ],
+       links:{drive:'',canva:''}, winnerId:'', perf:{}, created:now()},
+      {id:d2,number:'D36',type:'Weekend Drop',status:'Upcoming',watchId:w2,supplierId:s1,
+       launch:addDays(today(),5),draw:addDays(today(),9),price:9.99,discountPrice:0,pool:500,entriesSold:0,
+       revenue:0,costWatch:2100,costFixed:0,variableCosts:[],notes:'',websiteLink:'',copy:{headline:'',body:'',seoKeyphrase:'',seoTitle:'',slug:'',metaDescription:''},
+       images:{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''},entrants:{filename:'',headers:[],rows:[]},
+       marketing:[],links:{drive:'',canva:''},winnerId:'',perf:{},created:now()},
+      {id:d3,number:'D34',type:'Main Drop',status:'Complete',watchId:w3,supplierId:s1,
+       launch:addDays(today(),-14),draw:addDays(today(),-7),price:19.99,discountPrice:0,pool:600,entriesSold:591,
+       revenue:11814,costWatch:4800,costFixed:2800,variableCosts:[{id:uid('vc'),label:'Facebook Ads',amount:600}],
+       notes:'Near sell-out. Great winner reel.',websiteLink:'',
+       copy:{headline:'',body:'',seoKeyphrase:'',seoTitle:'',slug:'',metaDescription:''},images:{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''},
+       entrants:{filename:'',headers:[],rows:[]},marketing:[],links:{drive:'',canva:''},winnerId:c1,perf:{},created:now()},
+    ],
+    watches:[
+      {id:w1,brand:'TAG Heuer',model:'Monaco Calibre 12 "Python"',ref:'CW2114.FC6177',serial:'',
+       movement:'Automatic',retail:4700,cost:3900,desc:'Iconic square case, blue dial.',specs:'39mm • Sapphire • 100m',mediaLink:'',img:'',links:{},created:now()},
+      {id:w2,brand:'Tudor',model:'Black Bay 58',ref:'M79030N',serial:'',movement:'Automatic',retail:2900,cost:2100,
+       desc:'Vintage-inspired diver.',specs:'39mm • 200m',mediaLink:'',img:'',links:{},created:now()},
+      {id:w3,brand:'Omega',model:'Speedmaster Professional',ref:'310.30.42',serial:'',movement:'Manual',retail:6200,cost:4800,
+       desc:'Moonwatch.',specs:'42mm • Hesalite',mediaLink:'',img:'',links:{},created:now()},
+    ],
+    winners:[
+      {id:c1,name:'James P.',email:'',phone:'',address:'',instagram:'@jamesp',
+       dropId:d3,dispatched:false,deliveryInPerson:false,trackingNumber:'',
+       reviewRequested:false,reviewGiven:false,review:'',notes:'Local winner — great video potential.',created:now()},
+    ],
+    suppliers:[
+      {id:s1,name:'Prestige Timepieces Ltd',contact:'Mark',phone:'',email:'',notes:'Primary supplier. Fast on refs.',created:now()},
+    ],
+    customers:[],
+    tasks:[
+      {id:uid('t'),title:'Photography — TAG Monaco',dropId:d1,due:today(),done:false,type:'Photography',assignedTo:'Felix',time:'',urgent:true,created:now()},
+      {id:uid('t'),title:'Build Meta Ads — low odds hook',dropId:d1,due:today(),done:false,type:'Marketing',assignedTo:'Felix',time:'',urgent:false,created:now()},
+      {id:uid('t'),title:'Write 48hr reminder email',dropId:d1,due:addDays(today(),1),done:false,type:'Marketing',assignedTo:'Felix',time:'',urgent:false,created:now()},
+      {id:uid('t'),title:'Winner call + dispatch — D34',dropId:d3,due:today(),done:false,type:'Winner Call',assignedTo:'Felix',time:'',urgent:true,created:now()},
+      {id:uid('t'),title:'Confirm Tudor stock with supplier',dropId:d2,due:addDays(today(),2),done:false,type:'Purchasing',assignedTo:'Felix',time:'',urgent:false,created:now()},
+    ],
+    assets:[
+      {id:uid('a'),name:'TAG Monaco wrist shot',type:'Photo',dropId:d1,tags:['TAG Heuer','Monaco','wrist'],url:'',created:now()},
+      {id:uid('a'),name:'D34 winner reel',type:'Video',dropId:d3,tags:['winner','Omega','reel'],url:'',created:now()},
+    ],
+    content:[
+      {id:uid('cn'),title:'Why low entry counts = better odds',category:'Educational Content',
+       status:'Ready',body:'Only 349 entries. Compare that to a national lottery…',tags:['odds','hook'],dropId:d1,filmDate:addDays(today(),1),video:'',assetId:'',creator:'Felix',useCase:'Organic Post',created:now()},
+      {id:uid('cn'),title:'Unboxing the Speedmaster',category:'Watch Unboxing',
+       status:'Idea',body:'',tags:['Omega','BTS'],dropId:d3,filmDate:'',video:'',assetId:'',creator:'Leila',useCase:'Organic Post',created:now()},
+    ],
+    sops:[
+      {id:uid('sop'),title:'Launching a Drop',body:'1. Confirm stock\n2. Photography\n3. Build website entry\n4. Launch email\n5. Meta ads live\n6. SMS schedule',created:now()},
+      {id:uid('sop'),title:'Drawing a Winner',body:'1. Close entries\n2. Live draw stream\n3. Verify winner\n4. Winner call\n5. Collect review\n6. Dispatch',created:now()},
+    ],
+    kb:[
+      {id:uid('kb'),title:'Language rules',category:'Marketing',body:'Never say "raffle". Use drop, competition, entries, winner, live draw.',created:now()},
+      {id:uid('kb'),title:'Brand palette',category:'Business Learnings',body:'Navy + gold. Slogan: Don\'t just watch… win.',created:now()},
+    ],
+    ideas:[
+      {id:uid('id'),text:'Compare Monaco to a football boot — "worn by legends" angle',created:now()},
+    ],
+    timeline:[],
+    settings:{team:['Felix','Leila']}
+  };
+}
+
+/* ---------- Helpers ---------- */
+const watchById = id => DB.watches.find(w=>w.id===id);
+const supById = id => DB.suppliers.find(s=>s.id===id);
+const winById = id => DB.winners.find(w=>w.id===id);
+const dropById = id => DB.drops.find(d=>d.id===id);
+const watchName = id => { const w=watchById(id); return w? `${w.brand} ${w.model}` : '—'; };
+function fillRate(d){ return d.pool? Math.round((d.entriesSold/d.pool)*100) : 0; }
+function variableCostsTotal(d){ return (d.variableCosts||[]).reduce((a,c)=>a+(Number(c.amount)||0),0); }
+function totalCost(d){ return (Number(d.costWatch)||0)+(Number(d.costFixed)||0)+variableCostsTotal(d); }
+function profit(d){ return (Number(d.revenue)||0)-totalCost(d); }
+function logTL(dropId,event){ DB.timeline.unshift({id:uid('tl'),dropId,event,at:now()}); }
+function teamList(){ return (DB.settings && DB.settings.team) || ['Felix']; }
+
+/* ---------- Custom dropdown component ---------- */
+function dd(id, options, selected, onchange){
+  const norm = options.map(o=> (o && typeof o==='object')? o : {value:o,label:o});
+  const sel = norm.find(o=>o.value===selected) || norm[0] || {value:'',label:''};
+  return `<div class="dd" id="${id}" data-value="${esc(sel.value)}" data-onchange="${onchange||''}">
+    <button type="button" class="dd-btn" onclick="toggleDD('${id}')"><span class="dd-label">${esc(sel.label)}</span><span class="dd-car">▾</span></button>
+    <div class="dd-menu" id="${id}_menu">
+      ${norm.map(o=>`<div class="dd-opt ${o.value===sel.value?'sel':''}" data-value="${esc(o.value)}" onclick="selectDD('${id}', this)">${esc(o.label)}</div>`).join('')}
+    </div>
+  </div>`;
+}
+function toggleDD(id){
+  const menu=document.getElementById(id+'_menu'); if(!menu) return;
+  const willOpen=!menu.classList.contains('open');
+  document.querySelectorAll('.dd-menu.open').forEach(m=>m.classList.remove('open'));
+  if(willOpen) menu.classList.add('open');
+}
+function selectDD(id, el){
+  const val = el.dataset.value, label = el.textContent;
+  const wrap=document.getElementById(id); if(!wrap) return;
+  wrap.dataset.value=val;
+  wrap.querySelector('.dd-label').textContent=label;
+  wrap.querySelectorAll('.dd-opt').forEach(o=>o.classList.toggle('sel', o===el));
+  document.getElementById(id+'_menu').classList.remove('open');
+  const cb=wrap.dataset.onchange; if(cb && window[cb]) window[cb](id,val);
+}
+function ddVal(id){ const el=document.getElementById(id); return el? el.dataset.value : ''; }
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.dd')) document.querySelectorAll('.dd-menu.open').forEach(m=>m.classList.remove('open'));
+  if(!e.target.closest('.search-wrap')){ const sr=document.getElementById('sresults'); if(sr) sr.style.display='none'; }
+});
+
+/* ---------- Media (image/video) storage — real files via R2, streamed through /api/upload ---------- */
+function storeMedia(file, onProgress){
+  return new Promise(async (resolve,reject)=>{
+    if(file.size > 500*1024*1024){ reject(new Error('This file is over 500MB — try compressing it, or paste a hosted link (YouTube/Drive) instead.')); return; }
+    if(!sb){ reject(new Error(supabaseLoadError||'Not connected')); return; }
+    let token;
+    try{
+      const { data } = await sb.auth.getSession();
+      token = data && data.session && data.session.access_token;
+    }catch(e){ reject(new Error('Could not verify your session — try refreshing the page.')); return; }
+    if(!token){ reject(new Error('Not signed in.')); return; }
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload');
+    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.setRequestHeader('X-Filename', encodeURIComponent(file.name || 'file'));
+    xhr.upload.onprogress = (e)=>{
+      if(e.lengthComputable && onProgress) onProgress(Math.round(e.loaded/e.total*100));
+    };
+    xhr.onload = ()=>{
+      if(xhr.status>=200 && xhr.status<300){
+        try{ const json=JSON.parse(xhr.responseText); resolve('r2:'+json.key); }
+        catch(e){ reject(new Error('Unexpected response from upload — try again.')); }
+      } else {
+        let msg='Upload failed (status '+xhr.status+')';
+        try{ const j=JSON.parse(xhr.responseText); if(j.error) msg=j.error; }catch(e){}
+        reject(new Error(msg));
+      }
+    };
+    xhr.onerror = ()=>reject(new Error('Network error during upload — check your connection and try again.'));
+    xhr.send(file);
+  });
+}
+function mediaUrl(ref){
+  if(!ref) return '';
+  if(ref.startsWith('r2:')) return '/api/media/'+ref.slice(3);
+  return ref; // plain pasted link, or legacy m_ handled separately in hydrateMedia
+}
+async function hydrateMedia(){
+  const els=document.querySelectorAll('img[data-mediaref], video[data-mediaref]');
+  for(const el of els){
+    const ref=el.dataset.mediaref;
+    if(!ref){ el.style.display='none'; continue; }
+    if(ref.startsWith('r2:')){
+      el.src = mediaUrl(ref); el.style.display='';
+    } else if(ref.startsWith('m_')){
+      // legacy: small files uploaded before R2 was wired up, still stored as base64 in Supabase
+      try{ const r=await dbStorage.get('atlas:media:'+ref); el.src=r.value; el.style.display=''; }
+      catch(e){ el.style.display='none'; }
+    } else { el.src=ref; el.style.display=''; }
+  }
+}
+function mediaDownloadLink(ref){
+  if(!ref || !ref.startsWith('r2:')) return '';
+  return `<a href="${mediaUrl(ref)}?download=1" class="btn btn-sm btn-ghost" style="margin-top:6px;display:inline-flex" download>⬇ Download</a>`;
+}
+function mediaField(id,label,value,save){
+  const attrs = save? ` data-save-type="${save.type}" data-save-id="${save.id}" data-save-field="${save.field}"` : '';
+  const v=value||'';
+  return `<div class="field"><label>${label}</label>
+    <div class="media-box" id="${id}_box" data-ref="${esc(v)}"${attrs}>
+      <img class="media-prev" id="${id}_prev" data-mediaref="${esc(v)}" style="${v?'':'display:none'}">
+      <div class="media-row">
+        <input type="text" id="${id}" placeholder="Paste image URL…" value="${v&&!String(v).startsWith('m_')&&!String(v).startsWith('r2:')?esc(v):''}" oninput="onMediaURLInput('${id}')">
+        <label class="btn btn-sm btn-ghost media-upload" id="${id}_uploadbtn">Upload<input type="file" accept="image/*" style="display:none" onchange="onMediaUpload(event,'${id}')"></label>
+      </div>
+      <div id="${id}_dl">${mediaDownloadLink(v)}</div>
+    </div></div>`;
+}
+function videoField(id,label,value){
+  const v=value||'';
+  return `<div class="field"><label>${label}</label>
+    <div class="media-box" id="${id}_box" data-ref="${esc(v)}">
+      <div class="media-row">
+        <input type="text" id="${id}" placeholder="Paste video link (YouTube, Drive, Vimeo) or upload a file…" value="${v&&!String(v).startsWith('m_')&&!String(v).startsWith('r2:')?esc(v):''}" oninput="onMediaURLInput('${id}')">
+        <label class="btn btn-sm btn-ghost media-upload" id="${id}_uploadbtn">Upload<input type="file" accept="video/*" style="display:none" onchange="onMediaUpload(event,'${id}')"></label>
+      </div>
+      <div id="${id}_dl">${mediaDownloadLink(v)}</div>
+    </div></div>`;
+}
+function mediaVal(id){ const el=document.getElementById(id+'_box'); return el? (el.dataset.ref||'') : ''; }
+function persistMediaBox(id){
+  const box=document.getElementById(id+'_box'); if(!box) return;
+  const type=box.dataset.saveType; if(!type) return;
+  const oid=box.dataset.saveId, field=box.dataset.saveField, ref=box.dataset.ref||'';
+  if(type==='drop-image'){ const d=dropById(oid); if(d){ d.images=d.images||{}; d.images[field]=ref; queueSave(); } }
+}
+async function onMediaUpload(e,id){
+  const f=e.target.files[0]; if(!f) return;
+  const btn=document.getElementById(id+'_uploadbtn');
+  const originalLabel = btn ? btn.firstChild.textContent : 'Upload';
+  try{
+    const key = await storeMedia(f, (pct)=>{ if(btn) btn.firstChild.textContent = `Uploading… ${pct}%`; });
+    const box=document.getElementById(id+'_box'); box.dataset.ref=key;
+    const urlInput=document.getElementById(id); if(urlInput) urlInput.value='';
+    const prev=document.getElementById(id+'_prev'); if(prev){ prev.dataset.mediaref=key; prev.style.display='block'; }
+    const dl=document.getElementById(id+'_dl'); if(dl) dl.innerHTML = mediaDownloadLink(key);
+    persistMediaBox(id); hydrateMedia(); toast('Uploaded');
+  }catch(err){ alert(err.message); }
+  finally{ if(btn) btn.firstChild.textContent = originalLabel; e.target.value=''; }
+}
+function onMediaURLInput(id){
+  const v=document.getElementById(id).value.trim();
+  const box=document.getElementById(id+'_box'); box.dataset.ref=v;
+  const prev=document.getElementById(id+'_prev'); if(prev){ prev.dataset.mediaref=v; prev.style.display=v?'block':'none'; }
+  const dl=document.getElementById(id+'_dl'); if(dl) dl.innerHTML = mediaDownloadLink(v);
+  persistMediaBox(id);
+  hydrateMedia();
+}
+
+/* ---------- CSV parsing ---------- */
+function parseCSV(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim().length);
+  if(!lines.length) return {headers:[],rows:[]};
+  const split=l=>{
+    const out=[];let cur='';let q=false;
+    for(let i=0;i<l.length;i++){const ch=l[i];
+      if(ch==='"'){ if(q&&l[i+1]==='"'){cur+='"';i++;} else q=!q; }
+      else if(ch===','&&!q){out.push(cur);cur='';}
+      else cur+=ch;
+    } out.push(cur); return out;
+  };
+  const headers=split(lines[0]).map(h=>h.trim());
+  const rows=lines.slice(1).map(l=>{
+    const cells=split(l); const o={}; headers.forEach((h,i)=>o[h]=(cells[i]||'').trim()); return o;
+  });
+  return {headers,rows};
+}
+/* ---------- Router ---------- */
+let route = {view:'dashboard', id:null, tab:'overview'};
+function go(view,id=null,tab='overview'){ route={view,id,tab}; render(); window.scrollTo(0,0); }
+
+const NAV=[
+  {group:null,items:[{k:'dashboard',label:'Dashboard',ico:'◆'}]},
+  {group:'Operations',items:[
+    {k:'drops',label:'Drops',ico:'⬡',count:()=>DB.drops.length},
+    {k:'tasks',label:'Tasks',ico:'☑',count:()=>DB.tasks.filter(t=>!t.done).length},
+    {k:'calendar',label:'Calendar',ico:'▦'},
+  ]},
+  {group:'Databases',items:[
+    {k:'watches',label:'Watch Library',ico:'⌚',count:()=>DB.watches.length},
+    {k:'winners',label:'Winners',ico:'★',count:()=>DB.winners.length},
+    {k:'suppliers',label:'Suppliers',ico:'▤',count:()=>DB.suppliers.length},
+    {k:'customers',label:'Customers',ico:'◎',count:()=>DB.customers.length},
+  ]},
+  {group:'Content',items:[
+    {k:'content',label:'New Content',ico:'✎',count:()=>DB.content.length},
+    {k:'assets',label:'Asset Library',ico:'▣',count:()=>DB.assets.length},
+    {k:'ideas',label:'Idea Inbox',ico:'✦',count:()=>DB.ideas.length},
+  ]},
+  {group:'Knowledge',items:[
+    {k:'sops',label:'SOP Library',ico:'❐',count:()=>DB.sops.length},
+    {k:'kb',label:'Knowledge Base',ico:'◈',count:()=>DB.kb.length},
+  ]},
+];
+
+function renderNav(){
+  const nav=document.getElementById('nav');
+  nav.innerHTML = NAV.map(g=>`
+    ${g.group?`<div class="nav-group-label">${g.group}</div>`:'<div style="height:4px"></div>'}
+    ${g.items.map(it=>{
+      const active = route.view===it.k;
+      const c = it.count? it.count():null;
+      return `<div class="nav-item ${active?'active':''}" onclick="go('${it.k}')">
+        <span class="ico">${it.ico}</span><span>${it.label}</span>
+        ${c!=null?`<span class="badge">${c}</span>`:''}
+      </div>`;
+    }).join('')}
+  `).join('');
+}
+
+function render(){
+  renderNav();
+  const c=document.getElementById('content');
+  const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tasks:vTasks,calendar:vCalendar,
+    watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
+    content:vContent,assets:vAssets,ideas:vIdeas,sops:vSops,kb:vKB};
+  c.innerHTML = (V[route.view]||vDashboard)();
+  hydrateMedia();
+}
+
+/* ================= TASK BOARD (dashboard) ================= */
+const DASH_TASK_COLUMNS=[
+  {key:'content',label:'Content',ico:'🎬',types:['Content','Photography']},
+  {key:'marketing',label:'Marketing',ico:'✉️',types:['Marketing']},
+  {key:'winners',label:'Winners',ico:'★',types:['Winner Call']},
+  {key:'setup',label:'Setup',ico:'🛠️',types:['Website','Purchasing','Meeting','Admin','Payment','Delivery']},
+];
+function tbRow(t){
+  const d=t.dropId?dropById(t.dropId):null;
+  return `<div class="tb-row" onclick="openTask('${t.id}')">
+    <div class="tick tb-tick ${t.done?'done':''}" onclick="event.stopPropagation();toggleTask('${t.id}')">${t.done?'✓':''}</div>
+    ${t.urgent?'<span class="tb-flag" title="Urgent">⚡</span>':''}
+    <span class="tb-label" style="${t.due<today()?'color:var(--danger)':''}">${esc(t.title)}${d?' · '+esc(d.number):''}</span>
+  </div>`;
+}
+function winnersDispatchMini(){
+  const list=DB.winners.filter(w=>!w.dispatched);
+  if(!list.length) return '';
+  return `<div class="tb-sub">Awaiting dispatch</div>` + list.map(w=>`
+    <div class="tb-row" onclick="go('winners');setTimeout(()=>openWinner('${w.id}'),50)">
+      <span class="tb-dot" style="background:var(--warn)"></span>
+      <span class="tb-label">${esc(w.name)}${w.dropId?' — '+esc((dropById(w.dropId)||{}).number||''):''}</span>
+    </div>`).join('');
+}
+function taskBoardHTML(){
+  const openTasks=DB.tasks.filter(t=>!t.done);
+  const urgent=openTasks.filter(t=>t.urgent);
+  const cols=DASH_TASK_COLUMNS.map(col=>({...col, items:openTasks.filter(t=>col.types.includes(t.type))}));
+  return `<div class="card" style="margin-top:20px">
+    <div class="card-h"><h3>🗂️ Task Board</h3><span class="muted" style="font-size:11px">Grouped by what they're for</span></div>
+    <div class="taskboard">
+      <div class="tb-col tb-urgent">
+        <div class="tb-col-h">⚡ Urgent <span class="tb-count">${urgent.length}</span></div>
+        <div class="tb-col-list">${urgent.length? urgent.map(t=>tbRow(t)).join('') : '<div class="tb-empty">Nothing urgent.</div>'}</div>
+        ${urgent.length?`<div class="tb-col-f"><span class="link" onclick="taskUrgentOnly=true;go('tasks')">See all urgent →</span></div>`:''}
+      </div>
+      ${cols.map(col=>`
+        <div class="tb-col">
+          <div class="tb-col-h">${col.ico} ${col.label} <span class="tb-count">${col.items.length}</span></div>
+          <div class="tb-col-list">
+            ${col.items.length? col.items.map(t=>tbRow(t)).join('') : '<div class="tb-empty">Nothing here.</div>'}
+            ${col.key==='winners'? winnersDispatchMini() : ''}
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="add-inline" style="border-top:1px solid var(--line)"><input id="quickTask" placeholder="Add a task…" onkeydown="if(event.key==='Enter')quickAddTask()"><button class="btn btn-sm" onclick="quickAddTask()">Add</button></div>
+  </div>`;
+}
+
+/* ================= DASHBOARD ================= */
+function vDashboard(){
+  const live=DB.drops.filter(d=>d.status==='Live');
+  const upcoming=DB.drops.filter(d=>d.status==='Upcoming');
+  const monthRev=DB.drops.filter(inThisMonth).reduce((a,d)=>a+(Number(d.revenue)||0),0);
+  const monthProfit=DB.drops.filter(inThisMonth).reduce((a,d)=>a+profit(d),0);
+  const awaitingDispatch=DB.winners.filter(w=>!w.dispatched);
+  const filmList=DB.content.filter(cn=>cn.status==='Ready'||cn.status==='Writing');
+  const noPhoto=DB.watches.filter(w=>!w.img);
+
+  return `
+  <div class="page-head">
+    <div><h2>Good ${greet()}, Felix</h2><div class="desc">${new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button></div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="label">Live Drops</div><div class="val green">${live.length}</div><div class="sub">${upcoming.length} upcoming</div></div>
+    <div class="kpi"><div class="label">Revenue this month</div><div class="val gold">${gbp(monthRev)}</div><div class="sub">across all drops</div></div>
+    <div class="kpi"><div class="label">Profit this month</div><div class="val">${gbp(monthProfit)}</div><div class="sub">rev − cost</div></div>
+    <div class="kpi"><div class="label">Awaiting dispatch</div><div class="val">${awaitingDispatch.length}</div><div class="sub">winners</div></div>
+  </div>
+
+  <div class="dash-grid">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card">
+        <div class="card-h"><h3>Live Drops</h3><span class="link" onclick="go('drops')">All drops →</span></div>
+        <div class="card-b">
+          ${live.length? live.map(d=>dropRow(d)).join('') : `<div class="empty">No live drops right now.<br><button onclick="newDrop()">Launch one →</button></div>`}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Upcoming Draws</h3></div>
+        <div class="card-b">
+          ${[...live,...upcoming].sort((a,b)=>(a.draw||'z').localeCompare(b.draw||'z')).slice(0,5).map(d=>`
+            <div class="row-item" onclick="go('drop','${d.id}')">
+              <div class="txt"><div class="t">${esc(d.number)} — ${esc(watchName(d.watchId))}</div>
+                <div class="meta">Draws ${fmtDate(d.draw)} · ${fillRate(d)}% filled</div></div>
+              <span class="pill ${STATUS_PILL[d.status]}">${d.status}</span>
+            </div>`).join('') || `<div class="empty">Nothing scheduled.</div>`}
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card">
+        <div class="card-h"><h3>Winners awaiting dispatch</h3><span class="link" onclick="go('winners')">All →</span></div>
+        <div class="card-b">
+          ${awaitingDispatch.length? awaitingDispatch.map(w=>`
+            <div class="row-item" onclick="go('winners');setTimeout(()=>openWinner('${w.id}'),50)">
+              <div class="txt"><div class="t">${esc(w.name)}</div><div class="meta">${w.dropId?esc((dropById(w.dropId)||{}).number||''):''} · ${watchName((dropById(w.dropId)||{}).watchId)}</div></div>
+              <span class="pill pill-upcoming">Dispatch</span>
+            </div>`).join('') : `<div class="empty">Nothing to dispatch. 📦</div>`}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Content to Film</h3><span class="link" onclick="go('content')">Content →</span></div>
+        <div class="card-b">
+          ${filmList.length? filmList.slice(0,5).map(cn=>`
+            <div class="row-item" onclick="go('content');setTimeout(()=>openContent('${cn.id}'),50)">
+              <div class="txt"><div class="t">${esc(cn.title)}</div><div class="meta">${esc(cn.category)}${cn.filmDate?' · film '+fmtDate(cn.filmDate):''}</div></div>
+              <span class="pill pill-draft">${cn.status}</span>
+            </div>`).join('') : `<div class="empty">Nothing queued to film.</div>`}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Watches awaiting photography</h3></div>
+        <div class="card-b">
+          ${noPhoto.length? noPhoto.slice(0,5).map(w=>`
+            <div class="row-item" onclick="go('watches');setTimeout(()=>openWatch('${w.id}'),50)">
+              <div class="txt"><div class="t">${esc(w.brand)} ${esc(w.model)}</div><div class="meta">${esc(w.ref)}</div></div>
+              <span class="pill pill-draft">Shoot</span></div>`).join('') : `<div class="empty">All shot. 📸</div>`}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Recent Activity</h3></div>
+        <div class="card-b">
+          ${DB.timeline.length? DB.timeline.slice(0,6).map(t=>`
+            <div class="row-item">
+              <div class="txt"><div class="t">${esc(t.event)}</div>
+              <div class="meta">${t.dropId?esc((dropById(t.dropId)||{}).number||''):''} · ${timeAgo(t.at)}</div></div></div>`).join('')
+            : `<div class="empty">Activity will appear here as you work.</div>`}
+        </div>
+      </div>
+    </div>
+  </div>
+  ${taskBoardHTML()}`;
+}
+function taskRow(t){
+  const d=t.dropId?dropById(t.dropId):null;
+  const ty=TASK_TYPES[t.type]||TASK_TYPES.Admin;
+  return `<div class="row-item">
+    <div class="tick ${t.done?'done':''}" onclick="event.stopPropagation();toggleTask('${t.id}')">${t.done?'✓':''}</div>
+    <span class="ttype-dot" style="background:${ty.color}" title="${esc(t.type)}">${ty.ico}</span>
+    ${t.urgent?'<span title="Urgent" style="font-size:13px">⚡</span>':''}
+    <div class="txt ${t.done?'done':''}" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}</div>
+      <div class="meta">${d?esc(d.number)+' · ':''}${t.time?esc(t.time)+' · ':''}${t.due<today()&&!t.done?'<span style="color:var(--danger)">Overdue · </span>':''}${fmtDate(t.due)}${t.assignedTo?' · '+esc(t.assignedTo):''}</div></div>
+    <span class="btn-danger btn-sm" onclick="event.stopPropagation();delTask('${t.id}')" style="opacity:.5">✕</span>
+  </div>`;
+}
+function dropRow(d){
+  return `<div class="row-item" onclick="go('drop','${d.id}')">
+    <div class="txt"><div class="t">${esc(d.number)} — ${esc(watchName(d.watchId))}</div>
+      <div class="meta">${gbp(d.price)}/entry · ${d.entriesSold}/${d.pool} sold · ${fillRate(d)}% filled</div></div>
+    <span class="pill ${STATUS_PILL[d.status]}">${d.status}</span>
+  </div>`;
+}
+
+/* ================= DROPS LIST ================= */
+let dropFilter='All';
+function vDrops(){
+  const types=['All','Live','Upcoming','Draft','Complete'];
+  let ds=[...DB.drops].sort((a,b)=>(b.created||'').localeCompare(a.created||''));
+  if(dropFilter!=='All') ds=ds.filter(d=>d.status===dropFilter);
+  return `
+  <div class="page-head">
+    <div><h2>Drops</h2><div class="desc">Every competition. One click opens the full hub.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button></div>
+  </div>
+  <div class="filters">${types.map(t=>`<button class="fbtn ${dropFilter===t?'active':''}" onclick="dropFilter='${t}';render()">${t} ${t==='All'?'':`· ${DB.drops.filter(d=>d.status===t).length}`}</button>`).join('')}</div>
+  ${ds.length? `<div class="card"><table class="tbl">
+    <thead><tr><th>Drop</th><th>Type</th><th>Watch</th><th>Status</th><th>Entries</th><th>Fill</th><th>Revenue</th><th>Profit</th><th>Draw</th></tr></thead>
+    <tbody>${ds.map(d=>`<tr onclick="go('drop','${d.id}')">
+      <td class="strong">${esc(d.number)}</td>
+      <td><span class="pill pill-type">${esc(d.type)}</span></td>
+      <td>${esc(watchName(d.watchId))}</td>
+      <td><span class="pill ${STATUS_PILL[d.status]}">${d.status}</span></td>
+      <td class="mono">${d.entriesSold}/${d.pool}</td>
+      <td class="mono">${fillRate(d)}%</td>
+      <td class="mono">${gbp(d.revenue)}</td>
+      <td class="mono" style="color:${profit(d)>=0?'var(--live)':'var(--danger)'}">${gbp(profit(d))}</td>
+      <td class="mono muted">${fmtDate(d.draw)}</td>
+    </tr>`).join('')}</tbody></table></div>`
+  : `<div class="card"><div class="empty">No ${dropFilter==='All'?'':dropFilter} drops yet.<br><button onclick="newDrop()">Create your first drop →</button></div></div>`}`;
+}
+
+/* ================= DROP HUB ================= */
+const DROP_TABS=['overview','tasks','marketing','performance','winner','content','files','timeline'];
+function vDropHub(){
+  const d=dropById(route.id);
+  if(!d) return `<div class="empty">Drop not found. <span class="link" onclick="go('drops')">Back to drops</span></div>`;
+  const tab=route.tab||'overview';
+  return `
+  <div class="page-actions" style="margin-bottom:14px"><span class="link muted" onclick="go('drops')" style="cursor:pointer;font-size:13px">← All drops</span></div>
+  <div class="hub-head">
+    <div class="htitle">
+      <h2>${esc(d.number)} · ${esc(watchName(d.watchId))}</h2>
+      <div class="hmeta">
+        <span class="pill ${STATUS_PILL[d.status]}">${d.status}</span>
+        <span class="pill pill-type">${esc(d.type)}</span>
+        <span class="muted" style="font-size:12.5px">Launch ${fmtDate(d.launch)} · Draw ${fmtDate(d.draw)}</span>
+        ${d.websiteLink?`<a href="${esc(d.websiteLink)}" target="_blank" class="pill pill-upcoming">View live page ↗</a>`:''}
+      </div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:9px;align-items:flex-start">
+      <div style="width:150px">${dd('drop_status_'+d.id, ['Draft','Upcoming','Live','Closed','Complete'], d.status, 'onDropStatusChange')}</div>
+      <button class="btn btn-sm btn-danger" onclick="delDrop('${d.id}')">Delete</button>
+    </div>
+  </div>
+  <div class="tabs">${DROP_TABS.map(t=>`<div class="tab ${t===tab?'active':''}" onclick="go('drop','${d.id}','${t}')">${cap(t)}</div>`).join('')}</div>
+  <div id="hubtab">${dropTab(d,tab)}</div>`;
+}
+function dropTab(d,tab){
+  if(tab==='overview') return dropOverview(d);
+  if(tab==='tasks') return dropTasks(d);
+  if(tab==='marketing') return dropMarketing(d);
+  if(tab==='performance') return dropPerformance(d);
+  if(tab==='winner') return dropWinner(d);
+  if(tab==='content') return dropContent(d);
+  if(tab==='files') return dropFiles(d);
+  if(tab==='timeline') return dropTimeline(d);
+}
+function fld(label,val,path,type='text'){
+  return `<div class="field"><label>${label}</label><input type="${type}" value="${esc(val)}" onchange="updDrop('${path}',this.value)"></div>`;
+}
+function roFld(label,val){
+  return `<div class="field"><label>${label}</label><input value="${esc(val)}" disabled style="opacity:.65;cursor:not-allowed"></div>`;
+}
+function onDropTypeChange(id,val){ updDrop('type',val); }
+function onDropWatchChange(id,val){
+  updDrop('watchId',val);
+  const d=dropById(route.id);
+  if(d){ const w=watchById(val); d.costWatch = w? (Number(w.cost)||0) : 0; queueSave(); render(); }
+}
+function onDropSupplierChange(id,val){ updDrop('supplierId',val); }
+function onDropStatusChange(id,val){ const dropId=id.replace('drop_status_',''); setDropStatus(dropId,val); }
+
+function dropOverview(d){
+  d.images=d.images||{}; d.copy=d.copy||{};
+  const m=d.pool?Math.round((profit(d)/(d.pool*d.price))*100):0;
+  const dropImages=`<div class="card"><div class="card-h"><h3>Photos</h3><span class="muted" style="font-size:11px">Master + homepage, then catalogue</span></div>
+    <div class="modal-b" style="max-height:none">
+      ${mediaField(`di_${d.id}_main`,'Main Image (Master)',d.images.main,{type:'drop-image',id:d.id,field:'main'})}
+      <div class="field-row">
+        ${mediaField(`di_${d.id}_webHero`,'Homepage — Web',d.images.webHero,{type:'drop-image',id:d.id,field:'webHero'})}
+        ${mediaField(`di_${d.id}_phoneHero`,'Homepage — Phone',d.images.phoneHero,{type:'drop-image',id:d.id,field:'phoneHero'})}
+      </div>
+      <div class="field-row-3">
+        ${mediaField(`di_${d.id}_cat1`,'Catalogue 1',d.images.cat1,{type:'drop-image',id:d.id,field:'cat1'})}
+        ${mediaField(`di_${d.id}_cat2`,'Catalogue 2',d.images.cat2,{type:'drop-image',id:d.id,field:'cat2'})}
+        ${mediaField(`di_${d.id}_cat3`,'Catalogue 3',d.images.cat3,{type:'drop-image',id:d.id,field:'cat3'})}
+      </div>
+    </div></div>`;
+  const dropCopy=`<div class="card"><div class="card-h"><h3>Website Copy</h3></div><div class="modal-b" style="max-height:none">
+      ${fld('Headline', d.copy.headline,'copy.headline')}
+      <div class="field"><label>Body</label><textarea onchange="updDrop('copy.body',this.value)">${esc(d.copy.body)}</textarea></div>
+      <div class="section-sub">SEO</div>
+      <div class="field-row">
+        ${fld('Focus Keyphrase', d.copy.seoKeyphrase,'copy.seoKeyphrase')}
+        ${fld('SEO Title', d.copy.seoTitle,'copy.seoTitle')}
+      </div>
+      ${fld('Slug', d.copy.slug,'copy.slug')}
+      <div class="field"><label>Meta Description</label><textarea onchange="updDrop('copy.metaDescription',this.value)">${esc(d.copy.metaDescription)}</textarea></div>
+    </div></div>`;
+  const dropVarCosts=`<div class="card"><div class="card-h"><h3>Variable Costs</h3><span class="muted" style="font-size:12px">${gbp(variableCostsTotal(d))} total</span></div>
+    <div class="card-b">
+      ${(d.variableCosts||[]).length? d.variableCosts.map(c=>`
+        <div class="row-item">
+          <div class="txt"><div class="t">${esc(c.label)}</div></div>
+          <span class="mono" style="font-weight:600">${gbp(c.amount)}</span>
+          <span class="btn-danger btn-sm" onclick="delVarCost('${d.id}','${c.id}')">✕</span>
+        </div>`).join('') : `<div class="empty">No variable costs logged yet — SMS, ads, couriers etc.</div>`}
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap">
+      <input id="vc_label_${d.id}" placeholder="e.g. SMS message" style="flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" onkeydown="if(event.key==='Enter')addVarCost('${d.id}')">
+      <input id="vc_amount_${d.id}" type="number" placeholder="£" style="width:100px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" onkeydown="if(event.key==='Enter')addVarCost('${d.id}')">
+      <button class="btn btn-sm" onclick="addVarCost('${d.id}')">Add</button>
+    </div>
+  </div>`;
+  return `<div class="two-col">
+    <div class="card"><div class="card-h"><h3>Details</h3></div><div class="modal-b" style="max-height:none">
+      <div class="field-row">
+        ${fld('Drop Number',d.number,'number')}
+        <div class="field"><label>Type</label>${dd('drop_type_'+d.id, ['Main Drop','Weekend Drop','Tech Drop','Vault','Free Drop'], d.type,'onDropTypeChange')}</div>
+      </div>
+      <div class="field"><label>Watch</label>${dd('drop_watch_'+d.id, [{value:'',label:'— select —'},...DB.watches.map(w=>({value:w.id,label:`${w.brand} ${w.model}`}))], d.watchId,'onDropWatchChange')}</div>
+      <div class="field"><label>Supplier</label>${dd('drop_sup_'+d.id, [{value:'',label:'— select —'},...DB.suppliers.map(s=>({value:s.id,label:s.name}))], d.supplierId,'onDropSupplierChange')}</div>
+      <div class="field-row">${fld('Launch Date',d.launch,'launch','date')}${fld('Draw Date',d.draw,'draw','date')}</div>
+      ${fld('Website Link (live page)', d.websiteLink,'websiteLink')}
+      <div class="field"><label>Notes</label><textarea onchange="updDrop('notes',this.value)">${esc(d.notes)}</textarea></div>
+    </div></div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card"><div class="card-h"><h3>Commercials</h3></div><div class="modal-b" style="max-height:none">
+        <div class="field-row-3">
+          ${fld('Entry Price (£)',d.price,'price','number')}
+          ${fld('Discounted Entry Price (£)',d.discountPrice,'discountPrice','number')}
+          ${fld('Pool Size',d.pool,'pool','number')}
+        </div>
+        <div class="field-row-3">
+          ${fld('Entries Sold',d.entriesSold,'entriesSold','number')}
+          ${fld('Revenue (£)',d.revenue,'revenue','number')}
+          ${fld('Watch Cost (£)',d.costWatch,'costWatch','number')}
+        </div>
+        <div class="field-row-3">
+          ${fld('Fixed Costs (£)',d.costFixed,'costFixed','number')}
+          ${roFld('Variable Costs (£)', variableCostsTotal(d).toFixed(2))}
+          ${roFld('Total Cost (£)', totalCost(d).toFixed(2))}
+        </div>
+        <div class="muted" style="font-size:11px">Watch Cost auto-fills from the Watch Library when you pick a watch above — edit here if the price paid differs.</div>
+      </div></div>
+      ${dropVarCosts}
+      <div class="kpi-row" style="margin:0">
+        <div class="kpi"><div class="label">Fill Rate</div><div class="val gold">${fillRate(d)}%</div><div class="sub">${d.entriesSold}/${d.pool}</div></div>
+        <div class="kpi"><div class="label">Profit</div><div class="val ${profit(d)>=0?'green':''}">${gbp(profit(d))}</div><div class="sub">${m}% margin</div></div>
+        <div class="kpi"><div class="label">Potential</div><div class="val">${gbp(d.pool*d.price)}</div><div class="sub">full sell-out</div></div>
+      </div>
+    </div>
+  </div>
+  ${dropCopy}
+  ${dropImages}`;
+}
+function dropTasks(d){
+  const ts=DB.tasks.filter(t=>t.dropId===d.id);
+  return `<div class="card">
+    <div class="card-h"><h3>Tasks for ${esc(d.number)}</h3></div>
+    <div class="card-b">
+      ${ts.length? ts.map(t=>taskRow(t)).join('') : `<div class="empty">No tasks yet.</div>`}
+      <div class="add-inline"><input id="dropTask" placeholder="Add task…" onkeydown="if(event.key==='Enter')addDropTask('${d.id}')"><button class="btn btn-sm" onclick="addDropTask('${d.id}')">Add</button></div>
+    </div>
+  </div>
+  <div class="section-sub">Quick-add standard drop tasks</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    ${['Photography','Write Launch Email','48hr Email','24hr Email','Closing Email','Build Meta Ads','Upload Website','Schedule SMS','Winner Call','Dispatch','Collect Review'].map(t=>`<button class="btn btn-sm btn-ghost" onclick="addNamedTask('${d.id}','${t}')">＋ ${t}</button>`).join('')}
+  </div>`;
+}
+function dropMarketing(d){
+  return `<div class="card">
+    <div class="card-h"><h3>Campaigns</h3></div>
+    <div class="card-b">
+      ${(d.marketing||[]).length? d.marketing.map(mk=>`
+        <div class="row-item">
+          <span class="pill pill-type">${esc(mk.channel)}</span>
+          <div class="txt"><div class="t">${esc(mk.title)}</div></div>
+          <div style="width:130px">${dd('mk_status_'+mk.id, ['Idea','Draft','Scheduled','Live','Sent','Done'], mk.status, 'onMkStatusChange')}</div>
+          <span class="btn-danger btn-sm" onclick="delMk('${d.id}','${mk.id}')">✕</span>
+        </div>`).join('') : `<div class="empty">No campaigns yet. Add one below.</div>`}
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap">
+      <div style="width:150px">${dd('mkChanDD',['Email','SMS','Meta Ads','Instagram','Facebook','TikTok','X','Blog','SEO'],'Email')}</div>
+      <input id="mkTitle" style="flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" placeholder="Campaign name…">
+      <button class="btn btn-sm" onclick="addMk('${d.id}')">Add</button>
+    </div>
+  </div>`;
+}
+function onMkStatusChange(id,val){
+  const mkId=id.replace('mk_status_','');
+  const d=dropById(route.id); if(!d) return;
+  const mk=(d.marketing||[]).find(m=>m.id===mkId); if(mk){ mk.status=val; queueSave(); }
+}
+function dropPerformance(d){
+  const cpa = d.entriesSold? (totalCost(d)/d.entriesSold) : 0;
+  const conv = d.pool? (d.entriesSold/d.pool*100):0;
+  const stats=[
+    ['Entries Sold',`${d.entriesSold}`],['Revenue',gbp(d.revenue)],['Profit',gbp(profit(d))],
+    ['Fill Rate',`${fillRate(d)}%`],['Cost per Entry',gbp(cpa)],['Sell-through',`${Math.round(conv)}%`],
+  ];
+  return `<div class="kpi-row" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+    ${stats.map(s=>`<div class="kpi"><div class="label">${s[0]}</div><div class="val" style="font-size:22px">${s[1]}</div></div>`).join('')}
+  </div>
+  <div class="card"><div class="card-h"><h3>Manual metrics</h3><span class="muted" style="font-size:11px">CPA / ROAS / email / SMS wire up later</span></div>
+  <div class="modal-b" style="max-height:none">
+    <div class="field-row-3">
+      ${perfFld('CPA (£)',d,'cpa')}${perfFld('ROAS',d,'roas')}${perfFld('Website Visits',d,'visits')}
+    </div>
+    <div class="field-row-3">
+      ${perfFld('Email Opens %',d,'opens')}${perfFld('SMS CTR %',d,'smsctr')}${perfFld('Conversion %',d,'convrate')}
+    </div>
+  </div></div>`;
+}
+function perfFld(label,d,key){
+  const v=(d.perf&&d.perf[key])||'';
+  return `<div class="field"><label>${label}</label><input value="${esc(v)}" onchange="updPerf('${d.id}','${key}',this.value)"></div>`;
+}
+function dropWinner(d){
+  d.entrants=d.entrants||{filename:'',headers:[],rows:[]};
+  const w=d.winnerId?winById(d.winnerId):null;
+  const winnerBlock = !w
+    ? `<div class="card"><div class="empty">No winner drawn yet.<br><button onclick="drawWinner('${d.id}')">＋ Record winner</button></div></div>`
+    : `<div class="two-col">
+      <div class="card"><div class="card-h"><h3>Winner</h3><span class="link" onclick="go('winners');setTimeout(()=>openWinner('${w.id}'),50)">Full record →</span></div>
+      <div class="modal-b" style="max-height:none">
+        ${winField('Name',w,'name')}
+        <div class="field-row">${winField('Phone',w,'phone')}${winField('Email',w,'email')}</div>
+        ${winField('Instagram',w,'instagram')}
+        ${winField('Address',w,'address')}
+        <div class="field"><label>Dispatched</label>
+          <button class="btn btn-sm ${w.dispatched?'btn-gold':''}" onclick="toggleDispatch('${w.id}')">${w.dispatched?'✓ Dispatched':'Mark dispatched'}</button></div>
+        <div class="field"><label>Delivered in person?</label>
+          <button class="btn btn-sm ${w.deliveryInPerson?'btn-gold':''}" onclick="toggleDeliveryInPerson('${w.id}')">${w.deliveryInPerson?'✓ In person':'Mark delivered in person'}</button></div>
+        ${!w.deliveryInPerson?`<div class="field"><label>Royal Mail Tracking Number</label><input value="${esc(w.trackingNumber||'')}" onchange="updWin('${w.id}','trackingNumber',this.value)"></div>`:''}
+      </div></div>
+      <div class="card"><div class="card-h"><h3>Review & Notes</h3>${w.reviewRequested&&w.reviewGiven?'<span class="pill pill-done">✓ Complete</span>':''}</div><div class="modal-b" style="max-height:none">
+        <div class="field"><label>Review requested?</label>
+          <button class="btn btn-sm ${w.reviewRequested?'btn-gold':''}" onclick="toggleReviewRequested('${w.id}')">${w.reviewRequested?'✓ Requested':'Mark requested'}</button></div>
+        ${w.reviewRequested?`<div class="field"><label>Review given?</label>
+          <button class="btn btn-sm ${w.reviewGiven?'btn-gold':''}" onclick="toggleReviewGiven('${w.id}')">${w.reviewGiven?'✓ Given':'Mark given'}</button></div>`:''}
+        <div class="field"><label>Review</label><textarea onchange="updWin('${w.id}','review',this.value)">${esc(w.review)}</textarea></div>
+        <div class="field"><label>Notes</label><textarea onchange="updWin('${w.id}','notes',this.value)">${esc(w.notes)}</textarea></div>
+      </div></div>
+    </div>`;
+  const entrantsBlock=`<div class="card" style="margin-top:16px"><div class="card-h"><h3>Entrants list</h3>${d.entrants.rows.length?`<span class="muted" style="font-size:11.5px">${d.entrants.rows.length} rows · ${esc(d.entrants.filename)}</span>`:''}</div>
+    <div class="modal-b" style="max-height:none">
+      <input type="file" accept=".csv" onchange="uploadEntrants(event,'${d.id}')">
+      ${d.entrants.rows.length? entrantsTable(d.entrants) : '<div class="muted" style="margin-top:10px">Upload the exported entrants CSV to keep a record of everyone in this drop.</div>'}
+    </div></div>`;
+  return winnerBlock + entrantsBlock;
+}
+function entrantsTable(entrants){
+  const headers=entrants.headers.slice(0,6);
+  return `<div style="overflow-x:auto;margin-top:12px"><table class="tbl"><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead>
+  <tbody>${entrants.rows.slice(0,200).map(r=>`<tr>${headers.map(h=>`<td>${esc(r[h])}</td>`).join('')}</tr>`).join('')}</tbody></table>
+  ${entrants.rows.length>200?`<div class="muted" style="padding:8px">Showing first 200 of ${entrants.rows.length} rows.</div>`:''}</div>`;
+}
+function uploadEntrants(e,dropId){
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{ const parsed=parseCSV(r.result); const d=dropById(dropId);
+    d.entrants={filename:f.name, headers:parsed.headers, rows:parsed.rows};
+    saveDB();toast(`Loaded ${parsed.rows.length} entrants`);render(); };
+  r.onerror=()=>alert('Could not read file');
+  r.readAsText(f);
+}
+function winField(label,w,key){return `<div class="field"><label>${label}</label><input value="${esc(w[key])}" onchange="updWin('${w.id}','${key}',this.value)"></div>`;}
+function dropContent(d){
+  const cn=DB.content.filter(c=>c.dropId===d.id);
+  const libItems=libraryItems().filter(i=>i.dropId===d.id);
+  return `<div class="card"><div class="card-h"><h3>Linked Content</h3><span class="link" onclick="go('content')">New Content →</span></div>
+    <div class="card-b">${cn.length?cn.map(c=>`
+      <div class="row-item" onclick="openContent('${c.id}')"><div class="txt"><div class="t">${esc(c.title)}</div>
+      <div class="meta">${esc(c.category)}${c.filmDate?' · film '+fmtDate(c.filmDate):''}</div></div><span class="pill pill-draft">${c.status}</span></div>`).join('')
+      :`<div class="empty">No content linked to this drop.</div>`}</div></div>
+    <div class="section-sub">In Asset Library (${libItems.length})</div>
+    <div class="asset-grid">${libItems.map(i=>libTile(i)).join('')||'<div class="muted">Nothing here yet — finish a video above or add photos in Files, and it appears automatically.</div>'}</div>`;
+}
+function dropFiles(d){
+  d.links=d.links||{};
+  const libItems=libraryItems().filter(i=>i.dropId===d.id);
+  return `<div class="card"><div class="card-h"><h3>Files & Links</h3></div><div class="modal-b" style="max-height:none">
+    <div class="field"><label>Google Drive folder</label><input value="${esc(d.links.drive)}" placeholder="https://drive.google.com/…" onchange="updDropLink('drive',this.value)"></div>
+    <div class="field"><label>Canva project</label><input value="${esc(d.links.canva)}" placeholder="https://canva.com/…" onchange="updDropLink('canva',this.value)"></div>
+    <div class="field"><label>Invoices / Certificates</label><input value="${esc(d.links.docs||'')}" placeholder="Link…" onchange="updDropLink('docs',this.value)"></div>
+    <div class="section-sub">In Asset Library</div>
+    <div class="asset-grid">${libItems.map(i=>libTile(i)).join('')||'<div class="muted">None yet — photos added above or content marked finished will appear here automatically.</div>'}</div>
+  </div></div>`;
+}
+function dropTimeline(d){
+  const tl=DB.timeline.filter(t=>t.dropId===d.id);
+  return `<div class="card"><div class="card-h"><h3>Timeline</h3></div><div class="modal-b" style="max-height:none">
+    ${tl.length? `<div class="timeline">${tl.map(t=>`<div class="tl-item"><div class="tl-t">${esc(t.event)}</div><div class="tl-d">${new Date(t.at).toLocaleString('en-GB')}</div></div>`).join('')}</div>`
+    : `<div class="empty">Events auto-log here as you work this drop.</div>`}
+  </div></div>`;
+}
+
+/* ================= TASKS ================= */
+let taskFilter='Today', taskPerson='All', taskUrgentOnly=false;
+function vTasks(){
+  const groups={Today:[],Tomorrow:[],'This Week':[],Overdue:[],Completed:[]};
+  const tmr=addDays(today(),1), wk=addDays(today(),7);
+  let all=DB.tasks.filter(t=> taskPerson==='All' || t.assignedTo===taskPerson);
+  if(taskUrgentOnly) all=all.filter(t=>t.urgent);
+  all.forEach(t=>{
+    if(t.done){groups.Completed.push(t);return;}
+    if(t.due<today())groups.Overdue.push(t);
+    else if(t.due===today())groups.Today.push(t);
+    else if(t.due===tmr)groups.Tomorrow.push(t);
+    else if(t.due<=wk)groups['This Week'].push(t);
+  });
+  const cats=['Today','Tomorrow','This Week','Overdue','Completed'];
+  const list=groups[taskFilter]||[];
+  return `<div class="page-head"><div><h2>Tasks</h2><div class="desc">Everything you need to do, typed and assigned.</div></div></div>
+  <div class="filters">${cats.map(c=>`<button class="fbtn ${taskFilter===c?'active':''}" onclick="taskFilter='${c}';render()">${c} · ${groups[c].length}</button>`).join('')}</div>
+  <div class="filters">${['All',...teamList()].map(p=>`<button class="fbtn ${taskPerson===p?'active':''}" onclick="taskPerson='${p}';render()">${p}</button>`).join('')}<button class="fbtn" onclick="addTeamMember()">＋ Person</button>
+    <button class="fbtn ${taskUrgentOnly?'active':''}" onclick="taskUrgentOnly=!taskUrgentOnly;render()">⚡ Urgent only</button></div>
+  <div class="card"><div class="card-b">
+    ${list.length? list.map(t=>taskRow(t)).join('') : `<div class="empty">Nothing in ${taskFilter}.</div>`}
+    <div class="add-inline"><input id="pageTask" placeholder="Add a task…" onkeydown="if(event.key==='Enter')pageAddTask()">
+      ${dd('pageTaskDropDD',[{value:'',label:'No drop'},...DB.drops.map(d=>({value:d.id,label:d.number}))],'')}
+      <button class="btn btn-sm" onclick="pageAddTask()">Add</button></div>
+  </div></div>`;
+}
+function addTeamMember(){
+  const n=prompt('Team member name:'); if(!n||!n.trim())return;
+  DB.settings.team=DB.settings.team||[]; if(!DB.settings.team.includes(n.trim())) DB.settings.team.push(n.trim());
+  saveDB(); render();
+}
+function toggleUrgentBtn(){
+  const b=document.getElementById('tk_urgent'); if(!b) return;
+  const on = b.dataset.val==='1';
+  b.dataset.val = on? '0':'1';
+  b.classList.toggle('btn-gold', !on);
+  b.textContent = (!on? '⚡ Urgent':'⚡ Mark urgent');
+}
+function openTask(id){
+  const t=DB.tasks.find(x=>x.id===id); if(!t)return;
+  openModal(`<div class="modal"><div class="modal-h"><h3>Task</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      ${mInput('tk_title','Title',t.title)}
+      <div class="field-row">
+        <div class="field"><label>Type</label>${dd('tk_type',Object.keys(TASK_TYPES),t.type||'Admin')}</div>
+        <div class="field"><label>Assigned to</label>${dd('tk_assignee',teamList(),t.assignedTo||teamList()[0])}</div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Due date</label><input id="tk_due" type="date" value="${esc(t.due)}"></div>
+        <div class="field"><label>Time (optional)</label><input id="tk_time" type="time" value="${esc(t.time||'')}"></div>
+      </div>
+      <div class="field"><label>Linked drop</label>${dd('tk_drop',[{value:'',label:'—'},...DB.drops.map(d=>({value:d.id,label:d.number}))], t.dropId||'')}</div>
+      <div class="field"><label>Priority</label>
+        <button type="button" id="tk_urgent" class="btn btn-sm ${t.urgent?'btn-gold':''}" data-val="${t.urgent?'1':'0'}" onclick="toggleUrgentBtn()">⚡ ${t.urgent?'Urgent':'Mark urgent'}</button>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn btn-danger" onclick="delTask('${id}');closeModal()">Delete</button>
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveTask('${id}')">Save</button></div></div>`);
+}
+function saveTask(id){
+  const t=DB.tasks.find(x=>x.id===id); if(!t)return;
+  t.title=document.getElementById('tk_title').value||t.title;
+  t.type=ddVal('tk_type'); t.assignedTo=ddVal('tk_assignee');
+  t.due=document.getElementById('tk_due').value; t.time=document.getElementById('tk_time').value;
+  t.dropId=ddVal('tk_drop');
+  const ub=document.getElementById('tk_urgent'); t.urgent = ub? ub.dataset.val==='1' : !!t.urgent;
+  saveDB();closeModal();toast('Task saved');render();
+}
+
+/* ================= CALENDAR ================= */
+let calMode='list', calMonth=today().slice(0,7);
+function vCalendar(){
+  const events=[];
+  DB.drops.forEach(d=>{
+    if(d.launch)events.push({date:d.launch,label:`${d.number} launches`,type:'Launch',id:d.id});
+    if(d.draw)events.push({date:d.draw,label:`${d.number} draw — ${watchName(d.watchId)}`,type:'Draw',id:d.id});
+  });
+  DB.tasks.filter(t=>!t.done).forEach(t=>events.push({date:t.due,label:t.title,type:'Task',id:t.dropId}));
+  DB.winners.filter(w=>!w.dispatched&&w.dropId).forEach(w=>{const d=dropById(w.dropId);if(d)events.push({date:d.draw,label:`Dispatch to ${w.name}`,type:'Delivery',id:w.dropId});});
+  events.sort((a,b)=>(a.date||'z').localeCompare(b.date||'z'));
+  return `<div class="page-head"><div><h2>Calendar</h2><div class="desc">Drops, draws, tasks, deliveries — visualised.</div></div>
+    <div class="page-actions"><button class="btn btn-sm ${calMode==='list'?'btn-gold':''}" onclick="calMode='list';render()">List</button>
+    <button class="btn btn-sm ${calMode==='grid'?'btn-gold':''}" onclick="calMode='grid';render()">Grid</button></div></div>
+  ${calMode==='grid'? calendarGrid(events) : calendarList(events.filter(e=>e.date>=today()))}`;
+}
+function calendarList(upcoming){
+  const byDate={}; upcoming.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
+  return Object.keys(byDate).length? Object.keys(byDate).sort().map(date=>`
+    <div class="section-sub">${date===today()?'Today · ':''}${fmtDate(date)}</div>
+    <div class="card"><div class="card-b">${byDate[date].map(e=>`
+      <div class="row-item" ${e.id?`onclick="go('drop','${e.id}')"`:''}>
+        <span class="pill ${CAL_TYPE_PILL[e.type]||'pill-draft'}">${e.type}</span>
+        <div class="txt"><div class="t">${esc(e.label)}</div></div></div>`).join('')}</div></div>`).join('')
+  : `<div class="card"><div class="empty">Nothing scheduled ahead.</div></div>`;
+}
+function calendarGrid(events){
+  const [y,m]=calMonth.split('-').map(Number);
+  const first=new Date(y,m-1,1); const startDow=(first.getDay()+6)%7;
+  const daysInMonth=new Date(y,m,0).getDate();
+  const byDate={}; events.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
+  let cells='';
+  for(let i=0;i<startDow;i++) cells+=`<div class="cal-cell empty"></div>`;
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const evs=byDate[dateStr]||[];
+    cells+=`<div class="cal-cell ${dateStr===today()?'today':''}" onclick="${evs[0]&&evs[0].id?`go('drop','${evs[0].id}')`:''}">
+      <div class="cal-daynum">${d}</div>
+      ${evs.slice(0,3).map(e=>`<span class="cal-ev pill ${CAL_TYPE_PILL[e.type]||'pill-draft'}">${esc(e.label.slice(0,18))}</span>`).join('')}
+      ${evs.length>3?`<div class="cal-more">+${evs.length-3} more</div>`:''}
+    </div>`;
+  }
+  const monthLabel=first.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  return `<div class="cal-nav"><button class="btn btn-sm" onclick="calShift(-1)">←</button>
+    <h3>${monthLabel}</h3><button class="btn btn-sm" onclick="calShift(1)">→</button>
+    <button class="btn btn-sm btn-ghost" onclick="calMonth=today().slice(0,7);render()">Today</button></div>
+    <div class="cal-grid-head">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(dn=>`<div>${dn}</div>`).join('')}</div>
+    <div class="cal-grid">${cells}</div>`;
+}
+function calShift(n){ const [y,m]=calMonth.split('-').map(Number); const d=new Date(y,m-1+n,1); calMonth=d.toISOString().slice(0,7); render(); }
+/* ================= WATCH LIBRARY (grouped by brand) ================= */
+function vWatches(){
+  const brands={}; DB.watches.forEach(w=>{ const b=w.brand||'Unbranded'; (brands[b]=brands[b]||[]).push(w); });
+  const brandNames=Object.keys(brands).sort();
+  return `<div class="page-head"><div><h2>Watch Library</h2><div class="desc">Every watch you've owned, grouped by brand. ${DB.watches.length} total.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="openWatch()">＋ Add Watch</button></div></div>
+  ${brandNames.length? brandNames.map(b=>`
+    <div class="brand-group">
+      <div class="brand-head" onclick="toggleBrand('${slug(b)}')">
+        <span class="bg-car" id="car_${slug(b)}">▾</span><h3>${esc(b)}</h3><span class="muted">${brands[b].length} watch${brands[b].length===1?'':'es'}</span>
+      </div>
+      <div class="grid brand-grid" id="grid_${slug(b)}">${brands[b].map(w=>watchCard(w)).join('')}</div>
+    </div>`).join('') : `<div class="card"><div class="empty">No watches yet.<br><button onclick="openWatch()">Add your first →</button></div></div>`}`;
+}
+function toggleBrand(s){ const el=document.getElementById('grid_'+s); const car=document.getElementById('car_'+s); if(!el)return; el.classList.toggle('collapsed'); car.textContent = el.classList.contains('collapsed')?'▸':'▾'; }
+function watchCard(w){
+  const drops=DB.drops.filter(d=>d.watchId===w.id);
+  return `<div class="gcard" onclick="openWatch('${w.id}')">
+    <div class="thumb">${w.img?`<img data-mediaref="${esc(w.img)}">`:'⌚'}</div>
+    <div class="gbody"><div class="gtitle">${esc(w.model)}</div><div class="gsub">Ref ${esc(w.ref||'—')}${w.serial?' · SN '+esc(w.serial):''}</div>
+    <div class="gmeta"><span class="pill pill-type">${gbp(w.retail)} RRP</span>${drops.length?`<span class="pill pill-done">${drops.length} drop${drops.length>1?'s':''}</span>`:''}</div></div></div>`;
+}
+
+/* ================= WINNERS ================= */
+function vWinners(){
+  return `<div class="page-head"><div><h2>Winners</h2><div class="desc">Every winner, ever.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="openWinner()">＋ Add Winner</button></div></div>
+  ${DB.winners.length?`<div class="card"><table class="tbl">
+    <thead><tr><th>Name</th><th>Drop</th><th>Watch</th><th>Contact</th><th>Instagram</th><th>Status</th></tr></thead>
+    <tbody>${DB.winners.map(w=>{const d=w.dropId?dropById(w.dropId):null;return `<tr onclick="openWinner('${w.id}')">
+      <td class="strong">${esc(w.name)}</td><td>${d?esc(d.number):'—'}</td><td>${d?esc(watchName(d.watchId)):'—'}</td>
+      <td class="muted">${esc(w.phone||w.email||'—')}</td><td class="muted">${esc(w.instagram||'—')}</td>
+      <td><span class="pill ${w.dispatched?'pill-done':'pill-upcoming'}">${w.dispatched?'Dispatched':'Awaiting'}</span></td></tr>`;}).join('')}</tbody>
+  </table></div>`:`<div class="card"><div class="empty">No winners recorded yet.</div></div>`}`;
+}
+
+/* ================= SUPPLIERS ================= */
+function vSuppliers(){
+  return `<div class="page-head"><div><h2>Suppliers</h2><div class="desc">Who you buy from.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="openSupplier()">＋ Add Supplier</button></div></div>
+  ${DB.suppliers.length?`<div class="grid">${DB.suppliers.map(s=>{
+    const boughtIds=[...new Set(DB.drops.filter(d=>d.supplierId===s.id&&d.watchId).map(d=>d.watchId))];
+    return `<div class="gcard" onclick="openSupplier('${s.id}')"><div class="gbody">
+      <div class="gtitle">${esc(s.name)}</div><div class="gsub">${esc(s.contact||'')} ${s.phone?'· '+esc(s.phone):''}</div>
+      <div class="gmeta"><span class="pill pill-type">${boughtIds.length} watch${boughtIds.length===1?'':'es'}</span></div>
+    </div></div>`;}).join('')}</div>`:`<div class="card"><div class="empty">No suppliers yet.</div></div>`}`;
+}
+
+/* ================= CUSTOMERS ================= */
+function vCustomers(){
+  return `<div class="page-head"><div><h2>Customers</h2><div class="desc">Buyers and their lifetime value. Wire up WooCommerce to auto-populate.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="openCustomer()">＋ Add Customer</button></div></div>
+  ${DB.customers.length?`<div class="card"><table class="tbl">
+    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Lifetime Spend</th><th>Notes</th></tr></thead>
+    <tbody>${DB.customers.map(c=>`<tr onclick="openCustomer('${c.id}')"><td class="strong">${esc(c.name)}</td>
+      <td class="muted">${esc(c.email||'—')}</td><td class="muted">${esc(c.phone||'—')}</td>
+      <td class="mono">${gbp(c.spend||0)}</td><td class="muted">${esc((c.notes||'').slice(0,40))}</td></tr>`).join('')}</tbody>
+  </table></div>`:`<div class="card"><div class="empty">No customers yet. This fills automatically once WooCommerce is connected.</div></div>`}`;
+}
+
+/* ================= NEW CONTENT (creation pipeline) ================= */
+let contentView='board', contentCat='All', contentStatusFilter='All';
+function vContent(){
+  const cats=['All',...CONTENT_CATS]; const statuses=['All',...CONTENT_STATUSES];
+  let items=[...DB.content];
+  if(contentCat!=='All') items=items.filter(c=>c.category===contentCat);
+  if(contentStatusFilter!=='All') items=items.filter(c=>c.status===contentStatusFilter);
+  const noDrops=DB.drops.length===0;
+  return `<div class="page-head"><div><h2>New Content</h2><div class="desc">Idea → script → filmed → edited → posted. Once it's posted (or has a finished video attached), it shows up automatically in the Asset Library.</div></div>
+    <div class="page-actions">
+      <button class="btn btn-sm ${contentView==='board'?'btn-gold':''}" onclick="contentView='board';render()">Board</button>
+      <button class="btn btn-sm ${contentView==='list'?'btn-gold':''}" onclick="contentView='list';render()">List</button>
+      <button class="btn btn-gold" onclick="${noDrops?"alert('Create a drop first — content has to be linked to one so nothing gets lost.')":'openContent()'}" style="${noDrops?'opacity:.5':''}">＋ New</button></div></div>
+  <div class="filters">${cats.map(c=>`<button class="fbtn ${contentCat===c?'active':''}" onclick="contentCat='${c}';render()">${c}</button>`).join('')}</div>
+  <div class="filters">${statuses.map(s=>`<button class="fbtn ${contentStatusFilter===s?'active':''}" onclick="contentStatusFilter='${s}';render()">${s}</button>`).join('')}</div>
+  ${contentView==='board'? `<div class="kanban">${CONTENT_STATUSES.map(st=>{
+    const col=items.filter(c=>c.status===st);
+    return `<div class="kcol"><div class="kcol-h"><span>${st}</span><span>${col.length}</span></div>
+      ${col.map(c=>`<div class="kcard" onclick="openContent('${c.id}')"><div class="kt">${esc(c.title)}</div>
+        <div class="km">${esc(c.category)}${c.dropId?' · '+esc((dropById(c.dropId)||{}).number||''):''}${c.filmDate?' · film '+fmtDate(c.filmDate):''}</div></div>`).join('')}
+    </div>`;}).join('')}</div>`
+  : `<div class="card"><table class="tbl"><thead><tr><th>Drop</th><th>Title</th><th>Category</th><th>Status</th><th>Film Date</th></tr></thead>
+    <tbody>${items.map(c=>`<tr onclick="openContent('${c.id}')"><td class="strong">${c.dropId?esc((dropById(c.dropId)||{}).number||''):'—'}</td><td>${esc(c.title)}</td>
+      <td>${esc(c.category)}</td><td><span class="pill pill-draft">${c.status}</span></td>
+      <td class="muted">${c.filmDate?fmtDate(c.filmDate):'—'}</td></tr>`).join('')||'<tr><td colspan=5 class="empty">No content.</td></tr>'}</tbody></table></div>`}`;
+}
+
+/* ================= ASSET LIBRARY (auto-populated, never uploaded to directly) ================= */
+function libraryItems(){
+  const items=[];
+  DB.content.forEach(c=>{
+    if(c.video){
+      items.push({id:'cn_'+c.id, name:c.title, type:'Video', url:c.video, dropId:c.dropId||'',
+        tags:c.tags||[], creator:c.creator||teamList()[0], useCase:c.useCase||'Organic Post',
+        sourceType:'content', sourceId:c.id});
+    }
+  });
+  DB.drops.forEach(d=>{
+    const imgs=d.images||{};
+    [['main','Main Image'],['cat1','Catalogue 1'],['cat2','Catalogue 2'],['cat3','Catalogue 3'],['webHero','Homepage Web'],['phoneHero','Homepage Phone']].forEach(([k,label])=>{
+      if(imgs[k]) items.push({id:'dr_'+d.id+'_'+k, name:`${d.number} — ${label}`, type:'Photo', url:imgs[k], dropId:d.id,
+        tags:[watchName(d.watchId)], creator:'', useCase:'', sourceType:'drop-image', sourceId:d.id});
+    });
+  });
+  DB.assets.forEach(a=>{
+    items.push({id:'as_'+a.id, name:a.name, type:a.type, url:a.url, dropId:a.dropId||'',
+      tags:a.tags||[], creator:'', useCase:'', sourceType:'asset', sourceId:a.id});
+  });
+  return items;
+}
+function libTile(i){
+  const body = i.type==='Video'
+    ? (i.url? `<video data-mediaref="${esc(i.url)}" muted></video>` : '🎬')
+    : (i.url? `<img data-mediaref="${esc(i.url)}">` : '🖼');
+  const dl = i.url && i.url.startsWith('r2:') ? `<a href="${mediaUrl(i.url)}?download=1" class="asset-dl" onclick="event.stopPropagation()" download title="Download">⬇</a>` : '';
+  return `<div class="asset-tile" onclick="openLibItem('${i.id}')">${body}${dl}<div class="atag">${esc(i.name)}</div></div>`;
+}
+function openLibItem(id){
+  const i=libraryItems().find(x=>x.id===id); if(!i) return;
+  if(i.sourceType==='content'){ go('content'); setTimeout(()=>openContent(i.sourceId),50); }
+  else if(i.sourceType==='drop-image'){ go('drop', i.sourceId, 'files'); }
+  else if(i.sourceType==='asset'){ openAsset(i.sourceId); }
+}
+let libFilter='All', libCreator='All', libGroupByWatch=false;
+function vAssets(){
+  const all=libraryItems();
+  let filtered=all;
+  if(libFilter==='Posts') filtered=filtered.filter(i=>i.useCase==='Organic Post');
+  if(libFilter==='Ads') filtered=filtered.filter(i=>i.useCase==='Paid Ad');
+  if(libCreator!=='All') filtered=filtered.filter(i=>i.creator===libCreator);
+
+  const head=`<div class="page-head"><div><h2>Asset Library</h2><div class="desc">Everything finished, pulled automatically from New Content and Drop Hub — nothing is uploaded here directly. ${all.length} total.</div></div></div>
+  <div class="filters">${['All','Posts','Ads'].map(f=>`<button class="fbtn ${libFilter===f?'active':''}" onclick="libFilter='${f}';render()">${f}</button>`).join('')}</div>
+  <div class="filters">${['All',...teamList()].map(p=>`<button class="fbtn ${libCreator===p?'active':''}" onclick="libCreator='${p}';render()">${p}</button>`).join('')}
+    <button class="fbtn ${libGroupByWatch?'active':''}" onclick="libGroupByWatch=!libGroupByWatch;render()">⌚ Group by watch</button></div>`;
+
+  if(!filtered.length) return head+`<div class="card"><div class="empty">Nothing here yet. Finish a video in New Content, or add photos in a Drop Hub — it'll appear here automatically.</div></div>`;
+
+  if(libGroupByWatch){
+    const groups={};
+    filtered.forEach(i=>{
+      const w = i.dropId? watchName((dropById(i.dropId)||{}).watchId) : (i.tags[0]||'Unassigned');
+      (groups[w]=groups[w]||[]).push(i);
+    });
+    return head+Object.keys(groups).sort().map(w=>`
+      <div class="brand-group">
+        <div class="brand-head"><h3>${esc(w)}</h3><span class="muted">${groups[w].length} item${groups[w].length===1?'':'s'}</span></div>
+        <div class="asset-grid">${groups[w].map(i=>libTile(i)).join('')}</div>
+      </div>`).join('');
+  }
+  return head+`<div class="asset-grid">${filtered.map(i=>libTile(i)).join('')}</div>`;
+}
+function assetTile(a){
+  const body = a.type==='Video'
+    ? (a.url? `<video data-mediaref="${esc(a.url)}" muted></video>` : '🎬')
+    : (a.url? `<img data-mediaref="${esc(a.url)}">` : '🖼');
+  const dl = a.url && a.url.startsWith('r2:') ? `<a href="${mediaUrl(a.url)}?download=1" class="asset-dl" onclick="event.stopPropagation()" download title="Download">⬇</a>` : '';
+  return `<div class="asset-tile" onclick="openAsset('${a.id}')">${body}${dl}<div class="atag">${esc(a.name)}</div></div>`;
+}
+
+/* ================= IDEA INBOX ================= */
+function vIdeas(){
+  return `<div class="page-head"><div><h2>Idea Inbox</h2><div class="desc">Capture fast. Organise later.</div></div></div>
+  <div class="card"><div style="padding:14px 18px;display:flex;gap:8px">
+    <input id="ideaInput" style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 14px" placeholder="Capture an idea…" onkeydown="if(event.key==='Enter')addIdea()">
+    <button class="btn btn-gold" onclick="addIdea()">Capture</button></div>
+    <div class="card-b" style="border-top:1px solid var(--line)">
+      ${DB.ideas.length? DB.ideas.map(i=>`<div class="row-item">
+        <span class="ico" style="color:var(--gold)">✦</span>
+        <div class="txt"><div class="t" style="white-space:normal">${esc(i.text)}</div><div class="meta">${timeAgo(i.created)}</div></div>
+        <button class="btn btn-sm btn-ghost" onclick="ideaToContent('${i.id}')">→ Content</button>
+        <span class="btn-danger btn-sm" onclick="delIdea('${i.id}')">✕</span></div>`).join('')
+      :`<div class="empty">No ideas captured yet.</div>`}
+    </div></div>`;
+}
+
+/* ================= SOP + KB ================= */
+function vSops(){return docList('sops','SOP Library','Every business process, documented.','openSop');}
+function vKB(){return docList('kb','Knowledge Base','Everything you\'ve learned, searchable.','openKB');}
+function docList(coll,title,desc,opener){
+  const items=DB[coll];
+  return `<div class="page-head"><div><h2>${title}</h2><div class="desc">${desc}</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="${opener}()">＋ New</button></div></div>
+  ${items.length?`<div class="grid">${items.map(x=>`<div class="gcard" onclick="${opener}('${x.id}')"><div class="gbody">
+    <div class="gtitle">${esc(x.title)}</div>${x.category?`<div class="gsub">${esc(x.category)}</div>`:''}
+    <div class="gsub" style="margin-top:8px;color:var(--ink3)">${esc((x.body||'').slice(0,80))}${(x.body||'').length>80?'…':''}</div>
+  </div></div>`).join('')}</div>`:`<div class="card"><div class="empty">Nothing here yet.</div></div>`}`;
+}
+/* ================= ACTIONS ================= */
+function updDrop(path,val){const d=dropById(route.id);if(!d)return;
+  if(['price','discountPrice','pool','entriesSold','revenue','costWatch','costFixed'].includes(path))val=Number(val)||0;
+  if(path.includes('.')){ const [a,b]=path.split('.'); d[a]=d[a]||{}; d[a][b]=val; }
+  else d[path]=val;
+  queueSave();
+  if(path==='entriesSold' && d.price){ d.revenue=Math.round((Number(val)||0)*d.price); }
+  if(['entriesSold','price','discountPrice','pool','revenue','costWatch','costFixed','watchId','supplierId','status','number','type'].includes(path)) render();
+}
+function updDropLink(k,v){const d=dropById(route.id);d.links=d.links||{};d.links[k]=v;queueSave();}
+function updPerf(id,k,v){const d=dropById(id);d.perf=d.perf||{};d.perf[k]=v;queueSave();}
+function addVarCost(dropId){
+  const d=dropById(dropId); if(!d) return;
+  const labelEl=document.getElementById('vc_label_'+dropId), amtEl=document.getElementById('vc_amount_'+dropId);
+  const label=labelEl.value.trim(); const amount=Number(amtEl.value)||0;
+  if(!label){ alert('Give this cost a label, e.g. "SMS message"'); return; }
+  d.variableCosts=d.variableCosts||[];
+  d.variableCosts.push({id:uid('vc'),label,amount});
+  saveDB(); render();
+}
+function delVarCost(dropId,costId){
+  const d=dropById(dropId); if(!d) return;
+  d.variableCosts=(d.variableCosts||[]).filter(c=>c.id!==costId);
+  saveDB(); render();
+}
+function setDropStatus(id,s){const d=dropById(id);const old=d.status;d.status=s;
+  if(s==='Live'&&old!=='Live')logTL(id,`${d.number} went live`);
+  if(s==='Complete')logTL(id,`${d.number} completed`);
+  queueSave();render();}
+
+function newDrop(){
+  const nums=DB.drops.map(d=>parseInt((d.number||'').replace(/\D/g,''))).filter(n=>!isNaN(n));
+  const next=(nums.length?Math.max(...nums):33)+1;
+  const d={id:uid('drop'),number:'D'+next,type:'Main Drop',status:'Draft',watchId:'',supplierId:'',
+    launch:today(),draw:addDays(today(),4),price:19.99,discountPrice:0,pool:500,entriesSold:0,revenue:0,
+    costWatch:0,costFixed:0,variableCosts:[],
+    notes:'',websiteLink:'',copy:{headline:'',body:'',seoKeyphrase:'',seoTitle:'',slug:'',metaDescription:''},
+    images:{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''},
+    entrants:{filename:'',headers:[],rows:[]},marketing:[],perf:{},links:{drive:'',canva:''},winnerId:'',created:now()};
+  DB.drops.unshift(d);
+  logTL(d.id,`${d.number} created`);
+  saveDB();toast(`${d.number} created — full hub ready`);go('drop',d.id,'overview');
+}
+function delDrop(id){const d=dropById(id);if(!confirm(`Delete ${d.number}? This can't be undone.`))return;
+  DB.drops=DB.drops.filter(x=>x.id!==id);
+  DB.tasks=DB.tasks.filter(t=>t.dropId!==id);
+  saveDB();toast('Drop deleted');go('drops');}
+
+function drawWinner(dropId){const name=prompt('Winner name:');if(!name)return;
+  const w={id:uid('win'),name,email:'',phone:'',address:'',instagram:'',dropId,dispatched:false,review:'',notes:'',created:now()};
+  DB.winners.unshift(w);const d=dropById(dropId);d.winnerId=w.id;logTL(dropId,`Winner drawn: ${name}`);
+  saveDB();toast('Winner recorded');render();}
+function toggleDispatch(id){const w=winById(id);w.dispatched=!w.dispatched;
+  if(w.dispatched&&w.dropId)logTL(w.dropId,`Dispatched to ${w.name}`);queueSave();render();}
+function toggleDeliveryInPerson(id){const w=winById(id);w.deliveryInPerson=!w.deliveryInPerson;
+  if(w.deliveryInPerson)w.trackingNumber='';queueSave();render();}
+function toggleReviewRequested(id){const w=winById(id);w.reviewRequested=!w.reviewRequested;
+  if(!w.reviewRequested)w.reviewGiven=false;queueSave();render();}
+function toggleReviewGiven(id){const w=winById(id);w.reviewGiven=!w.reviewGiven;queueSave();render();}
+
+/* Tasks quick-add */
+function toggleTask(id){const t=DB.tasks.find(x=>x.id===id);t.done=!t.done;
+  if(t.done&&t.dropId)logTL(t.dropId,`Task done: ${t.title}`);queueSave();render();}
+function delTask(id){DB.tasks=DB.tasks.filter(t=>t.id!==id);queueSave();render();}
+function quickAddTask(){const el=document.getElementById('quickTask');if(!el.value.trim())return;
+  DB.tasks.unshift({id:uid('t'),title:el.value.trim(),dropId:'',due:today(),done:false,type:'Admin',assignedTo:teamList()[0],time:'',urgent:false,created:now()});saveDB();render();}
+function pageAddTask(){const el=document.getElementById('pageTask');
+  if(!el.value.trim())return;
+  DB.tasks.unshift({id:uid('t'),title:el.value.trim(),dropId:ddVal('pageTaskDropDD')||'',due:today(),done:false,type:'Admin',assignedTo:teamList()[0],time:'',urgent:false,created:now()});saveDB();render();}
+function addDropTask(id){const el=document.getElementById('dropTask');if(!el.value.trim())return;
+  DB.tasks.push({id:uid('t'),title:el.value.trim(),dropId:id,due:today(),done:false,type:'Admin',assignedTo:teamList()[0],time:'',urgent:false,created:now()});saveDB();render();}
+function addNamedTask(id,title){
+  const typeMap={'Photography':'Photography','Write Launch Email':'Marketing','48hr Email':'Marketing','24hr Email':'Marketing','Closing Email':'Marketing','Build Meta Ads':'Marketing','Upload Website':'Website','Schedule SMS':'Marketing','Winner Call':'Winner Call','Dispatch':'Delivery','Collect Review':'Admin'};
+  DB.tasks.push({id:uid('t'),title,dropId:id,due:today(),done:false,type:typeMap[title]||'Admin',assignedTo:teamList()[0],time:'',urgent:false,created:now()});saveDB();toast(`Added: ${title}`);render();}
+
+/* Marketing */
+function addMk(id){const d=dropById(id);const chan=ddVal('mkChanDD')||'Email';const title=document.getElementById('mkTitle').value.trim();
+  if(!title)return;d.marketing=d.marketing||[];d.marketing.push({id:uid('mk'),channel:chan,title,status:'Idea'});saveDB();render();}
+function delMk(id,mid){const d=dropById(id);d.marketing=d.marketing.filter(m=>m.id!==mid);saveDB();render();}
+
+/* Ideas */
+function addIdea(){const el=document.getElementById('ideaInput');if(!el.value.trim())return;
+  DB.ideas.unshift({id:uid('id'),text:el.value.trim(),created:now()});saveDB();render();}
+function delIdea(id){DB.ideas=DB.ideas.filter(i=>i.id!==id);saveDB();render();}
+let pendingIdeaId=null;
+function ideaToContent(id){
+  const i=DB.ideas.find(x=>x.id===id); if(!i) return;
+  if(!DB.drops.length){ alert('Create a drop first — content has to be linked to one so nothing gets lost.'); return; }
+  pendingIdeaId=id;
+  openContent(null, i.text.slice(0,60));
+}
+
+/* ---------- Generic modal ---------- */
+function openModal(html){
+  closeModal();
+  const o=document.createElement('div');o.className='overlay';o.id='overlay';
+  o.innerHTML=html;o.onclick=e=>{if(e.target===o)closeModal();};
+  document.body.appendChild(o);
+  hydrateMedia();
+}
+function closeModal(){const o=document.getElementById('overlay');if(o)o.remove();pendingIdeaId=null;}
+function mInput(id,label,val,type='text'){return `<div class="field"><label>${label}</label><input id="${id}" type="${type}" value="${esc(val||'')}"></div>`;}
+function mArea(id,label,val){return `<div class="field"><label>${label}</label><textarea id="${id}">${esc(val||'')}</textarea></div>`;}
+
+/* Watch modal */
+function openWatch(id){
+  const w=id?watchById(id):{};
+  const drops=id?DB.drops.filter(d=>d.watchId===id):[];
+  const bname=(w.brand||'').toLowerCase(), mname=(w.model||'').toLowerCase();
+  const linkedMedia=id? libraryItems().filter(i=> drops.some(d=>d.id===i.dropId) || (i.tags||[]).some(t=>t.toLowerCase()===bname||t.toLowerCase()===mname)) : [];
+  const linkedContent=id? DB.content.filter(c=> drops.some(d=>d.id===c.dropId) || (c.tags||[]).some(t=>t.toLowerCase()===bname||t.toLowerCase()===mname)) : [];
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Edit Watch':'Add Watch'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b"><div class="two-col">
+      <div>${mInput('w_brand','Brand',w.brand)}${mInput('w_model','Model',w.model)}
+        <div class="field-row">${mInput('w_ref','Reference',w.ref)}${mInput('w_serial','Serial Number',w.serial)}</div>
+        ${mInput('w_move','Movement',w.movement)}</div>
+      <div><div class="field-row">${mInput('w_retail','Retail (£)',w.retail,'number')}${mInput('w_cost','Cost (£)',w.cost,'number')}</div>
+        ${mInput('w_specs','Specs',w.specs)}
+        ${mInput('w_medialink','Media folder link (Drive/Canva)',w.mediaLink)}
+      </div>
+    </div>${mArea('w_desc','Description',w.desc)}
+    ${mediaField('w_img','Main Image',w.img)}
+    ${drops.length?`<div class="section-sub">Used in ${drops.length} drop(s)</div><div style="display:flex;flex-wrap:wrap;gap:6px">${drops.map(d=>`<span class="pill pill-type" style="cursor:pointer" onclick="closeModal();go('drop','${d.id}')">${esc(d.number)}</span>`).join('')}</div>`:''}
+    ${linkedContent.length?`<div class="section-sub">In New Content (${linkedContent.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${linkedContent.map(c=>`<span class="pill pill-upcoming" style="cursor:pointer" onclick="closeModal();go('content');setTimeout(()=>openContent('${c.id}'),50)">${esc(c.title)}</span>`).join('')}</div>`:''}
+    ${linkedMedia.length?`<div class="section-sub">In Asset Library (${linkedMedia.length})</div><div class="asset-grid">${linkedMedia.map(i=>libTile(i)).join('')}</div>`:''}
+    </div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delWatch('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveWatch('${id||''}')">Save</button></div></div>`);
+}
+function saveWatch(id){const g=k=>document.getElementById(k).value;
+  const data={brand:g('w_brand'),model:g('w_model'),ref:g('w_ref'),serial:g('w_serial'),movement:g('w_move'),
+    retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),mediaLink:g('w_medialink'),desc:g('w_desc'),
+    img:mediaVal('w_img')};
+  if(!data.brand){alert('Brand required');return;}
+  if(id){Object.assign(watchById(id),data);}else{DB.watches.unshift({id:uid('watch'),...data,links:{},created:now()});}
+  saveDB();closeModal();toast('Watch saved');render();}
+function delWatch(id){if(!confirm('Delete this watch?'))return;DB.watches=DB.watches.filter(w=>w.id!==id);saveDB();closeModal();render();}
+
+/* Winner modal */
+function openWinner(id){const w=id?winById(id):{};
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Winner Record':'Add Winner'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b"><div class="two-col">
+      <div>${mInput('wn_name','Name',w.name)}${mInput('wn_phone','Phone',w.phone)}${mInput('wn_email','Email',w.email)}${mInput('wn_ig','Instagram',w.instagram)}</div>
+      <div>${mArea('wn_addr','Address',w.address)}
+        <div class="field"><label>Drop won</label>${dd('wn_drop',[{value:'',label:'—'},...DB.drops.map(d=>({value:d.id,label:`${d.number} — ${watchName(d.watchId)}`}))], w.dropId||'')}</div>
+      </div></div>
+      ${id?`<div class="section-sub">Delivery & Review${w.reviewRequested&&w.reviewGiven?' — <span class="pill pill-done">✓ Complete</span>':''}</div>
+      <div class="field-row">
+        <div class="field"><label>Dispatched</label><button class="btn btn-sm ${w.dispatched?'btn-gold':''}" onclick="toggleDispatch('${id}');openWinner('${id}')">${w.dispatched?'✓ Dispatched':'Mark dispatched'}</button></div>
+        <div class="field"><label>Delivered in person?</label><button class="btn btn-sm ${w.deliveryInPerson?'btn-gold':''}" onclick="toggleDeliveryInPerson('${id}');openWinner('${id}')">${w.deliveryInPerson?'✓ In person':'Mark in person'}</button></div>
+      </div>
+      ${!w.deliveryInPerson?`<div class="field"><label>Royal Mail Tracking Number</label><input value="${esc(w.trackingNumber||'')}" onchange="updWin('${id}','trackingNumber',this.value)"></div>`:''}
+      <div class="field-row">
+        <div class="field"><label>Review requested?</label><button class="btn btn-sm ${w.reviewRequested?'btn-gold':''}" onclick="toggleReviewRequested('${id}');openWinner('${id}')">${w.reviewRequested?'✓ Requested':'Mark requested'}</button></div>
+        ${w.reviewRequested?`<div class="field"><label>Review given?</label><button class="btn btn-sm ${w.reviewGiven?'btn-gold':''}" onclick="toggleReviewGiven('${id}');openWinner('${id}')">${w.reviewGiven?'✓ Given':'Mark given'}</button></div>`:''}
+      </div>`:'<div class="muted" style="font-size:12px;margin:4px 0 10px">Save the winner first to track dispatch and review status.</div>'}
+      ${mArea('wn_review','Review',w.review)}${mArea('wn_notes','Notes',w.notes)}</div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delWinner('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveWinner('${id||''}')">Save</button></div></div>`);
+}
+function saveWinner(id){const g=k=>document.getElementById(k).value;
+  const data={name:g('wn_name'),phone:g('wn_phone'),email:g('wn_email'),instagram:g('wn_ig'),
+    address:g('wn_addr'),dropId:ddVal('wn_drop'),review:g('wn_review'),notes:g('wn_notes')};
+  if(!data.name){alert('Name required');return;}
+  if(id){Object.assign(winById(id),data);}else{const w={id:uid('win'),...data,dispatched:false,deliveryInPerson:false,trackingNumber:'',reviewRequested:false,reviewGiven:false,created:now()};DB.winners.unshift(w);id=w.id;}
+  if(data.dropId){const d=dropById(data.dropId);if(d)d.winnerId=id;}
+  saveDB();closeModal();toast('Winner saved');render();}
+function delWinner(id){if(!confirm('Delete winner?'))return;DB.winners=DB.winners.filter(w=>w.id!==id);
+  DB.drops.forEach(d=>{if(d.winnerId===id)d.winnerId='';});saveDB();closeModal();render();}
+function updWin(id,k,v){winById(id)[k]=v;queueSave();}
+
+/* Supplier modal */
+function openSupplier(id){const s=id?supById(id):{};
+  const boughtIds=id?[...new Set(DB.drops.filter(d=>d.supplierId===id&&d.watchId).map(d=>d.watchId))]:[];
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Supplier':'Add Supplier'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">${mInput('s_name','Name',s.name)}
+      <div class="field-row">${mInput('s_contact','Contact',s.contact)}${mInput('s_phone','Phone',s.phone)}</div>
+      ${mInput('s_email','Email',s.email)}
+      ${mArea('s_notes','Notes',s.notes)}
+      ${boughtIds.length?`<div class="section-sub">Watches purchased from this supplier</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">${boughtIds.map(wid=>{const w=watchById(wid);return w?`<span class="pill pill-type" style="cursor:pointer" onclick="closeModal();go('watches');setTimeout(()=>openWatch('${wid}'),50)">${esc(w.brand)} ${esc(w.model)}</span>`:'';}).join('')}</div>`:''}
+    </div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delSupplier('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveSupplier('${id||''}')">Save</button></div></div>`);
+}
+function saveSupplier(id){const g=k=>document.getElementById(k).value;
+  const data={name:g('s_name'),contact:g('s_contact'),phone:g('s_phone'),email:g('s_email'),notes:g('s_notes')};
+  if(!data.name){alert('Name required');return;}
+  if(id)Object.assign(supById(id),data);else DB.suppliers.unshift({id:uid('sup'),...data,created:now()});
+  saveDB();closeModal();toast('Supplier saved');render();}
+function delSupplier(id){if(!confirm('Delete supplier?'))return;DB.suppliers=DB.suppliers.filter(s=>s.id!==id);saveDB();closeModal();render();}
+
+/* Customer modal */
+function openCustomer(id){const c=id?DB.customers.find(x=>x.id===id):{};
+  openModal(`<div class="modal"><div class="modal-h"><h3>${id?'Customer':'Add Customer'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">${mInput('c_name','Name',c.name)}<div class="field-row">${mInput('c_email','Email',c.email)}${mInput('c_phone','Phone',c.phone)}</div>
+      ${mInput('c_spend','Lifetime Spend (£)',c.spend,'number')}${mArea('c_notes','Notes',c.notes)}</div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delCustomer('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveCustomer('${id||''}')">Save</button></div></div>`);
+}
+function saveCustomer(id){const g=k=>document.getElementById(k).value;
+  const data={name:g('c_name'),email:g('c_email'),phone:g('c_phone'),spend:Number(g('c_spend'))||0,notes:g('c_notes')};
+  if(!data.name){alert('Name required');return;}
+  if(id)Object.assign(DB.customers.find(x=>x.id===id),data);else DB.customers.unshift({id:uid('cust'),...data,created:now()});
+  saveDB();closeModal();toast('Customer saved');render();}
+function delCustomer(id){if(!confirm('Delete customer?'))return;DB.customers=DB.customers.filter(c=>c.id!==id);saveDB();closeModal();render();}
+
+/* Content modal */
+function openContent(id, prefillTitle){const c=id?DB.content.find(x=>x.id===id):{title:prefillTitle||''};
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Content':'New Content'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Linked Drop</label>${dd('cn_drop',[{value:'',label:'— select a drop —'},...DB.drops.map(d=>({value:d.id,label:`${d.number} — ${watchName(d.watchId)}`}))], c.dropId||'')}</div>
+      ${mInput('cn_title','Title',c.title)}
+      <div class="field-row-3">
+        <div class="field"><label>Category</label>${dd('cn_cat',CONTENT_CATS,c.category||CONTENT_CATS[0])}</div>
+        <div class="field"><label>Status</label>${dd('cn_status',CONTENT_STATUSES,c.status||CONTENT_STATUSES[0])}</div>
+        <div class="field"><label>Filming Date</label><input id="cn_filmdate" type="date" value="${esc(c.filmDate||'')}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Creator</label>${dd('cn_creator',teamList(),c.creator||teamList()[0])}</div>
+        <div class="field"><label>Use case</label>${dd('cn_usecase',['Organic Post','Paid Ad'],c.useCase||'Organic Post')}</div>
+      </div>
+      ${mInput('cn_tags','Tags (comma separated)',(c.tags||[]).join(', '))}
+      ${mArea('cn_body','Script / Body',c.body)}
+      ${videoField('cn_video','Finished Video',c.video)}
+      <div class="muted" style="font-size:11.5px">Attach the finished video and it appears automatically in the Asset Library — no separate upload needed.</div>
+    </div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delContent('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveContent('${id||''}')">Save</button></div></div>`);
+}
+function saveContent(id){
+  const dropId=ddVal('cn_drop');
+  if(!dropId){alert('Pick a drop first — every piece of content has to be linked to one.');return;}
+  const data={title:document.getElementById('cn_title').value,category:ddVal('cn_cat'),
+    status:ddVal('cn_status'),creator:ddVal('cn_creator'),useCase:ddVal('cn_usecase'),dropId,
+    filmDate:document.getElementById('cn_filmdate').value,
+    tags:document.getElementById('cn_tags').value.split(',').map(t=>t.trim()).filter(Boolean),
+    body:document.getElementById('cn_body').value};
+  if(!data.title){alert('Title required');return;}
+  data.video=mediaVal('cn_video');
+  const fromIdea=pendingIdeaId;
+  if(id){ Object.assign(DB.content.find(x=>x.id===id),data); }
+  else { DB.content.unshift({id:uid('cn'),...data,assetId:'',created:now()}); }
+  if(fromIdea){ DB.ideas=DB.ideas.filter(x=>x.id!==fromIdea); }
+  saveDB();closeModal();toast('Content saved');
+  if(fromIdea) go('content'); else render();
+}
+function delContent(id){if(!confirm('Delete content?'))return;DB.content=DB.content.filter(c=>c.id!==id);saveDB();closeModal();render();}
+
+/* Asset modal — legacy edit only; new items are pulled in automatically, never uploaded here */
+function openAsset(id){const a=id?DB.assets.find(x=>x.id===id):{type:'Photo'};
+  openModal(`<div class="modal"><div class="modal-h"><h3>${id?'Asset':'Add Asset'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">${mInput('a_name','Name',a.name)}
+      <div class="field-row"><div class="field"><label>Type</label>${dd('a_type',['Photo','Video'],a.type||'Photo')}</div>
+        <div class="field"><label>Linked Drop</label>${dd('a_drop',[{value:'',label:'—'},...DB.drops.map(d=>({value:d.id,label:d.number}))], a.dropId||'')}</div></div>
+      ${a.type==='Video'? videoField('a_url','Video',a.url) : mediaField('a_url','Image',a.url)}
+      ${mInput('a_tags','Tags (comma separated)',(a.tags||[]).join(', '))}
+      <div class="muted" style="font-size:12px">Tag with watch brand, hook, closing, winner name etc. so search finds it everywhere.</div></div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delAsset('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveAsset('${id||''}')">Save</button></div></div>`);
+}
+function saveAsset(id){
+  const data={name:document.getElementById('a_name').value,type:ddVal('a_type'),dropId:ddVal('a_drop'),
+    url:mediaVal('a_url'), tags:document.getElementById('a_tags').value.split(',').map(t=>t.trim()).filter(Boolean)};
+  if(!data.name){alert('Name required');return;}
+  if(id)Object.assign(DB.assets.find(x=>x.id===id),data);else DB.assets.unshift({id:uid('a'),...data,created:now()});
+  saveDB();closeModal();toast('Asset saved');render();
+}
+function delAsset(id){if(!confirm('Delete asset?'))return;DB.assets=DB.assets.filter(a=>a.id!==id);saveDB();closeModal();render();}
+
+/* SOP / KB modals */
+function openSop(id){docModal('sops',id,'SOP',false,'openSop');}
+function openKB(id){docModal('kb',id,'Knowledge',true,'openKB');}
+function docModal(coll,id,label,hasCat,opener){const x=id?DB[coll].find(i=>i.id===id):{};
+  const cats=['Marketing','Meta Ads','Competition Law','Email Marketing','Business Learnings','AI Prompts','Watch Knowledge'];
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?label:'New '+label}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">${mInput('doc_title','Title',x.title)}
+    ${hasCat?`<div class="field"><label>Category</label>${dd('doc_cat',cats,x.category||cats[0])}</div>`:''}
+    ${mArea('doc_body','Content',x.body)}</div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delDoc('${coll}','${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveDoc('${coll}','${id||''}',${hasCat})">Save</button></div></div>`);
+}
+function saveDoc(coll,id,hasCat){
+  const data={title:document.getElementById('doc_title').value, body:document.getElementById('doc_body').value};
+  if(hasCat)data.category=ddVal('doc_cat');
+  if(!data.title){alert('Title required');return;}
+  if(id)Object.assign(DB[coll].find(i=>i.id===id),data);else DB[coll].unshift({id:uid(coll),...data,created:now()});
+  saveDB();closeModal();toast('Saved');render();}
+function delDoc(coll,id){if(!confirm('Delete?'))return;DB[coll]=DB[coll].filter(i=>i.id!==id);saveDB();closeModal();render();}
+
+/* ---------- Universal Search ---------- */
+function universalSearch(q){
+  q=q.toLowerCase().trim();if(!q)return[];
+  const R=[];
+  const push=(type,ico,label,fn)=>R.push({type,ico,label,fn});
+  DB.drops.forEach(d=>{if((d.number+' '+watchName(d.watchId)+' '+d.notes+' '+d.type).toLowerCase().includes(q))
+    push('Drop','⬡',`${d.number} — ${watchName(d.watchId)}`,()=>go('drop',d.id));});
+  DB.watches.forEach(w=>{if((w.brand+' '+w.model+' '+w.ref+' '+(w.serial||'')+' '+(w.desc||'')).toLowerCase().includes(q))
+    push('Watch','⌚',`${w.brand} ${w.model}`,()=>{go('watches');setTimeout(()=>openWatch(w.id),50);});});
+  DB.winners.forEach(w=>{if((w.name+' '+(w.instagram||'')+' '+(w.notes||'')).toLowerCase().includes(q))
+    push('Winner','★',w.name,()=>{go('winners');setTimeout(()=>openWinner(w.id),50);});});
+  DB.suppliers.forEach(s=>{if((s.name+' '+(s.contact||'')).toLowerCase().includes(q))
+    push('Supplier','▤',s.name,()=>{go('suppliers');setTimeout(()=>openSupplier(s.id),50);});});
+  DB.content.forEach(c=>{if((c.title+' '+c.body+' '+(c.tags||[]).join(' ')+' '+c.category+' '+(c.creator||'')).toLowerCase().includes(q))
+    push('Content','✎',c.title,()=>{go('content');setTimeout(()=>openContent(c.id),50);});});
+  DB.assets.forEach(a=>{if((a.name+' '+(a.tags||[]).join(' ')+' '+a.type).toLowerCase().includes(q))
+    push('Asset','▣',a.name,()=>{go('assets');setTimeout(()=>openAsset(a.id),50);});});
+  DB.tasks.forEach(t=>{if((t.title+' '+(t.assignedTo||'')+' '+(t.type||'')).toLowerCase().includes(q))
+    push('Task','☑',t.title,()=>go('tasks'));});
+  DB.ideas.forEach(i=>{if(i.text.toLowerCase().includes(q))push('Idea','✦',i.text,()=>go('ideas'));});
+  DB.sops.forEach(s=>{if((s.title+' '+s.body).toLowerCase().includes(q))push('SOP','❐',s.title,()=>{go('sops');setTimeout(()=>openSop(s.id),50);});});
+  DB.kb.forEach(k=>{if((k.title+' '+k.body).toLowerCase().includes(q))push('Knowledge','◈',k.title,()=>{go('kb');setTimeout(()=>openKB(k.id),50);});});
+  return R;
+}
+let searchIdx=[];
+function doSearch(){
+  const q=document.getElementById('search').value;
+  const box=document.getElementById('sresults');
+  if(!q.trim()){box.innerHTML='';box.style.display='none';return;}
+  const res=universalSearch(q);searchIdx=res;
+  if(!res.length){box.innerHTML='<div class="sresult"><span class="rt muted">No matches for "'+esc(q)+'"</span></div>';box.style.display='block';return;}
+  const groups={};res.forEach((r,i)=>{(groups[r.type]=groups[r.type]||[]).push({...r,i});});
+  box.innerHTML=Object.keys(groups).map(g=>`<div class="sresult-group">${g}s · ${groups[g].length}</div>`+
+    groups[g].slice(0,6).map(r=>`<div class="sresult" onclick="pickSearch(${r.i})"><span class="ri">${r.ico}</span>
+      <span class="rt">${esc(r.label.slice(0,70))}</span><span class="rtype">${r.type}</span></div>`).join('')).join('');
+  box.style.display='block';
+}
+function pickSearch(i){const r=searchIdx[i];document.getElementById('search').value='';
+  document.getElementById('sresults').style.display='none';r.fn();}
+document.getElementById('search').addEventListener('input',doSearch);
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();document.getElementById('search').focus();}
+  if(e.key==='Escape')closeModal();});
+
+/* ---------- Toast ---------- */
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),2200);}
+
+/* ---------- Boot ---------- */
+checkSessionAndBoot();
+</script>
