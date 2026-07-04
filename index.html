@@ -69,13 +69,21 @@
   .page-head .desc{color:var(--ink3);font-size:13px;margin-top:3px}
   .page-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 
-  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:22px}
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:18px;margin-bottom:22px}
   .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
   .kpi .label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:600}
   .kpi .val{font-size:26px;font-weight:800;margin-top:7px;letter-spacing:-.5px}
   .kpi .val.gold{color:var(--gold2)}
   .kpi .val.green{color:var(--live)}
   .kpi .sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
+  .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+  .calc-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .calc-row span:first-child{color:var(--ink2)}
+  .calc-row span:last-child{font-weight:700;color:var(--ink)}
+  @media(max-width:760px){.calc-grid{grid-template-columns:1fr}}
+  .cost-breakdown{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  .cb-row{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink3)}
+  .cb-row span:last-child{color:var(--ink2);font-weight:600}
 
   .dash-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}
   @media(max-width:1100px){.dash-grid{grid-template-columns:1fr}}
@@ -146,8 +154,8 @@
     color:var(--ink);border-radius:8px;padding:9px 12px;outline:none;transition:.13s}
   .field input:focus,.field textarea:focus{border-color:var(--gold);background:var(--panel)}
   .field textarea{resize:vertical;min-height:80px;line-height:1.5}
-  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .field-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .field-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 
   .timeline{position:relative;padding-left:22px}
   .timeline:before{content:'';position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--line2)}
@@ -194,7 +202,7 @@
   .asset-dl{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:7px;background:rgba(11,18,32,.75);
     color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;text-decoration:none;backdrop-filter:blur(2px)}
   .asset-dl:hover{background:var(--gold);color:#0B1220}
-  .asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+  .asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px}
 
   .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--panel2);
     border:1px solid var(--gold);color:var(--ink);padding:12px 20px;border-radius:11px;box-shadow:var(--shadow);
@@ -239,6 +247,28 @@
   .media-row input:focus{border-color:var(--gold)}
   .media-upload{white-space:nowrap;cursor:pointer}
   .media-prev{width:100%;max-height:130px;object-fit:cover;border-radius:7px;margin-bottom:8px;display:block}
+  .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin-bottom:8px}
+  .gallery-item{position:relative;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;overflow:hidden;height:80px}
+  .gallery-item img,.gallery-item video{width:100%;height:100%;object-fit:cover;display:block}
+  .gallery-remove{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:rgba(11,18,32,.85);
+    color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;line-height:1;z-index:2}
+  .gallery-remove:hover{background:var(--danger);color:#fff}
+  .gallery-uploading{display:flex;align-items:center;justify-content:center;color:var(--ink2);font-size:12px;font-weight:600}
+  .gallery-link-item{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;color:var(--ink2);font-size:10px;padding:6px;text-align:center;word-break:break-all}
+  .gallery-link-item span.ico{font-size:20px}
+  .gallery-badge{position:absolute;bottom:3px;left:3px;background:rgba(11,18,32,.85);color:var(--gold2);
+    font-size:9px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:2px 5px;border-radius:4px;z-index:2}
+  .usecase-chip{cursor:pointer;padding:6px 14px;font-size:12.5px}
+  .usecase-chip.active{background:var(--goldsoft);color:var(--gold2);border:1px solid var(--gold)}
+  .status-quick{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+  .sq-btn{font-size:10px;padding:3px 8px;border-radius:6px;border:1px solid var(--line2);color:var(--ink3);background:transparent;font-weight:600}
+  .sq-btn.active{background:var(--goldsoft);color:var(--gold2);border-color:var(--gold)}
+  .sq-btn-lg{font-size:12.5px;padding:8px 16px;border-radius:8px}
+  .stage-badge{font-size:9.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:2px 7px;border-radius:5px}
+  .stage-badge.raw{background:rgba(245,165,36,.14);color:var(--warn)}
+  .stage-badge.finished{background:var(--live-bg);color:var(--live)}
+  .tag-chip{cursor:pointer;font-size:11px;padding:4px 10px}
+  .tag-chip.active{background:var(--goldsoft);color:var(--gold2);border:1px solid var(--gold)}
 
   .mission-list{padding:4px 0}
   .mission-item{display:flex;align-items:center;gap:11px;padding:11px 18px;border-bottom:1px solid var(--line);cursor:pointer}
@@ -431,14 +461,15 @@ let DB = null;
 const uid = (p='id') => p+'_'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
 const gbp = n => '£'+(Number(n)||0).toLocaleString('en-GB',{maximumFractionDigits:0});
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const today = () => new Date().toISOString().slice(0,10);
+function localISODate(dt){ return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'); }
+const today = () => localISODate(new Date());
 const fmtDate = d => d? new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—';
 const now = () => new Date().toISOString();
-function addDays(d,n){const x=new Date(d+'T00:00:00');x.setDate(x.getDate()+n);return x.toISOString().slice(0,10);}
+function addDays(d,n){const x=new Date(d+'T00:00:00');x.setDate(x.getDate()+n);return localISODate(x);}
 function slug(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-');}
 function timeAgo(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
 function greet(){const h=new Date().getHours();return h<12?'morning':h<18?'afternoon':'evening';}
-function inThisMonth(d){const m=new Date().toISOString().slice(0,7);return (d.launch||'').slice(0,7)===m||(d.draw||'').slice(0,7)===m;}
+function inThisMonth(d){const n=new Date();const m=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');return (d.launch||'').slice(0,7)===m||(d.draw||'').slice(0,7)===m;}
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 
 const STATUS_PILL = {Live:'pill-live',Draft:'pill-draft',Upcoming:'pill-upcoming',Complete:'pill-done',Closed:'pill-closed'};
@@ -455,8 +486,9 @@ const TASK_TYPES = {
   'Winner Call':{ico:'☎️',color:'var(--gold)'},
   Admin:{ico:'📝',color:'var(--ink3)'}
 };
-const CONTENT_CATS=['Ad Content','Social Content','Watch Still Content','Watch Unboxing','Educational Content','Funny Content','BTS Content','Evergreen Content'];
-const CONTENT_STATUSES=['Idea','Writing','Ready','Filmed','Edited','Posted','Archived'];
+const CONTENT_CATS=['Watch Photos','Watch Video','Delivery Video','Evergreen Video','Person Only'];
+function watchGalleryKeyForCategory(cat){ return slug(cat); }
+const CONTENT_STATUSES=['Idea','In Motion','Done'];
 
 /* ---------- Storage ---------- */
 async function loadDB(){
@@ -481,6 +513,7 @@ function migrate(){
   (DB.drops||[]).forEach(d=>{
     d.websiteLink=d.websiteLink||'';
     d.discountPrice=d.discountPrice||0;
+    d.discountEntriesSold=d.discountEntriesSold||0;
     d.copy=d.copy||{};
     d.copy.headline=d.copy.headline||'';
     d.copy.body=d.copy.body||'';
@@ -500,8 +533,61 @@ function migrate(){
       d.costFixed=Number(d.cost)||0;
       d.variableCosts=d.variableCosts||[];
     }
+    d.tracker=d.tracker||{};
+    const t=d.tracker;
+    t.statedValue=t.statedValue||0;
+    t.watchCost=t.watchCost!==undefined?t.watchCost:(Number(d.costWatch)||0);
+    t.maxTickets=t.maxTickets!==undefined?t.maxTickets:(Number(d.pool)||0);
+    t.fullTicketPrice=t.fullTicketPrice!==undefined?t.fullTicketPrice:(Number(d.price)||0);
+    t.launchDiscountPct=t.launchDiscountPct||0;
+    t.compLifeDiscountPct=t.compLifeDiscountPct||0;
+    t.adsBudget=t.adsBudget||0;
+    t.fixed=t.fixed!==undefined?t.fixed:(Number(d.costFixed)||0);
+    t.instantWins=t.instantWins||0;
+    t.paymentFeePct=t.paymentFeePct!==undefined?t.paymentFeePct:0.01;
+    t.adsSpent=t.adsSpent||0;
+    t.dial=t.dial||''; t.setStraps=t.setStraps||''; t.closeNotes=t.closeNotes||''; t.drawNotes=t.drawNotes||'';
+    t.ticketsSoldTotal=t.ticketsSoldTotal||0;
+    t.launchTicketsSold=t.launchTicketsSold||0;
+    t.couponBulkTicketsSold=t.couponBulkTicketsSold||0;
+    t.freeTicketsGiven=t.freeTicketsGiven||0;
+    t.checkpoints=t.checkpoints||[];
+    if(!t.checkpointsGeneratedV2){
+      t.checkpoints=buildCheckpointTemplate(d);
+      t.checkpointsGeneratedV2=true;
+      t.checkpointsGenerated=true;
+    }
   });
-  (DB.watches||[]).forEach(w=>{ w.serial=w.serial||''; w.mediaLink=w.mediaLink||''; });
+  (DB.watches||[]).forEach(w=>{
+    w.serial=w.serial||''; w.mediaLink=w.mediaLink||'';
+    if(w.supplierId===undefined){
+      const fromDrop=(DB.drops||[]).find(d=>d.watchId===w.id && d.supplierId);
+      w.supplierId = fromDrop ? fromDrop.supplierId : '';
+    }
+    const old=w.media||{};
+    const fresh={};
+    CONTENT_CATS.forEach(cat=>{ fresh[slug(cat)]=old[slug(cat)]||[]; });
+    if(!w.mediaMigratedV3){
+      const pull=(newKey,oldKey)=>{ if(old[oldKey]&&old[oldKey].length) fresh[newKey]=fresh[newKey].concat(old[oldKey]); };
+      // from the 8-category structure
+      pull(slug('Watch Photos'), slug('Watch Still Content'));
+      pull(slug('Watch Video'), slug('Ad Content'));
+      pull(slug('Watch Video'), slug('Social Content'));
+      pull(slug('Watch Video'), slug('Watch Unboxing')); // old "unboxing" = us unboxing new stock, not winner delivery
+      pull(slug('Watch Video'), slug('Funny Content'));
+      pull(slug('Watch Video'), slug('BTS Content'));
+      pull(slug('Evergreen Video'), slug('Educational Content'));
+      pull(slug('Evergreen Video'), slug('Evergreen Content'));
+      // from the original 4-bucket structure (images/videos/unboxing/social), in case v2 never ran
+      pull(slug('Watch Photos'), 'images');
+      pull(slug('Watch Video'), 'videos');
+      pull(slug('Watch Video'), 'unboxing');
+      pull(slug('Watch Video'), 'social');
+      if(!fresh[slug('Watch Photos')].length && w.img) fresh[slug('Watch Photos')].push({id:uid('med'),ref:w.img});
+      w.mediaMigratedV3=true;
+    }
+    w.media=fresh;
+  });
   (DB.suppliers||[]).forEach(s=>{ delete s.outstanding; });
   (DB.winners||[]).forEach(w=>{
     w.deliveryInPerson=!!w.deliveryInPerson;
@@ -518,14 +604,25 @@ function migrate(){
   const CAT_MIGRATE={'Ideas':'Social Content','Evergreen':'Evergreen Content','Educational':'Educational Content',
     'Trust':'Social Content','Funny':'Funny Content','Behind the Scenes':'BTS Content',
     'Winner Stories':'Social Content','Watch Comparisons':'Educational Content'};
+  const CAT_MIGRATE_V2={'Watch Still Content':'Watch Photos','Ad Content':'Watch Video','Social Content':'Watch Video',
+    'Watch Unboxing':'Watch Video','Funny Content':'Watch Video','BTS Content':'Watch Video',
+    'Educational Content':'Evergreen Video','Evergreen Content':'Evergreen Video'};
+  const STATUS_MIGRATE={'Writing':'In Motion','Ready':'In Motion','Filmed':'In Motion','Edited':'In Motion',
+    'Posted':'Done','Archived':'Done'};
   (DB.content||[]).forEach(c=>{
-    c.video=c.video||''; c.assetId=c.assetId||''; c.tags=c.tags||[];
-    c.creator=c.creator||(DB.settings.team[0]); c.useCase=c.useCase||'Organic Post';
+    c.video=c.video||''; c.assetId=c.assetId||''; c.tags=c.tags||[]; c.watchId=c.watchId||'';
+    c.creator=c.creator||(DB.settings.team[0]);
+    c.useCases=c.useCases||(c.useCase?[c.useCase]:['Organic Post']);
+    c.mediaStage=c.mediaStage||'Finished';
     c.filmDate=c.filmDate||'';
+    if(!CONTENT_STATUSES.includes(c.status)){ c.status=STATUS_MIGRATE[c.status]||'Idea'; }
     if(!CONTENT_CATS.includes(c.category)){
       if(c.type==='Unboxing') c.category='Watch Unboxing';
-      else if(c.useCase==='Paid Ad') c.category='Ad Content';
+      else if(c.useCases.includes('Paid Ad')) c.category='Ad Content';
       else c.category = CAT_MIGRATE[c.category] || 'Social Content';
+    }
+    if(!CONTENT_CATS.includes(c.category)){
+      c.category = CAT_MIGRATE_V2[c.category] || 'Watch Video';
     }
   });
   (DB.assets||[]).forEach(a=>{ a.tags=a.tags||[]; });
@@ -593,10 +690,10 @@ function seed(){
       {id:uid('a'),name:'D34 winner reel',type:'Video',dropId:d3,tags:['winner','Omega','reel'],url:'',created:now()},
     ],
     content:[
-      {id:uid('cn'),title:'Why low entry counts = better odds',category:'Educational Content',
-       status:'Ready',body:'Only 349 entries. Compare that to a national lottery…',tags:['odds','hook'],dropId:d1,filmDate:addDays(today(),1),video:'',assetId:'',creator:'Felix',useCase:'Organic Post',created:now()},
-      {id:uid('cn'),title:'Unboxing the Speedmaster',category:'Watch Unboxing',
-       status:'Idea',body:'',tags:['Omega','BTS'],dropId:d3,filmDate:'',video:'',assetId:'',creator:'Leila',useCase:'Organic Post',created:now()},
+      {id:uid('cn'),title:'Why low entry counts = better odds',category:'Evergreen Video',
+       status:'Ready',body:'Only 349 entries. Compare that to a national lottery…',tags:['odds','hook'],dropId:d1,filmDate:addDays(today(),1),video:'',assetId:'',creator:'Felix',useCases:['Organic Post'],created:now()},
+      {id:uid('cn'),title:'Unboxing the Speedmaster',category:'Watch Video',
+       status:'Idea',body:'',tags:['Omega','BTS'],dropId:d3,filmDate:'',video:'',assetId:'',creator:'Leila',useCases:['Organic Post'],created:now()},
     ],
     sops:[
       {id:uid('sop'),title:'Launching a Drop',body:'1. Confirm stock\n2. Photography\n3. Build website entry\n4. Launch email\n5. Meta ads live\n6. SMS schedule',created:now()},
@@ -617,12 +714,89 @@ function seed(){
 /* ---------- Helpers ---------- */
 const watchById = id => DB.watches.find(w=>w.id===id);
 const supById = id => DB.suppliers.find(s=>s.id===id);
+const supName = id => { const s=id?supById(id):null; return s? s.name : '— none set —'; };
 const winById = id => DB.winners.find(w=>w.id===id);
 const dropById = id => DB.drops.find(d=>d.id===id);
 const watchName = id => { const w=watchById(id); return w? `${w.brand} ${w.model}` : '—'; };
 function fillRate(d){ return d.pool? Math.round((d.entriesSold/d.pool)*100) : 0; }
 function variableCostsTotal(d){ return (d.variableCosts||[]).reduce((a,c)=>a+(Number(c.amount)||0),0); }
 function totalCost(d){ return (Number(d.costWatch)||0)+(Number(d.costFixed)||0)+variableCostsTotal(d); }
+function vatAmount(d){ return (Number(d.revenue)||0)*(0.2/1.2); }
+
+/* ---------- Drop Tracker calc engine (mirrors the D33 spreadsheet tab) ---------- */
+function trkFullPrice(t){ return Number(t.fullTicketPrice)||0; }
+function trkLaunchPrice(t){ return trkFullPrice(t)*(1-(Number(t.launchDiscountPct)||0)); }
+function trkCompPrice(t){ return trkFullPrice(t)*(1-(Number(t.compLifeDiscountPct)||0)); }
+function trkValueMultiple(t){ const wc=Number(t.watchCost)||0; return wc? (Number(t.statedValue)||0)/wc : 0; }
+function trkPaidTickets(t){ return Math.max(0,(Number(t.ticketsSoldTotal)||0)-(Number(t.freeTicketsGiven)||0)); }
+function trkLaunchPaid(t){ return Math.min(Number(t.launchTicketsSold)||0, trkPaidTickets(t)); }
+function trkCouponPaid(t){ return Math.min(Number(t.couponBulkTicketsSold)||0, Math.max(0, trkPaidTickets(t)-trkLaunchPaid(t))); }
+function trkFullPaid(t){ return Math.max(0, trkPaidTickets(t)-trkLaunchPaid(t)-trkCouponPaid(t)); }
+function trkRevenueLaunch(t){ return trkLaunchPaid(t)*trkLaunchPrice(t); }
+function trkRevenueCoupon(t){ return trkCouponPaid(t)*trkCompPrice(t); }
+function trkRevenueFull(t){ return trkFullPaid(t)*trkFullPrice(t); }
+function trkGrossRevenue(t){ return trkRevenueLaunch(t)+trkRevenueCoupon(t)+trkRevenueFull(t); }
+function trkNetRevenue(t){ return trkGrossRevenue(t)/1.2; }
+function trkAvgTicket(t){ const tot=Number(t.ticketsSoldTotal)||0; return tot? trkGrossRevenue(t)/tot : 0; }
+function trkPaymentFees(t){ return trkGrossRevenue(t)*(Number(t.paymentFeePct)||0); }
+function trkTotalCostsExclFees(t){ return (Number(t.watchCost)||0)+(Number(t.adsBudget)||0)+(Number(t.fixed)||0)+(Number(t.instantWins)||0); }
+function trkCostsInclFees(t){ return trkTotalCostsExclFees(t)+trkPaymentFees(t); }
+function trkGrossProfit(t){ return trkGrossRevenue(t)-trkCostsInclFees(t); }
+function trkVat(t){ return trkGrossRevenue(t)-trkNetRevenue(t); }
+function trkNetProfit(t){ return trkGrossProfit(t)-trkVat(t); }
+function trkTicketsToProfit(t){ const fp=trkFullPrice(t); return fp? trkNetProfit(t)/fp : 0; }
+function trkSellOutRevenue(t){ return trkFullPrice(t)*(Number(t.maxTickets)||0); }
+function trkRemainingAdBudget(t){ return (Number(t.adsBudget)||0)-(Number(t.adsSpent)||0); }
+function trkBreakEvenTickets(t){ const avg=trkAvgTicket(t); return avg? Math.ceil(trkCostsInclFees(t)/(avg*0.8)) : 0; }
+function trkRemainingTickets(t){ return (Number(t.maxTickets)||0)-(Number(t.ticketsSoldTotal)||0); }
+function trkBreakEvenPct(t){ const max=Number(t.maxTickets)||0; return max? trkBreakEvenTickets(t)/max : 0; }
+function trkRevenueToSellout(t){ return trkRemainingTickets(t)*trkFullPrice(t); }
+function trkCurrentPct(t){ const max=Number(t.maxTickets)||0; return max? (Number(t.ticketsSoldTotal)||0)/max : 0; }
+function trkStatus(t){ return trkGrossProfit(t)>=0 ? 'PROFITABLE' : 'UNPROFITABLE'; }
+function trkCheckpointTotal(t){ return (t.checkpoints||[]).reduce((a,c)=>a+(Number(c.ticketsSold)||0),0); }
+function trkTotalCostsCombined(d,t){ return (Number(t.watchCost)||0)+(Number(t.fixed)||0)+variableCostsTotal(d)+(Number(t.adsSpent)||0); }
+function buildCheckpointTemplate(d){
+  if(d.type==='Free Drop') return []; // no sales tracking needed for free drops
+  const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const launch=new Date((d.launch||today())+'T00:00:00');
+  const cps=[];
+  const pushEvening=(offsetDays)=>{
+    const dt=new Date(launch); dt.setDate(dt.getDate()+offsetDays);
+    cps.push({id:uid('cp'), label:`${dayNames[dt.getDay()]} 8:30pm`, date:localISODate(dt), ticketsSold:0, filled:false, locked:true});
+  };
+  const pushFinalDay=(offsetDays)=>{
+    const dt=new Date(launch); dt.setDate(dt.getDate()+offsetDays);
+    const label=dayNames[dt.getDay()]; const dateStr=localISODate(dt);
+    ['9am','1pm','6pm','7pm','8pm'].forEach(time=>cps.push({id:uid('cp'), label:`${label} ${time}`, date:dateStr, ticketsSold:0, filled:false, locked:true}));
+  };
+  if(d.type==='Weekend Drop'){
+    // Fri 5:30pm launch (tracked at 8:30pm) -> Sun 8:30pm draw, 2-day span
+    pushEvening(1); // Saturday 8:30pm
+    pushFinalDay(2); // Sunday — intraday
+  } else if(d.type==='Tech Drop'){
+    // Sun 5:30pm launch (tracked at 8:30pm) -> Tue 8:30pm draw, 2-day span
+    pushEvening(1); // Monday 8:30pm
+    pushFinalDay(2); // Tuesday — intraday
+  } else {
+    // Main Drop and Vault: Wed 8:30pm -> next Wed 8:30pm, 7-day span
+    for(let i=1;i<=6;i++) pushEvening(i); // Thu..Tue 8:30pm
+    pushFinalDay(7); // final Wed — intraday
+  }
+  return cps;
+}
+function launchDiscountLabel(type){
+  if(type==='Weekend Drop') return 'Launch Discount % (2h)';
+  return 'Launch Discount % (24h)';
+}
+function dueCheckpoints(){
+  const items=[];
+  DB.drops.filter(d=>d.status==='Live').forEach(d=>{
+    ((d.tracker&&d.tracker.checkpoints)||[]).forEach(cp=>{
+      if(cp.date===today() && !cp.filled) items.push({dropId:d.id, dropNumber:d.number, watch:watchName(d.watchId), cp});
+    });
+  });
+  return items;
+}
 function profit(d){ return (Number(d.revenue)||0)-totalCost(d); }
 function logTL(dropId,event){ DB.timeline.unshift({id:uid('tl'),dropId,event,at:now()}); }
 function teamList(){ return (DB.settings && DB.settings.team) || ['Felix']; }
@@ -741,6 +915,93 @@ function videoField(id,label,value){
     </div></div>`;
 }
 function mediaVal(id){ const el=document.getElementById(id+'_box'); return el? (el.dataset.ref||'') : ''; }
+
+/* ---------- Multi-item media galleries (Watch Images / Videos / Unboxing / Social) ---------- */
+let watchMediaDraft = {images:[],videos:[],unboxing:[],social:[]};
+let watchLinkedGalleryItems = {images:[],videos:[],unboxing:[],social:[]};
+function galleryHTML(key,label,accept){
+  const items=watchMediaDraft[key]||[];
+  const linked=watchLinkedGalleryItems[key]||[];
+  const hasAny = items.length || linked.length;
+  return `<div class="field">
+    <label>${label}</label>
+    <div class="gallery-grid" id="gal_${key}">${items.map((it,i)=>galleryItemHTML(it,i,accept)).join('')}${linked.map(c=>linkedGalleryItemHTML(c,accept)).join('')}</div>
+    <div class="muted" style="font-size:11px;${hasAny?'margin-top:-4px':''}">${hasAny?'Populated automatically from New Content — click a tile to open it. Add or replace media there.':'Nothing yet — add content under New Content and link it to this watch to populate this gallery.'}${items.length?' Older direct uploads can be removed here with ×.':''}</div>
+  </div>`;
+}
+function linkedGalleryItemHTML(c,accept){
+  const ref=c.ref||'';
+  const acceptVideoOnly = accept==='video/*';
+  const looksVideo = acceptVideoOnly || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(ref);
+  const isExternalLink = ref && !ref.startsWith('r2:') && !ref.startsWith('m_');
+  const openTag=`closeModal();go('content');setTimeout(()=>openContent('${c.id}'),50)`;
+  if(isExternalLink && looksVideo){
+    return `<div class="gallery-item gallery-link-item" style="cursor:pointer" title="${esc(c.title)}" onclick="${openTag}"><span class="ico">▶</span>Link<span class="gallery-badge">Content</span></div>`;
+  }
+  const tag = looksVideo? `<video data-mediaref="${esc(ref)}" muted></video>` : `<img data-mediaref="${esc(ref)}">`;
+  return `<div class="gallery-item" style="cursor:pointer" title="${esc(c.title)}" onclick="${openTag}">${tag}<span class="gallery-badge">Content</span></div>`;
+}
+function galleryItemHTML(it,i,accept){
+  if(it.uploading){
+    return `<div class="gallery-item gallery-uploading">${it.progress||0}%</div>`;
+  }
+  const ref=it.ref||'';
+  const acceptVideoOnly = accept==='video/*';
+  const looksVideo = acceptVideoOnly || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(ref);
+  const isExternalLink = ref && !ref.startsWith('r2:') && !ref.startsWith('m_');
+  if(isExternalLink && looksVideo){
+    return `<div class="gallery-item gallery-link-item" title="${esc(ref)}"><span class="ico">▶</span>Link<span class="gallery-remove" onclick="removeGalleryItem(event,'${it.id}')">×</span></div>`;
+  }
+  const tag = looksVideo? `<video data-mediaref="${esc(ref)}" muted></video>` : `<img data-mediaref="${esc(ref)}">`;
+  return `<div class="gallery-item">${tag}<span class="gallery-remove" onclick="removeGalleryItem(event,'${it.id}')">×</span></div>`;
+}
+function galleryAccept(key){
+  return key===slug('Watch Photos') ? 'image/*' : 'image/*,video/*';
+}
+function refreshGallery(key){
+  const grid=document.getElementById('gal_'+key); if(!grid) return;
+  const accept=galleryAccept(key);
+  const linked=watchLinkedGalleryItems[key]||[];
+  grid.innerHTML=(watchMediaDraft[key]||[]).map((it,i)=>galleryItemHTML(it,i,accept)).join('')+linked.map(c=>linkedGalleryItemHTML(c,accept)).join('');
+  hydrateMedia();
+}
+function addGalleryLink(key){
+  const el=document.getElementById('gal_'+key+'_url'); const val=el.value.trim();
+  if(!val) return;
+  watchMediaDraft[key]=watchMediaDraft[key]||[];
+  watchMediaDraft[key].push({id:uid('med'),ref:val});
+  el.value='';
+  refreshGallery(key);
+}
+async function onGalleryUpload(evt,key){
+  const files=[...evt.target.files]; if(!files.length) return;
+  watchMediaDraft[key]=watchMediaDraft[key]||[];
+  for(const file of files){
+    const tempId=uid('med');
+    watchMediaDraft[key].push({id:tempId,ref:'',uploading:true,progress:0});
+    refreshGallery(key);
+    try{
+      const ref = await storeMedia(file, pct=>{
+        const item=watchMediaDraft[key].find(x=>x.id===tempId);
+        if(item){ item.progress=pct; refreshGallery(key); }
+      });
+      const item=watchMediaDraft[key].find(x=>x.id===tempId);
+      if(item){ item.ref=ref; item.uploading=false; }
+    }catch(e){
+      watchMediaDraft[key]=watchMediaDraft[key].filter(x=>x.id!==tempId);
+      alert('Upload failed: '+e.message);
+    }
+    refreshGallery(key);
+  }
+  evt.target.value='';
+}
+function removeGalleryItem(evt,id){
+  if(evt) evt.stopPropagation();
+  ['images','videos','unboxing','social'].forEach(key=>{
+    watchMediaDraft[key]=(watchMediaDraft[key]||[]).filter(it=>it.id!==id);
+  });
+  ['images','videos','unboxing','social'].forEach(refreshGallery);
+}
 function persistMediaBox(id){
   const box=document.getElementById(id+'_box'); if(!box) return;
   const type=box.dataset.saveType; if(!type) return;
@@ -796,6 +1057,8 @@ const NAV=[
   {group:null,items:[{k:'dashboard',label:'Dashboard',ico:'◆'}]},
   {group:'Operations',items:[
     {k:'drops',label:'Drops',ico:'⬡',count:()=>DB.drops.length},
+    {k:'tracker',label:'Drop Tracker',ico:'📊',count:()=>DB.drops.filter(d=>d.status==='Live').length},
+    {k:'pastdrops',label:'Past Drops',ico:'🗄',count:()=>DB.drops.filter(d=>['Closed','Complete'].includes(d.status)).length},
     {k:'tasks',label:'Tasks',ico:'☑',count:()=>DB.tasks.filter(t=>!t.done).length},
     {k:'calendar',label:'Calendar',ico:'▦'},
   ]},
@@ -834,7 +1097,7 @@ function renderNav(){
 function render(){
   renderNav();
   const c=document.getElementById('content');
-  const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tasks:vTasks,calendar:vCalendar,
+  const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,tasks:vTasks,calendar:vCalendar,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
     content:vContent,assets:vAssets,ideas:vIdeas,sops:vSops,kb:vKB};
   c.innerHTML = (V[route.view]||vDashboard)();
@@ -899,12 +1162,26 @@ function vDashboard(){
   const awaitingDispatch=DB.winners.filter(w=>!w.dispatched);
   const filmList=DB.content.filter(cn=>cn.status==='Ready'||cn.status==='Writing');
   const noPhoto=DB.watches.filter(w=>!w.img);
+  const due=dueCheckpoints();
 
   return `
   <div class="page-head">
     <div><h2>Good ${greet()}, Felix</h2><div class="desc">${new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</div></div>
     <div class="page-actions"><button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button></div>
   </div>
+
+  ${due.length?`<div class="card" style="border-color:var(--warn)">
+    <div class="card-h"><h3>⏰ Drop Tracker — Today's Checkpoints</h3></div>
+    <div class="card-b">${due.map(item=>`
+      <div class="row-item">
+        <div class="txt"><div class="t">${esc(item.dropNumber)} — ${esc(item.watch)}</div>
+          <div class="meta">${esc(item.cp.label)} — enter today's tickets sold</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="number" placeholder="Tickets" style="width:90px" onchange="fillCheckpointQuick('${item.dropId}','${item.cp.id}',this.value)">
+          <button class="btn btn-sm" onclick="openTrackerFor('${item.dropId}')">Open tracker →</button>
+        </div>
+      </div>`).join('')}</div>
+  </div>`:''}
 
   <div class="kpi-row">
     <div class="kpi"><div class="label">Live Drops</div><div class="val green">${live.length}</div><div class="sub">${upcoming.length} upcoming</div></div>
@@ -990,6 +1267,15 @@ function taskRow(t){
   </div>`;
 }
 function dropRow(d){
+  const t=d.tracker;
+  if(t){
+    const revenue=trkGrossRevenue(t), profit=trkNetProfit(t), status=trkStatus(t);
+    return `<div class="row-item" onclick="openTrackerFor('${d.id}')">
+      <div class="txt"><div class="t">${esc(d.number)} — ${esc(watchName(d.watchId))}</div>
+        <div class="meta">${t.ticketsSoldTotal}/${t.maxTickets} tickets · ${gbp(revenue)} rev · ${gbp(profit)} profit</div></div>
+      <span class="pill ${status==='PROFITABLE'?'pill-done':'pill-closed'}">${status}</span>
+    </div>`;
+  }
   return `<div class="row-item" onclick="go('drop','${d.id}')">
     <div class="txt"><div class="t">${esc(d.number)} — ${esc(watchName(d.watchId))}</div>
       <div class="meta">${gbp(d.price)}/entry · ${d.entriesSold}/${d.pool} sold · ${fillRate(d)}% filled</div></div>
@@ -1125,7 +1411,7 @@ function dropOverview(d){
         <div class="field"><label>Type</label>${dd('drop_type_'+d.id, ['Main Drop','Weekend Drop','Tech Drop','Vault','Free Drop'], d.type,'onDropTypeChange')}</div>
       </div>
       <div class="field"><label>Watch</label>${dd('drop_watch_'+d.id, [{value:'',label:'— select —'},...DB.watches.map(w=>({value:w.id,label:`${w.brand} ${w.model}`}))], d.watchId,'onDropWatchChange')}</div>
-      <div class="field"><label>Supplier</label>${dd('drop_sup_'+d.id, [{value:'',label:'— select —'},...DB.suppliers.map(s=>({value:s.id,label:s.name}))], d.supplierId,'onDropSupplierChange')}</div>
+      ${d.watchId?`<div class="muted" style="font-size:11.5px;margin:-6px 0 4px">Supplier: ${esc(supName(watchById(d.watchId)?.supplierId))} <span style="cursor:pointer;color:var(--gold2)" onclick="closeModal();go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)">— set on the watch →</span></div>`:''}
       <div class="field-row">${fld('Launch Date',d.launch,'launch','date')}${fld('Draw Date',d.draw,'draw','date')}</div>
       ${fld('Website Link (live page)', d.websiteLink,'websiteLink')}
       <div class="field"><label>Notes</label><textarea onchange="updDrop('notes',this.value)">${esc(d.notes)}</textarea></div>
@@ -1134,23 +1420,27 @@ function dropOverview(d){
       <div class="card"><div class="card-h"><h3>Commercials</h3></div><div class="modal-b" style="max-height:none">
         <div class="field-row-3">
           ${fld('Entry Price (£)',d.price,'price','number')}
-          ${fld('Discounted Entry Price (£)',d.discountPrice,'discountPrice','number')}
-          ${fld('Pool Size',d.pool,'pool','number')}
+          ${fld('Dsct Price (£)',d.discountPrice,'discountPrice','number')}
+          ${fld('Total Tickets',d.pool,'pool','number')}
         </div>
         <div class="field-row-3">
           ${fld('Entries Sold',d.entriesSold,'entriesSold','number')}
-          ${fld('Revenue (£)',d.revenue,'revenue','number')}
-          ${fld('Watch Cost (£)',d.costWatch,'costWatch','number')}
+          ${fld('Dsct Entries Sold',d.discountEntriesSold,'discountEntriesSold','number')}
+          ${roFld('Revenue (£)', (Number(d.revenue)||0).toFixed(2))}
         </div>
         <div class="field-row-3">
+          ${roFld('VAT (£)', vatAmount(d).toFixed(2))}
+          ${fld('Watch Cost (£)',d.costWatch,'costWatch','number')}
           ${fld('Fixed Costs (£)',d.costFixed,'costFixed','number')}
+        </div>
+        <div class="field-row">
           ${roFld('Variable Costs (£)', variableCostsTotal(d).toFixed(2))}
           ${roFld('Total Cost (£)', totalCost(d).toFixed(2))}
         </div>
-        <div class="muted" style="font-size:11px">Watch Cost auto-fills from the Watch Library when you pick a watch above — edit here if the price paid differs.</div>
+        <div class="muted" style="font-size:11px">Watch Cost auto-fills from the Watch Library when you pick a watch above — edit here if the price paid differs. Revenue and VAT are calculated automatically from entries sold (VAT assumed included in ticket price at 20%).</div>
       </div></div>
       ${dropVarCosts}
-      <div class="kpi-row" style="margin:0">
+      <div class="kpi-row" style="margin:18px 0">
         <div class="kpi"><div class="label">Fill Rate</div><div class="val gold">${fillRate(d)}%</div><div class="sub">${d.entriesSold}/${d.pool}</div></div>
         <div class="kpi"><div class="label">Profit</div><div class="val ${profit(d)>=0?'green':''}">${gbp(profit(d))}</div><div class="sub">${m}% margin</div></div>
         <div class="kpi"><div class="label">Potential</div><div class="val">${gbp(d.pool*d.price)}</div><div class="sub">full sell-out</div></div>
@@ -1302,7 +1592,261 @@ function dropTimeline(d){
   </div></div>`;
 }
 
-/* ================= TASKS ================= */
+/* ================= DROP TRACKER (per-drop finance tracker, mirrors D33 spreadsheet tab) ================= */
+let trackerDropId=null;
+function trkFld(d,label,field,type='number'){
+  const val=d.tracker[field];
+  return `<div class="field"><label>${label}</label><input type="${type}" value="${esc(val)}" onchange="updTracker('${d.id}','${field}',this.value)"></div>`;
+}
+function trkTextFld(d,label,field){
+  return `<div class="field"><label>${label}</label><input type="text" value="${esc(d.tracker[field]||'')}" onchange="updTracker('${d.id}','${field}',this.value)"></div>`;
+}
+function trkPctFld(d,label,field){
+  const val=(Number(d.tracker[field])||0)*100;
+  return `<div class="field"><label>${label}</label><input type="number" value="${val}" onchange="updTrackerPct('${d.id}','${field}',this.value)"></div>`;
+}
+function updTracker(dropId,field,val){
+  const d=dropById(dropId); if(!d) return;
+  const numFields=['statedValue','watchCost','maxTickets','fullTicketPrice','adsBudget','fixed','instantWins','adsSpent','ticketsSoldTotal','launchTicketsSold','couponBulkTicketsSold','freeTicketsGiven'];
+  d.tracker=d.tracker||{};
+  d.tracker[field] = numFields.includes(field) ? (Number(val)||0) : val;
+  queueSave(); render();
+}
+function updTrackerPct(dropId,field,val){
+  const d=dropById(dropId); if(!d) return;
+  d.tracker=d.tracker||{}; d.tracker[field]=(Number(val)||0)/100;
+  queueSave(); render();
+}
+function addCheckpoint(dropId){
+  const d=dropById(dropId); if(!d) return;
+  d.tracker.checkpoints=d.tracker.checkpoints||[];
+  d.tracker.checkpoints.push({id:uid('cp'),label:'',ticketsSold:0});
+  queueSave(); render();
+}
+function updCheckpoint(dropId,cpId,field,val){
+  const d=dropById(dropId); if(!d) return;
+  const cp=(d.tracker.checkpoints||[]).find(c=>c.id===cpId); if(!cp) return;
+  cp[field]= field==='ticketsSold'? (Number(val)||0) : val;
+  if(field==='ticketsSold') cp.filled=true;
+  queueSave(); render();
+}
+function delCheckpoint(dropId,cpId){
+  const d=dropById(dropId); if(!d) return;
+  d.tracker.checkpoints=(d.tracker.checkpoints||[]).filter(c=>c.id!==cpId);
+  queueSave(); render();
+}
+function fillCheckpointQuick(dropId,cpId,val){
+  updCheckpoint(dropId,cpId,'ticketsSold',val);
+}
+function openTrackerFor(dropId){ trackerDropId=dropId; go('tracker'); }
+function calcRow(label,val){ return `<div class="calc-row"><span>${esc(label)}</span><span class="calc-val">${val}</span></div>`; }
+function vDropTracker(){
+  const live=DB.drops.filter(d=>d.status==='Live');
+  if(!live.length) return `<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking for whatever's live right now.</div></div></div>
+    <div class="card"><div class="empty">No live drops right now — trackers appear here automatically once a drop's status is set to Live. Finished ones are still viewable under <span class="link" onclick="go('pastdrops')">Past Drops</span>.</div></div>`;
+  if(!trackerDropId || !live.find(d=>d.id===trackerDropId)) trackerDropId=live[0].id;
+  const d=dropById(trackerDropId);
+
+  const head=`<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking per live drop — watch cost, discounts, fees, VAT and break-even, all in one place.</div></div></div>
+  <div class="filters">${live.map(ld=>`<button class="fbtn ${trackerDropId===ld.id?'active':''}" onclick="trackerDropId='${ld.id}';render()">${esc(ld.number)} — ${esc(watchName(ld.watchId))}</button>`).join('')}</div>`;
+
+  return head+trackerBody(d);
+}
+function trackerBody(d){
+  const t=d.tracker;
+  const w=d.watchId?watchById(d.watchId):null;
+
+  const watchDetails=`<div class="card"><div class="card-h"><h3>Watch Details</h3></div><div class="modal-b" style="max-height:none">
+    <div class="field-row-3">
+      <div class="field"><label>Drop</label><input value="${esc(d.number)}" disabled style="opacity:.65"></div>
+      <div class="field"><label>Brand</label><input value="${esc(w?w.brand:'—')}" disabled style="opacity:.65"></div>
+      <div class="field"><label>Model</label><input value="${esc(w?w.model:'—')}" disabled style="opacity:.65"></div>
+    </div>
+    <div class="field-row-3">
+      ${trkTextFld(d,'Dial','dial')}
+      ${trkTextFld(d,'Set/Straps','setStraps')}
+      <div class="field"><label>Ref</label><input value="${esc(w?w.ref:'—')}" disabled style="opacity:.65"></div>
+    </div>
+    <div class="field-row">${trkTextFld(d,'Close Notes','closeNotes')}${trkTextFld(d,'Draw/Notes','drawNotes')}</div>
+  </div></div>`;
+
+  const dropSetup=`<div class="card"><div class="card-h"><h3>Drop Setup</h3></div><div class="modal-b" style="max-height:none">
+    <div class="field-row-3">
+      ${trkFld(d,'Watch Cost (paid) £','watchCost')}
+      ${trkFld(d,'Stated Value £','statedValue')}
+      ${roFld('Value Multiple', trkValueMultiple(t).toFixed(2)+'×')}
+    </div>
+    <div class="field-row-3">
+      ${trkFld(d,'Max Tickets','maxTickets')}
+      ${trkFld(d,'Full Ticket £','fullTicketPrice')}
+      ${trkPctFld(d,launchDiscountLabel(d.type),'launchDiscountPct')}
+    </div>
+    <div class="field-row-3">
+      ${roFld('Launch Discount Ticket £', trkLaunchPrice(t).toFixed(2))}
+      ${trkPctFld(d,'Comp/Life Discount %','compLifeDiscountPct')}
+      ${roFld('Comp/Life Discount Ticket £', trkCompPrice(t).toFixed(2))}
+    </div>
+    <div class="field-row-3">
+      ${trkFld(d,'Ads Budget £','adsBudget')}
+      ${trkFld(d,'Fixed £','fixed')}
+      ${trkFld(d,'Instant Wins £','instantWins')}
+    </div>
+    <div class="field-row-3">
+      ${trkPctFld(d,'Payment Fee %','paymentFeePct')}
+      ${roFld('Total Costs excl. fees £', trkTotalCostsExclFees(t).toFixed(2))}
+      ${roFld('Sell Out Revenue £', trkSellOutRevenue(t).toFixed(2))}
+    </div>
+    <div class="field-row">
+      ${trkFld(d,'Ads Spent £','adsSpent')}
+      ${roFld('Remaining Ad Budget £', trkRemainingAdBudget(t).toFixed(2))}
+    </div>
+  </div></div>`;
+
+  const liveInputs=`<div class="card"><div class="card-h"><h3>Live Inputs</h3></div><div class="modal-b" style="max-height:none">
+    <div class="field-row-3">
+      ${trkFld(d,'Tickets Sold (Total, incl. free)','ticketsSoldTotal')}
+      ${trkFld(d,'Launch Discount Tickets Sold (24h)','launchTicketsSold')}
+      ${trkFld(d,'Discounted Tickets (coupon/bulk)','couponBulkTicketsSold')}
+    </div>
+    <div class="field-row">
+      ${trkFld(d,'Free Tickets Given (to date)','freeTicketsGiven')}
+    </div>
+  </div></div>`;
+
+  const status=trkStatus(t);
+  const totalCostsCombined=trkTotalCostsCombined(d,t);
+  const adRemaining=trkRemainingAdBudget(t);
+  const grossRev=trkGrossRevenue(t), costsIncl=trkCostsInclFees(t), vat=trkVat(t), netProfit=trkNetProfit(t);
+  // Recalculated directly (not derived from the spreadsheet's break-even chain): straightforward
+  // tickets remaining to reach max capacity, and the revenue those tickets represent at full price.
+  const maxTicketsVal=Number(t.maxTickets)||0, soldVal=Number(t.ticketsSoldTotal)||0;
+  const ticketsToSellOut=Math.max(0, maxTicketsVal-soldVal);
+  const revenueToSellOut=ticketsToSellOut*trkFullPrice(t);
+  const breakEven=`<div class="kpi-row" style="margin:18px 0">
+    <div class="kpi"><div class="label">Current %</div><div class="val">${(trkCurrentPct(t)*100).toFixed(1)}%</div><div class="sub">of max tickets</div></div>
+    <div class="kpi"><div class="label">Status</div><div class="val" style="font-size:18px;${status!=='PROFITABLE'?'color:var(--danger)':'color:var(--gold2)'}">${status}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Break-even Tickets</span><span>${trkBreakEvenTickets(t)}</span></div>
+        <div class="cb-row"><span>Sell-through needed</span><span>${(trkBreakEvenPct(t)*100).toFixed(1)}%</span></div>
+      </div>
+    </div>
+    <div class="kpi"><div class="label">Tickets to Sell Out</div><div class="val">${ticketsToSellOut}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Revenue to Sell Out</span><span>${gbp(revenueToSellOut)}</span></div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="label">Total Costs</div><div class="val">${gbp(totalCostsCombined)}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Watch Cost</span><span>${gbp(t.watchCost)}</span></div>
+        <div class="cb-row"><span>Fixed £</span><span>${gbp(t.fixed)}</span></div>
+        <div class="cb-row"><span>Variable Costs</span><span>${gbp(variableCostsTotal(d))}</span></div>
+        <div class="cb-row"><span>Ad Spend</span><span>${gbp(t.adsSpent)}</span></div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="label">Discounted Tickets</div><div class="val">${(Number(t.launchTicketsSold)||0)+(Number(t.couponBulkTicketsSold)||0)}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Launch Discount Tickets</span><span>${Number(t.launchTicketsSold)||0}</span></div>
+        <div class="cb-row"><span>Coupon/Bulk Tickets</span><span>${Number(t.couponBulkTicketsSold)||0}</span></div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="label">Net Profit</div><div class="val" style="${netProfit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(netProfit)}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Gross Revenue</span><span>${gbp(grossRev)}</span></div>
+        <div class="cb-row"><span>Costs incl. Fees</span><span>${gbp(costsIncl)}</span></div>
+        <div class="cb-row"><span>VAT</span><span>${gbp(vat)}</span></div>
+      </div>
+    </div>
+    <div class="kpi"><div class="label">Ad Spend</div><div class="val">${gbp(t.adsSpent)}</div><div class="sub">of ${gbp(t.adsBudget)} budget · ${gbp(adRemaining)} left</div></div>
+  </div>`;
+
+  const autoCalcs=`<div class="card"><div class="card-h"><h3>Auto Calcs (no circular refs)</h3></div><div class="modal-b" style="max-height:none">
+    <div class="calc-grid">
+      ${calcRow('Paid Tickets', trkPaidTickets(t))}
+      ${calcRow('Launch Discount Paid', trkLaunchPaid(t))}
+      ${calcRow('Coupon/Bulk Discount Paid', trkCouponPaid(t))}
+      ${calcRow('Full Paid', trkFullPaid(t))}
+      ${calcRow('Revenue (Launch Disc)', gbp(trkRevenueLaunch(t)))}
+      ${calcRow('Revenue (Coupon/Bulk)', gbp(trkRevenueCoupon(t)))}
+      ${calcRow('Revenue (Full)', gbp(trkRevenueFull(t)))}
+      ${calcRow('Gross Revenue', gbp(trkGrossRevenue(t)))}
+      ${calcRow('Net Revenue (ex. VAT)', gbp(trkNetRevenue(t)))}
+      ${calcRow('Avg £/Ticket (incl free)', '£'+trkAvgTicket(t).toFixed(2))}
+      ${calcRow('Payment Fees £', gbp(trkPaymentFees(t)))}
+      ${calcRow('Costs incl. Fees £', gbp(trkCostsInclFees(t)))}
+      ${calcRow('Gross Profit', gbp(trkGrossProfit(t)))}
+      ${calcRow('VAT @ 20%', gbp(trkVat(t)))}
+      ${calcRow('Net Profit', gbp(trkNetProfit(t)))}
+      ${calcRow('Tickets to Profit (approx)', trkTicketsToProfit(t).toFixed(1))}
+    </div>
+  </div></div>`;
+
+  const avgTicket=trkAvgTicket(t), maxT=Number(t.maxTickets)||0, costsInclForTable=trkCostsInclFees(t);
+  const sellThroughRows=[10,20,30,40,50,60,70,80,90,100].map(pct=>{
+    const tickets=maxT*pct/100, revenue=tickets*avgTicket, pl=revenue-costsInclForTable;
+    return `<tr><td>${pct}%</td><td>${tickets.toFixed(1)}</td><td>${gbp(revenue)}</td><td style="color:${pl>=0?'var(--live)':'var(--danger)'}">${gbp(pl)}</td></tr>`;
+  }).join('');
+  const sellThrough=`<div class="card"><div class="card-h"><h3>Profit/Loss by Sell-through</h3><span class="muted" style="font-size:12px">uses current avg £/ticket</span></div><div class="modal-b" style="max-height:none">
+    <table class="tbl"><thead><tr><th>% Sold</th><th>Tickets</th><th>Revenue</th><th>Profit/Loss</th></tr></thead>
+    <tbody>${sellThroughRows}</tbody></table>
+  </div></div>`;
+
+  const cps=t.checkpoints||[];
+  const cpRows=cps.map(cp=>{
+    const pct=maxT?((Number(cp.ticketsSold)||0)/maxT*100):0;
+    const isDue = cp.date===today() && !cp.filled;
+    const labelCell = cp.locked
+      ? `<span style="${isDue?'color:var(--warn);font-weight:700':''}">${esc(cp.label)}${isDue?' ⏰':''}</span>`
+      : `<input type="text" value="${esc(cp.label)}" placeholder="e.g. Wed 5pm" onchange="updCheckpoint('${d.id}','${cp.id}','label',this.value)">`;
+    return `<tr${isDue?' style="background:rgba(245,165,36,.06)"':''}><td>${labelCell}</td>
+      <td><input type="number" value="${cp.ticketsSold}" onchange="updCheckpoint('${d.id}','${cp.id}','ticketsSold',this.value)"></td>
+      <td>${pct.toFixed(1)}%</td>
+      <td><button class="btn btn-sm btn-danger" onclick="delCheckpoint('${d.id}','${cp.id}')">×</button></td></tr>`;
+  }).join('');
+  const cpTotal=trkCheckpointTotal(t), cpPct=maxT?(cpTotal/maxT*100):0;
+  const dailyData=`<div class="card"><div class="card-h"><h3>Daily Data</h3><button class="btn btn-sm btn-gold" onclick="addCheckpoint('${d.id}')">＋ Add Checkpoint</button></div><div class="modal-b" style="max-height:none">
+    <table class="tbl"><thead><tr><th>Checkpoint</th><th>Tickets Sold</th><th>Total %</th><th></th></tr></thead>
+    <tbody>${cpRows||'<tr><td colspan=4 class="empty">No checkpoints logged yet.</td></tr>'}</tbody>
+    <tfoot><tr><td class="strong">Total</td><td class="strong">${cpTotal}</td><td class="strong">${cpPct.toFixed(1)}%</td><td></td></tr></tfoot></table>
+  </div></div>`;
+
+  return watchDetails+dropSetup+liveInputs+breakEven+autoCalcs+sellThrough+dailyData;
+}
+
+/* ================= PAST DROPS (finished drops — review history, same detail as Drop Tracker) ================= */
+let pastDropFilter='All';
+function vPastDrops(){
+  const all=DB.drops.filter(d=>['Closed','Complete'].includes(d.status));
+  const filtered = pastDropFilter==='All'? all : all.filter(d=>d.status===pastDropFilter);
+  const sorted=[...filtered].sort((a,b)=>(b.draw||b.launch||'').localeCompare(a.draw||a.launch||''));
+  return `<div class="page-head"><div><h2>Past Drops</h2><div class="desc">Finished drops — go back in and review the full breakdown any time.</div></div></div>
+  <div class="filters">${['All','Closed','Complete'].map(f=>`<button class="fbtn ${pastDropFilter===f?'active':''}" onclick="pastDropFilter='${f}';render()">${f}</button>`).join('')}</div>
+  ${sorted.length? `<div class="card"><table class="tbl"><thead><tr><th>Drop</th><th>Watch</th><th>Tickets</th><th>Revenue</th><th>Net Profit</th><th>Status</th><th>Draw Date</th></tr></thead>
+  <tbody>${sorted.map(d=>{
+    const t=d.tracker||{}; const rev=trkGrossRevenue(t), np=trkNetProfit(t), st=trkStatus(t);
+    return `<tr onclick="openPastDrop('${d.id}')"><td class="strong">${esc(d.number)}</td><td>${esc(watchName(d.watchId))}</td>
+      <td>${t.ticketsSoldTotal||0}/${t.maxTickets||0}</td><td>${gbp(rev)}</td>
+      <td style="color:${np>=0?'var(--live)':'var(--danger)'}">${gbp(np)}</td>
+      <td><span class="pill ${st==='PROFITABLE'?'pill-done':'pill-closed'}">${st}</span></td>
+      <td class="muted">${fmtDate(d.draw)}</td></tr>`;
+  }).join('')}</tbody></table></div>`
+  : `<div class="card"><div class="empty">No finished drops yet — they'll show up here once a drop's status is set to Closed or Complete.</div></div>`}`;
+}
+let pastDropId=null;
+function openPastDrop(id){ pastDropId=id; go('pastdrop'); }
+function vPastDropDetail(){
+  const d=dropById(pastDropId);
+  if(!d) return `<div class="empty">Drop not found. <span class="link" onclick="go('pastdrops')">Back to Past Drops</span></div>`;
+  const head=`<div class="page-actions" style="margin-bottom:14px"><span class="link muted" onclick="go('pastdrops')" style="cursor:pointer;font-size:13px">← All past drops</span></div>
+  <div class="page-head"><div><h2>${esc(d.number)} — ${esc(watchName(d.watchId))}</h2>
+    <div class="desc">Archived drop · ${d.status} · Drew ${fmtDate(d.draw)} <span class="link" onclick="go('drop','${d.id}')" style="margin-left:8px">Open full Drop Hub →</span></div></div></div>`;
+  return head+trackerBody(d);
+}
+
+
+
 let taskFilter='Today', taskPerson='All', taskUrgentOnly=false;
 function vTasks(){
   const groups={Today:[],Tomorrow:[],'This Week':[],Overdue:[],Completed:[]};
@@ -1421,7 +1965,7 @@ function calendarGrid(events){
     <div class="cal-grid-head">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(dn=>`<div>${dn}</div>`).join('')}</div>
     <div class="cal-grid">${cells}</div>`;
 }
-function calShift(n){ const [y,m]=calMonth.split('-').map(Number); const d=new Date(y,m-1+n,1); calMonth=d.toISOString().slice(0,7); render(); }
+function calShift(n){ const [y,m]=calMonth.split('-').map(Number); const d=new Date(y,m-1+n,1); calMonth=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); render(); }
 /* ================= WATCH LIBRARY (grouped by brand) ================= */
 function vWatches(){
   const brands={}; DB.watches.forEach(w=>{ const b=w.brand||'Unbranded'; (brands[b]=brands[b]||[]).push(w); });
@@ -1463,7 +2007,7 @@ function vSuppliers(){
   return `<div class="page-head"><div><h2>Suppliers</h2><div class="desc">Who you buy from.</div></div>
     <div class="page-actions"><button class="btn btn-gold" onclick="openSupplier()">＋ Add Supplier</button></div></div>
   ${DB.suppliers.length?`<div class="grid">${DB.suppliers.map(s=>{
-    const boughtIds=[...new Set(DB.drops.filter(d=>d.supplierId===s.id&&d.watchId).map(d=>d.watchId))];
+    const boughtIds=DB.watches.filter(w=>w.supplierId===s.id).map(w=>w.id);
     return `<div class="gcard" onclick="openSupplier('${s.id}')"><div class="gbody">
       <div class="gtitle">${esc(s.name)}</div><div class="gsub">${esc(s.contact||'')} ${s.phone?'· '+esc(s.phone):''}</div>
       <div class="gmeta"><span class="pill pill-type">${boughtIds.length} watch${boughtIds.length===1?'':'es'}</span></div>
@@ -1483,12 +2027,13 @@ function vCustomers(){
 }
 
 /* ================= NEW CONTENT (creation pipeline) ================= */
-let contentView='board', contentCat='All', contentStatusFilter='All';
+let contentView='board', contentCat='All', contentStatusFilter='All', contentStageFilter='All';
 function vContent(){
-  const cats=['All',...CONTENT_CATS]; const statuses=['All',...CONTENT_STATUSES];
+  const cats=['All',...CONTENT_CATS]; const statuses=['All',...CONTENT_STATUSES]; const stages=['All','Raw','Finished'];
   let items=[...DB.content];
   if(contentCat!=='All') items=items.filter(c=>c.category===contentCat);
   if(contentStatusFilter!=='All') items=items.filter(c=>c.status===contentStatusFilter);
+  if(contentStageFilter!=='All') items=items.filter(c=>(c.mediaStage||'Finished')===contentStageFilter);
   const noDrops=DB.drops.length===0;
   return `<div class="page-head"><div><h2>New Content</h2><div class="desc">Idea → script → filmed → edited → posted. Once it's posted (or has a finished video attached), it shows up automatically in the Asset Library.</div></div>
     <div class="page-actions">
@@ -1497,16 +2042,41 @@ function vContent(){
       <button class="btn btn-gold" onclick="${noDrops?"alert('Create a drop first — content has to be linked to one so nothing gets lost.')":'openContent()'}" style="${noDrops?'opacity:.5':''}">＋ New</button></div></div>
   <div class="filters">${cats.map(c=>`<button class="fbtn ${contentCat===c?'active':''}" onclick="contentCat='${c}';render()">${c}</button>`).join('')}</div>
   <div class="filters">${statuses.map(s=>`<button class="fbtn ${contentStatusFilter===s?'active':''}" onclick="contentStatusFilter='${s}';render()">${s}</button>`).join('')}</div>
+  <div class="filters">${stages.map(s=>`<button class="fbtn ${contentStageFilter===s?'active':''}" onclick="contentStageFilter='${s}';render()">${s}</button>`).join('')}</div>
   ${contentView==='board'? `<div class="kanban">${CONTENT_STATUSES.map(st=>{
     const col=items.filter(c=>c.status===st);
     return `<div class="kcol"><div class="kcol-h"><span>${st}</span><span>${col.length}</span></div>
       ${col.map(c=>`<div class="kcard" onclick="openContent('${c.id}')"><div class="kt">${esc(c.title)}</div>
-        <div class="km">${esc(c.category)}${c.dropId?' · '+esc((dropById(c.dropId)||{}).number||''):''}${c.filmDate?' · film '+fmtDate(c.filmDate):''}</div></div>`).join('')}
+        <div class="km">${esc(c.category)}${c.dropId?' · '+esc((dropById(c.dropId)||{}).number||''):''}${c.filmDate?' · film '+fmtDate(c.filmDate):''}</div>
+        <div style="margin-top:5px"><span class="stage-badge ${(c.mediaStage||'Finished').toLowerCase()}">${c.mediaStage||'Finished'}</span></div>
+        ${statusQuickButtons(c)}</div>`).join('')}
     </div>`;}).join('')}</div>`
-  : `<div class="card"><table class="tbl"><thead><tr><th>Drop</th><th>Title</th><th>Category</th><th>Status</th><th>Film Date</th></tr></thead>
+  : `<div class="card"><table class="tbl"><thead><tr><th>Drop</th><th>Title</th><th>Category</th><th>Type</th><th>Status</th><th>Film Date</th></tr></thead>
     <tbody>${items.map(c=>`<tr onclick="openContent('${c.id}')"><td class="strong">${c.dropId?esc((dropById(c.dropId)||{}).number||''):'—'}</td><td>${esc(c.title)}</td>
-      <td>${esc(c.category)}</td><td><span class="pill pill-draft">${c.status}</span></td>
-      <td class="muted">${c.filmDate?fmtDate(c.filmDate):'—'}</td></tr>`).join('')||'<tr><td colspan=5 class="empty">No content.</td></tr>'}</tbody></table></div>`}`;
+      <td>${esc(c.category)}</td><td><span class="stage-badge ${(c.mediaStage||'Finished').toLowerCase()}">${c.mediaStage||'Finished'}</span></td><td>${statusQuickButtons(c)}</td>
+      <td class="muted">${c.filmDate?fmtDate(c.filmDate):'—'}</td></tr>`).join('')||'<tr><td colspan=6 class="empty">No content.</td></tr>'}</tbody></table></div>`}`;
+}
+function statusQuickButtons(c){
+  return `<div class="status-quick" onclick="event.stopPropagation()">
+    ${CONTENT_STATUSES.map(s=>`<button type="button" class="sq-btn ${c.status===s?'active':''}" onclick="setContentStatus('${c.id}','${s}')">${s}</button>`).join('')}
+  </div>`;
+}
+function setContentStatus(id,status){
+  const c=DB.content.find(x=>x.id===id); if(!c) return;
+  c.status=status; saveDB(); render();
+}
+function stageToggle(id,options,selected){
+  return `<div class="status-quick" id="${id}">
+    ${options.map(o=>`<button type="button" class="sq-btn sq-btn-lg ${o===selected?'active':''}" data-value="${esc(o)}" onclick="selectStageBtn('${id}',this)">${esc(o)}</button>`).join('')}
+  </div>`;
+}
+function selectStageBtn(id,el){
+  const wrap=document.getElementById(id); if(!wrap) return;
+  wrap.querySelectorAll('.sq-btn').forEach(b=>b.classList.toggle('active', b===el));
+}
+function stageVal(id){
+  const wrap=document.getElementById(id); const active=wrap&&wrap.querySelector('.sq-btn.active');
+  return active? active.dataset.value : '';
 }
 
 /* ================= ASSET LIBRARY (auto-populated, never uploaded to directly) ================= */
@@ -1514,21 +2084,28 @@ function libraryItems(){
   const items=[];
   DB.content.forEach(c=>{
     if(c.video){
+      const wid=c.watchId||(c.dropId?(dropById(c.dropId)||{}).watchId:'')||'';
+      const w=wid?watchById(wid):null;
       items.push({id:'cn_'+c.id, name:c.title, type:'Video', url:c.video, dropId:c.dropId||'',
-        tags:c.tags||[], creator:c.creator||teamList()[0], useCase:c.useCase||'Organic Post',
+        tags:c.tags||[], creator:c.creator||teamList()[0], useCases:c.useCases||['Organic Post'], mediaStage:c.mediaStage||'Finished',
+        watchId:wid, brand:w?w.brand:'', model:w?w.model:'', category:c.category||'',
         sourceType:'content', sourceId:c.id});
     }
   });
   DB.drops.forEach(d=>{
     const imgs=d.images||{};
+    const w=d.watchId?watchById(d.watchId):null;
     [['main','Main Image'],['cat1','Catalogue 1'],['cat2','Catalogue 2'],['cat3','Catalogue 3'],['webHero','Homepage Web'],['phoneHero','Homepage Phone']].forEach(([k,label])=>{
       if(imgs[k]) items.push({id:'dr_'+d.id+'_'+k, name:`${d.number} — ${label}`, type:'Photo', url:imgs[k], dropId:d.id,
-        tags:[watchName(d.watchId)], creator:'', useCase:'', sourceType:'drop-image', sourceId:d.id});
+        tags:[watchName(d.watchId)], creator:'', useCases:[], watchId:d.watchId||'', brand:w?w.brand:'', model:w?w.model:'', category:'Watch Photos',
+        sourceType:'drop-image', sourceId:d.id});
     });
   });
   DB.assets.forEach(a=>{
+    const d=a.dropId?dropById(a.dropId):null; const w=d&&d.watchId?watchById(d.watchId):null;
     items.push({id:'as_'+a.id, name:a.name, type:a.type, url:a.url, dropId:a.dropId||'',
-      tags:a.tags||[], creator:'', useCase:'', sourceType:'asset', sourceId:a.id});
+      tags:a.tags||[], creator:'', useCases:[], watchId:w?w.id:'', brand:w?w.brand:'', model:w?w.model:'', category:'',
+      sourceType:'asset', sourceId:a.id});
   });
   return items;
 }
@@ -1537,7 +2114,8 @@ function libTile(i){
     ? (i.url? `<video data-mediaref="${esc(i.url)}" muted></video>` : '🎬')
     : (i.url? `<img data-mediaref="${esc(i.url)}">` : '🖼');
   const dl = i.url && i.url.startsWith('r2:') ? `<a href="${mediaUrl(i.url)}?download=1" class="asset-dl" onclick="event.stopPropagation()" download title="Download">⬇</a>` : '';
-  return `<div class="asset-tile" onclick="openLibItem('${i.id}')">${body}${dl}<div class="atag">${esc(i.name)}</div></div>`;
+  const stageBadge = i.mediaStage ? `<span class="stage-badge ${i.mediaStage.toLowerCase()}" style="position:absolute;top:6px;left:6px;z-index:2">${i.mediaStage}</span>` : '';
+  return `<div class="asset-tile" style="position:relative" onclick="openLibItem('${i.id}')">${stageBadge}${body}${dl}<div class="atag">${esc(i.name)}</div></div>`;
 }
 function openLibItem(id){
   const i=libraryItems().find(x=>x.id===id); if(!i) return;
@@ -1545,20 +2123,34 @@ function openLibItem(id){
   else if(i.sourceType==='drop-image'){ go('drop', i.sourceId, 'files'); }
   else if(i.sourceType==='asset'){ openAsset(i.sourceId); }
 }
-let libFilter='All', libCreator='All', libGroupByWatch=false;
+let libFilter='All', libUseCase='All', libCreator='All', libGroupByWatch=false, libSearch='', libBrand='All', libModel='All';
 function vAssets(){
   const all=libraryItems();
   let filtered=all;
-  if(libFilter==='Posts') filtered=filtered.filter(i=>i.useCase==='Organic Post');
-  if(libFilter==='Ads') filtered=filtered.filter(i=>i.useCase==='Paid Ad');
+  const q=libSearch.trim().toLowerCase();
+  if(q) filtered=filtered.filter(i=>{
+    const dropNum=i.dropId?((dropById(i.dropId)||{}).number||''):'';
+    return i.name.toLowerCase().includes(q) || dropNum.toLowerCase().includes(q);
+  });
+  if(libBrand!=='All') filtered=filtered.filter(i=>i.brand===libBrand);
+  if(libBrand!=='All' && libModel!=='All') filtered=filtered.filter(i=>i.model===libModel);
+  if(libFilter!=='All') filtered=filtered.filter(i=>i.category===libFilter);
+  if(libUseCase==='Posts') filtered=filtered.filter(i=>(i.useCases||[]).includes('Organic Post'));
+  if(libUseCase==='Ads') filtered=filtered.filter(i=>(i.useCases||[]).includes('Paid Ad'));
   if(libCreator!=='All') filtered=filtered.filter(i=>i.creator===libCreator);
 
-  const head=`<div class="page-head"><div><h2>Asset Library</h2><div class="desc">Everything finished, pulled automatically from New Content and Drop Hub — nothing is uploaded here directly. ${all.length} total.</div></div></div>
-  <div class="filters">${['All','Posts','Ads'].map(f=>`<button class="fbtn ${libFilter===f?'active':''}" onclick="libFilter='${f}';render()">${f}</button>`).join('')}</div>
-  <div class="filters">${['All',...teamList()].map(p=>`<button class="fbtn ${libCreator===p?'active':''}" onclick="libCreator='${p}';render()">${p}</button>`).join('')}
-    <button class="fbtn ${libGroupByWatch?'active':''}" onclick="libGroupByWatch=!libGroupByWatch;render()">⌚ Group by watch</button></div>`;
+  const brandPool = libBrand==='All'? all : all.filter(i=>i.brand===libBrand);
+  const brands=['All',...new Set(all.map(i=>i.brand).filter(Boolean))].sort((a,b)=>a==='All'?-1:b==='All'?1:a.localeCompare(b));
+  const models=libBrand!=='All' ? ['All',...new Set(brandPool.map(i=>i.model).filter(Boolean))] : [];
 
-  if(!filtered.length) return head+`<div class="card"><div class="empty">Nothing here yet. Finish a video in New Content, or add photos in a Drop Hub — it'll appear here automatically.</div></div>`;
+  const head=`<div class="page-head"><div><h2>Asset Library</h2><div class="desc">Everything finished, pulled automatically from New Content and Drop Hub — nothing is uploaded here directly. ${all.length} total.</div></div></div>
+  <div class="field" style="max-width:360px;margin-bottom:10px"><input type="text" placeholder="Search by name or drop number…" value="${esc(libSearch)}" oninput="libSearch=this.value;render()"></div>
+  <div class="filters">${brands.map(b=>`<button class="fbtn ${libBrand===b?'active':''}" onclick="libBrand='${esc(b)}';libModel='All';render()">${esc(b)}</button>`).join('')}</div>
+  ${models.length>1?`<div class="filters">${models.map(m=>`<button class="fbtn ${libModel===m?'active':''}" onclick="libModel='${esc(m)}';render()">${esc(m)}</button>`).join('')}</div>`:''}
+  <div class="filters">${['All',...CONTENT_CATS].map(f=>`<button class="fbtn ${libFilter===f?'active':''}" onclick="libFilter='${esc(f)}';render()">${esc(f)}</button>`).join('')}</div>
+  <div class="filters">${['All','Posts','Ads'].map(f=>`<button class="fbtn ${libUseCase===f?'active':''}" onclick="libUseCase='${f}';render()">${f}</button>`).join('')}</div>`;
+
+  if(!filtered.length) return head+`<div class="card"><div class="empty">Nothing matches — try clearing a filter or the search.</div></div>`;
 
   if(libGroupByWatch){
     const groups={};
@@ -1612,12 +2204,14 @@ function docList(coll,title,desc,opener){
 }
 /* ================= ACTIONS ================= */
 function updDrop(path,val){const d=dropById(route.id);if(!d)return;
-  if(['price','discountPrice','pool','entriesSold','revenue','costWatch','costFixed'].includes(path))val=Number(val)||0;
+  if(['price','discountPrice','pool','entriesSold','discountEntriesSold','revenue','costWatch','costFixed'].includes(path))val=Number(val)||0;
   if(path.includes('.')){ const [a,b]=path.split('.'); d[a]=d[a]||{}; d[a][b]=val; }
   else d[path]=val;
   queueSave();
-  if(path==='entriesSold' && d.price){ d.revenue=Math.round((Number(val)||0)*d.price); }
-  if(['entriesSold','price','discountPrice','pool','revenue','costWatch','costFixed','watchId','supplierId','status','number','type'].includes(path)) render();
+  if(['entriesSold','discountEntriesSold','price','discountPrice'].includes(path)){
+    d.revenue = Math.round((Number(d.entriesSold)||0)*(Number(d.price)||0) + (Number(d.discountEntriesSold)||0)*(Number(d.discountPrice)||0));
+  }
+  if(['entriesSold','discountEntriesSold','price','discountPrice','pool','revenue','costWatch','costFixed','watchId','supplierId','status','number','type'].includes(path)) render();
 }
 function updDropLink(k,v){const d=dropById(route.id);d.links=d.links||{};d.links[k]=v;queueSave();}
 function updPerf(id,k,v){const d=dropById(id);d.perf=d.perf||{};d.perf[k]=v;queueSave();}
@@ -1644,7 +2238,7 @@ function newDrop(){
   const nums=DB.drops.map(d=>parseInt((d.number||'').replace(/\D/g,''))).filter(n=>!isNaN(n));
   const next=(nums.length?Math.max(...nums):33)+1;
   const d={id:uid('drop'),number:'D'+next,type:'Main Drop',status:'Draft',watchId:'',supplierId:'',
-    launch:today(),draw:addDays(today(),4),price:19.99,discountPrice:0,pool:500,entriesSold:0,revenue:0,
+    launch:today(),draw:addDays(today(),4),price:19.99,discountPrice:0,pool:500,entriesSold:0,discountEntriesSold:0,revenue:0,
     costWatch:0,costFixed:0,variableCosts:[],
     notes:'',websiteLink:'',copy:{headline:'',body:'',seoKeyphrase:'',seoTitle:'',slug:'',metaDescription:''},
     images:{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''},
@@ -1713,10 +2307,55 @@ function openModal(html){
 function closeModal(){const o=document.getElementById('overlay');if(o)o.remove();pendingIdeaId=null;}
 function mInput(id,label,val,type='text'){return `<div class="field"><label>${label}</label><input id="${id}" type="${type}" value="${esc(val||'')}"></div>`;}
 function mArea(id,label,val){return `<div class="field"><label>${label}</label><textarea id="${id}">${esc(val||'')}</textarea></div>`;}
+function useCaseChips(selected){
+  const opts=['Organic Post','Paid Ad'];
+  return `<div class="field"><label>Use case (select any that apply)</label>
+    <div style="display:flex;gap:8px" id="cn_usecases">
+      ${opts.map(o=>`<span class="pill pill-type usecase-chip${selected.includes(o)?' active':''}" data-value="${esc(o)}" onclick="this.classList.toggle('active')">${esc(o)}</span>`).join('')}
+    </div></div>`;
+}
+function readUseCaseChips(){
+  return [...document.querySelectorAll('#cn_usecases .usecase-chip.active')].map(el=>el.dataset.value);
+}
+function allUsedTags(){
+  const freq={};
+  DB.content.forEach(c=>(c.tags||[]).forEach(t=>{ if(t) freq[t]=(freq[t]||0)+1; }));
+  return Object.keys(freq).sort((a,b)=>freq[b]-freq[a]);
+}
+const CORE_TAGS=['BTS','Winner Reveal','Odds Hook','Urgency','Live Draw','Evergreen'];
+const TAG_SUGGEST_EXCLUDE=['omega'];
+function tagChipsHTML(current){
+  const common=allUsedTags().filter(t=>!CORE_TAGS.includes(t) && !TAG_SUGGEST_EXCLUDE.includes(t.toLowerCase())).slice(0,15);
+  const all=[...CORE_TAGS,...common];
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px" id="cn_tag_suggestions">
+    ${all.map(t=>`<span class="pill pill-type tag-chip${current.includes(t)?' active':''}" data-value="${esc(t)}" onclick="toggleTagChip(this)">${esc(t)}</span>`).join('')}
+  </div>`;
+}
+function toggleTagChip(el){
+  el.classList.toggle('active');
+  const val=el.dataset.value;
+  const input=document.getElementById('cn_tags');
+  let tags=input.value.split(',').map(t=>t.trim()).filter(Boolean);
+  if(el.classList.contains('active')){ if(!tags.includes(val)) tags.push(val); }
+  else { tags=tags.filter(t=>t!==val); }
+  input.value=tags.join(', ');
+}
 
 /* Watch modal */
 function openWatch(id){
   const w=id?watchById(id):{};
+  watchMediaDraft={}; watchLinkedGalleryItems={};
+  CONTENT_CATS.forEach(cat=>{
+    const key=slug(cat);
+    watchMediaDraft[key]=(w.media&&w.media[key])?JSON.parse(JSON.stringify(w.media[key])):[];
+    watchLinkedGalleryItems[key]=[];
+  });
+  if(id){
+    DB.content.filter(c=>c.watchId===id && c.video).forEach(c=>{
+      const key=watchGalleryKeyForCategory(c.category);
+      if(watchLinkedGalleryItems[key]) watchLinkedGalleryItems[key].push({id:c.id,ref:c.video,title:c.title});
+    });
+  }
   const drops=id?DB.drops.filter(d=>d.watchId===id):[];
   const bname=(w.brand||'').toLowerCase(), mname=(w.model||'').toLowerCase();
   const linkedMedia=id? libraryItems().filter(i=> drops.some(d=>d.id===i.dropId) || (i.tags||[]).some(t=>t.toLowerCase()===bname||t.toLowerCase()===mname)) : [];
@@ -1725,13 +2364,15 @@ function openWatch(id){
     <div class="modal-b"><div class="two-col">
       <div>${mInput('w_brand','Brand',w.brand)}${mInput('w_model','Model',w.model)}
         <div class="field-row">${mInput('w_ref','Reference',w.ref)}${mInput('w_serial','Serial Number',w.serial)}</div>
-        ${mInput('w_move','Movement',w.movement)}</div>
+        ${mInput('w_move','Movement',w.movement)}
+        <div class="field"><label>Supplier</label>${dd('w_supplier',[{value:'',label:'— select —'},...DB.suppliers.map(s=>({value:s.id,label:s.name}))], w.supplierId||'')}</div></div>
       <div><div class="field-row">${mInput('w_retail','Retail (£)',w.retail,'number')}${mInput('w_cost','Cost (£)',w.cost,'number')}</div>
         ${mInput('w_specs','Specs',w.specs)}
         ${mInput('w_medialink','Media folder link (Drive/Canva)',w.mediaLink)}
+        ${mediaField('w_thumb','Thumbnail Image (shown in Watch Library)',w.img)}
       </div>
     </div>${mArea('w_desc','Description',w.desc)}
-    ${mediaField('w_img','Main Image',w.img)}
+    ${CONTENT_CATS.map(cat=>galleryHTML(slug(cat),cat,'image/*,video/*')).join('')}
     ${drops.length?`<div class="section-sub">Used in ${drops.length} drop(s)</div><div style="display:flex;flex-wrap:wrap;gap:6px">${drops.map(d=>`<span class="pill pill-type" style="cursor:pointer" onclick="closeModal();go('drop','${d.id}')">${esc(d.number)}</span>`).join('')}</div>`:''}
     ${linkedContent.length?`<div class="section-sub">In New Content (${linkedContent.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${linkedContent.map(c=>`<span class="pill pill-upcoming" style="cursor:pointer" onclick="closeModal();go('content');setTimeout(()=>openContent('${c.id}'),50)">${esc(c.title)}</span>`).join('')}</div>`:''}
     ${linkedMedia.length?`<div class="section-sub">In Asset Library (${linkedMedia.length})</div><div class="asset-grid">${linkedMedia.map(i=>libTile(i)).join('')}</div>`:''}
@@ -1740,9 +2381,14 @@ function openWatch(id){
       <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveWatch('${id||''}')">Save</button></div></div>`);
 }
 function saveWatch(id){const g=k=>document.getElementById(k).value;
+  const media=JSON.parse(JSON.stringify(watchMediaDraft));
+  CONTENT_CATS.forEach(cat=>{ const k=slug(cat); media[k]=(media[k]||[]).filter(it=>!it.uploading); });
+  const explicitThumb=mediaVal('w_thumb');
+  const coverImg=explicitThumb||((media[slug('Watch Photos')]||[]).map(x=>x.ref).find(Boolean))||'';
   const data={brand:g('w_brand'),model:g('w_model'),ref:g('w_ref'),serial:g('w_serial'),movement:g('w_move'),
     retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),mediaLink:g('w_medialink'),desc:g('w_desc'),
-    img:mediaVal('w_img')};
+    supplierId:ddVal('w_supplier'),
+    media, img:coverImg};
   if(!data.brand){alert('Brand required');return;}
   if(id){Object.assign(watchById(id),data);}else{DB.watches.unshift({id:uid('watch'),...data,links:{},created:now()});}
   saveDB();closeModal();toast('Watch saved');render();}
@@ -1783,7 +2429,7 @@ function updWin(id,k,v){winById(id)[k]=v;queueSave();}
 
 /* Supplier modal */
 function openSupplier(id){const s=id?supById(id):{};
-  const boughtIds=id?[...new Set(DB.drops.filter(d=>d.supplierId===id&&d.watchId).map(d=>d.watchId))]:[];
+  const boughtIds=id?DB.watches.filter(w=>w.supplierId===id).map(w=>w.id):[];
   openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Supplier':'Add Supplier'}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">${mInput('s_name','Name',s.name)}
       <div class="field-row">${mInput('s_contact','Contact',s.contact)}${mInput('s_phone','Phone',s.phone)}</div>
@@ -1821,7 +2467,11 @@ function delCustomer(id){if(!confirm('Delete customer?'))return;DB.customers=DB.
 function openContent(id, prefillTitle){const c=id?DB.content.find(x=>x.id===id):{title:prefillTitle||''};
   openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Content':'New Content'}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
-      <div class="field"><label>Linked Drop</label>${dd('cn_drop',[{value:'',label:'— select a drop —'},...DB.drops.map(d=>({value:d.id,label:`${d.number} — ${watchName(d.watchId)}`}))], c.dropId||'')}</div>
+      <div class="field-row">
+        <div class="field"><label>Linked Drop</label>${dd('cn_drop',[{value:'',label:'— select a drop —'},...DB.drops.map(d=>({value:d.id,label:`${d.number} — ${watchName(d.watchId)}`}))], c.dropId||'', 'onContentDropChange')}</div>
+        <div class="field"><label>Linked Watch</label>${dd('cn_watch',[{value:'',label:'— none —'},...DB.watches.map(w=>({value:w.id,label:`${w.brand} ${w.model}`}))], c.watchId||(c.dropId?(dropById(c.dropId)||{}).watchId:'')||'')}</div>
+      </div>
+      <div class="muted" style="font-size:11.5px;margin:-8px 0 2px">Each category shows up automatically in the matching gallery for the linked watch — Person Only still links to a watch, it just doesn't feature it in shot.</div>
       ${mInput('cn_title','Title',c.title)}
       <div class="field-row-3">
         <div class="field"><label>Category</label>${dd('cn_cat',CONTENT_CATS,c.category||CONTENT_CATS[0])}</div>
@@ -1830,21 +2480,32 @@ function openContent(id, prefillTitle){const c=id?DB.content.find(x=>x.id===id):
       </div>
       <div class="field-row">
         <div class="field"><label>Creator</label>${dd('cn_creator',teamList(),c.creator||teamList()[0])}</div>
-        <div class="field"><label>Use case</label>${dd('cn_usecase',['Organic Post','Paid Ad'],c.useCase||'Organic Post')}</div>
+        ${useCaseChips(c.useCases||['Organic Post'])}
       </div>
       ${mInput('cn_tags','Tags (comma separated)',(c.tags||[]).join(', '))}
+      ${tagChipsHTML(c.tags||[])}
       ${mArea('cn_body','Script / Body',c.body)}
+      <div class="field"><label>Content Type</label>${stageToggle('cn_stage',['Raw','Finished'],c.mediaStage||'Finished')}
+        <div class="muted" style="font-size:11.5px;margin-top:4px">Raw = unedited footage/photos just dumped for editing. Finished = ready to post.</div></div>
       ${videoField('cn_video','Finished Video',c.video)}
       <div class="muted" style="font-size:11.5px">Attach the finished video and it appears automatically in the Asset Library — no separate upload needed.</div>
     </div>
     <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delContent('${id}')">Delete</button>`:''}
       <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveContent('${id||''}')">Save</button></div></div>`);
 }
+function onContentDropChange(id, dropId){
+  const watchSel=document.getElementById('cn_watch'); if(!watchSel) return;
+  if(watchSel.dataset.value) return; // don't override a watch the user already picked
+  const d=dropById(dropId); if(!d || !d.watchId) return;
+  const opt=watchSel.querySelector(`.dd-opt[data-value="${d.watchId}"]`);
+  if(opt) selectDD('cn_watch', opt);
+}
 function saveContent(id){
   const dropId=ddVal('cn_drop');
   if(!dropId){alert('Pick a drop first — every piece of content has to be linked to one.');return;}
   const data={title:document.getElementById('cn_title').value,category:ddVal('cn_cat'),
-    status:ddVal('cn_status'),creator:ddVal('cn_creator'),useCase:ddVal('cn_usecase'),dropId,
+    status:ddVal('cn_status'),creator:ddVal('cn_creator'),useCases:readUseCaseChips(),dropId,watchId:ddVal('cn_watch'),
+    mediaStage:stageVal('cn_stage')||'Finished',
     filmDate:document.getElementById('cn_filmdate').value,
     tags:document.getElementById('cn_tags').value.split(',').map(t=>t.trim()).filter(Boolean),
     body:document.getElementById('cn_body').value};
