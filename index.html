@@ -12,6 +12,15 @@
     --shadow:0 8px 28px rgba(0,0,0,.42);
     --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   }
+  html[data-theme="light"]{
+    --bg:#F4F6FA; --bg2:#FFFFFF; --panel:#FFFFFF; --panel2:#F1F4F9;
+    --line:#E3E8F0; --line2:#CDD5E3;
+    --ink:#0F2B5B; --ink2:#4A5A78; --ink3:#8090A8;
+    --gold:#C9A24B; --gold2:#9C7A2E; --goldsoft:rgba(201,162,75,.12);
+    --live:#15803D; --live-bg:rgba(21,128,61,.10);
+    --warn:#B45309; --danger:#DC2626; --blue:#2563EB; --purple:#9333EA;
+    --shadow:0 8px 28px rgba(15,23,42,.10);
+  }
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
@@ -84,6 +93,12 @@
   .cost-breakdown{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
   .cb-row{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink3)}
   .cb-row span:last-child{color:var(--ink2);font-weight:600}
+  .bar-chart{display:flex;align-items:flex-end;gap:10px;height:150px;padding:10px 4px 0}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+  .bar-fill{width:60%;background:linear-gradient(180deg,var(--gold),var(--gold2));border-radius:4px 4px 0 0;min-height:2px}
+  .bar-fill.blue{background:linear-gradient(180deg,var(--blue),#4d86d9)}
+  .bar-val{font-size:10.5px;color:var(--ink2);margin-bottom:4px;font-weight:700;white-space:nowrap}
+  .bar-label{font-size:10px;color:var(--ink3);margin-top:6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 
   .dash-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}
   @media(max-width:1100px){.dash-grid{grid-template-columns:1fr}}
@@ -156,6 +171,14 @@
   .field textarea{resize:vertical;min-height:80px;line-height:1.5}
   .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .field-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .field-wrap{display:flex;flex-wrap:wrap;gap:14px 18px}
+  .field-compact{width:118px;flex-shrink:0}
+  .field-compact label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--ink3);font-weight:600;margin-bottom:6px;line-height:1.3;white-space:normal}
+  .field-compact input{width:100%;background:var(--bg2);border:1px solid var(--line2);
+    color:var(--ink);border-radius:8px;padding:8px 9px;outline:none;transition:.13s;font-size:13.5px}
+  .field-compact input:focus{border-color:var(--gold);background:var(--panel)}
+  .field-compact input:disabled{opacity:.65}
 
   .timeline{position:relative;padding-left:22px}
   .timeline:before{content:'';position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--line2)}
@@ -349,6 +372,7 @@
         <input id="search" placeholder="Search everything — drops, watches, winners, content…" autocomplete="off">
         <div id="sresults" class="sresults"></div>
       </div>
+      <button class="btn btn-sm btn-ghost" id="themeToggleBtn" onclick="toggleTheme()" title="Switch appearance">🌙 Dark</button>
       <button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button>
     </div>
     <div class="content" id="content"><div class="loading">Loading Atlas…</div></div>
@@ -439,7 +463,7 @@ async function doSignOut(){
 async function bootApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='flex';
-  await loadDB(); migrate(); render();
+  await loadDB(); migrate(); applyTheme(); render();
 }
 async function checkSessionAndBoot(){
   if(!sb){ showLoginErr(supabaseLoadError); return; }
@@ -458,6 +482,19 @@ if(sb){
 
 const K = 'atlas:db:v1';
 let DB = null;
+/* ---------- Theme (dark/light) ---------- */
+function applyTheme(){
+  const mode = (DB && DB.settings && DB.settings.theme) || 'dark';
+  document.documentElement.setAttribute('data-theme', mode);
+  const btn=document.getElementById('themeToggleBtn');
+  if(btn) btn.textContent = mode==='light' ? '☀️ Light' : '🌙 Dark';
+}
+function toggleTheme(){
+  DB.settings=DB.settings||{};
+  DB.settings.theme = (DB.settings.theme==='light') ? 'dark' : 'light';
+  applyTheme();
+  queueSave();
+}
 const uid = (p='id') => p+'_'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
 const gbp = n => '£'+(Number(n)||0).toLocaleString('en-GB',{maximumFractionDigits:0});
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -470,13 +507,25 @@ function slug(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-');}
 function timeAgo(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
 function greet(){const h=new Date().getHours();return h<12?'morning':h<18?'afternoon':'evening';}
 function inThisMonth(d){const n=new Date();const m=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');return (d.launch||'').slice(0,7)===m||(d.draw||'').slice(0,7)===m;}
+function startOfWeekISO(dateStr){
+  const d=new Date(dateStr+'T00:00:00');
+  const day=d.getDay(); // 0=Sun..6=Sat
+  const diff = (day===0? -6 : 1-day); // shift back to Monday
+  d.setDate(d.getDate()+diff);
+  return localISODate(d);
+}
+function inThisWeek(d){
+  const ws=startOfWeekISO(today()), we=addDays(ws,6);
+  const chk=dt=> dt && dt>=ws && dt<=we;
+  return chk(d.launch)||chk(d.draw);
+}
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 
 const STATUS_PILL = {Live:'pill-live',Draft:'pill-draft',Upcoming:'pill-upcoming',Complete:'pill-done',Closed:'pill-closed'};
-const CAL_TYPE_PILL = {Launch:'pill-live',Draw:'pill-done',Task:'pill-draft',Delivery:'pill-upcoming'};
+const CAL_TYPE_PILL = {Launch:'pill-live',Draw:'pill-done',Task:'pill-draft',Delivery:'pill-upcoming',Content:'pill-type',Checkpoint:'pill-closed'};
 const TASK_TYPES = {
   Payment:{ico:'💰',color:'var(--gold)'},
-  Delivery:{ico:'📦',color:'var(--blue)'},
+  'Prize Delivery':{ico:'📦',color:'var(--blue)'},
   Content:{ico:'🎬',color:'var(--purple)'},
   Purchasing:{ico:'🛒',color:'var(--warn)'},
   Meeting:{ico:'🤝',color:'var(--ink2)'},
@@ -507,59 +556,95 @@ async function saveDB(){
 function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveDB,300); }
 
 /* ---------- Migration: fills in new fields on existing saved data ---------- */
+/* Ensures a single drop has a fully-formed tracker + all supporting fields.
+   Called for every drop on boot (via migrate) AND immediately when a new drop
+   is created, so the Drop Tracker / Overview always have something to write to. */
+function migrateDrop(d){
+  d.websiteLink=d.websiteLink||'';
+  d.discountPrice=d.discountPrice||0;
+  d.discountEntriesSold=d.discountEntriesSold||0;
+  d.copy=d.copy||{};
+  d.copy.headline=d.copy.headline||'';
+  d.copy.body=d.copy.body||'';
+  d.copy.seoKeyphrase=d.copy.seoKeyphrase||'';
+  d.copy.seoTitle=d.copy.seoTitle||'';
+  d.copy.slug=d.copy.slug||'';
+  d.copy.metaDescription=d.copy.metaDescription||'';
+  d.images=d.images||{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''};
+  d.entrants=d.entrants||{filename:'',headers:[],rows:[]};
+  d.perf=d.perf||{};
+  d.marketing=d.marketing||[];
+  d.links=d.links||{};
+  if(d.costWatch===undefined){
+    // migrating from the old flat "cost" field — park it under Fixed Costs so
+    // existing profit totals don't change until reconciled manually
+    d.costWatch=0;
+    d.costFixed=Number(d.cost)||0;
+    d.variableCosts=d.variableCosts||[];
+  }
+  d.variableCosts=d.variableCosts||[];
+  d.tracker=d.tracker||{};
+  const t=d.tracker;
+  t.statedValue=t.statedValue||0;
+  t.watchCost=t.watchCost!==undefined?t.watchCost:(Number(d.costWatch)||0);
+  t.maxTickets=t.maxTickets!==undefined?t.maxTickets:(Number(d.pool)||0);
+  t.fullTicketPrice=t.fullTicketPrice!==undefined?t.fullTicketPrice:(Number(d.price)||0);
+  t.launchDiscountPct=t.launchDiscountPct||0;
+  t.compLifeDiscountPct=t.compLifeDiscountPct||0;
+  t.adsBudget=t.adsBudget||0;
+  t.fixed=t.fixed!==undefined?t.fixed:(Number(d.costFixed)||0);
+  t.instantWins=t.instantWins||0;
+  t.paymentFeePct=t.paymentFeePct!==undefined?t.paymentFeePct:0.035;
+  t.adsSpent=t.adsSpent||0;
+  t.dial=t.dial||''; t.setStraps=t.setStraps||''; t.closeNotes=t.closeNotes||''; t.drawNotes=t.drawNotes||'';
+  t.ticketsSoldTotal=t.ticketsSoldTotal||0;
+  t.launchTicketsSold=t.launchTicketsSold||0;
+  t.couponBulkTicketsSold=t.couponBulkTicketsSold||0;
+  t.freeTicketsGiven=t.freeTicketsGiven||0;
+  t.checkpoints=t.checkpoints||[];
+  if(!t.checkpointsGeneratedV2){
+    t.checkpoints=buildCheckpointTemplate(d);
+    t.checkpointsGeneratedV2=true;
+    t.checkpointsGenerated=true;
+  }
+  if(!d.contentChecklistGenerated){
+    d.contentChecklist=buildContentChecklist(d);
+    d.contentChecklistGenerated=true;
+  }
+  d.contentChecklist=d.contentChecklist||[];
+  if(!d.setupTasksGenerated && ['Draft','Upcoming'].includes(d.status) && d.launch){
+    const daysUntil=Math.round((new Date(d.launch+'T00:00:00')-new Date(today()+'T00:00:00'))/86400000);
+    if(daysUntil<=7){
+      generateSetupTasks(d);
+      d.setupTasksGenerated=true;
+    }
+  }
+}
 function migrate(){
   DB.settings=DB.settings||{};
   DB.settings.team=DB.settings.team&&DB.settings.team.length?DB.settings.team:['Felix','Leila'];
-  (DB.drops||[]).forEach(d=>{
-    d.websiteLink=d.websiteLink||'';
-    d.discountPrice=d.discountPrice||0;
-    d.discountEntriesSold=d.discountEntriesSold||0;
-    d.copy=d.copy||{};
-    d.copy.headline=d.copy.headline||'';
-    d.copy.body=d.copy.body||'';
-    d.copy.seoKeyphrase=d.copy.seoKeyphrase||'';
-    d.copy.seoTitle=d.copy.seoTitle||'';
-    d.copy.slug=d.copy.slug||'';
-    d.copy.metaDescription=d.copy.metaDescription||'';
-    d.images=d.images||{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''};
-    d.entrants=d.entrants||{filename:'',headers:[],rows:[]};
-    d.perf=d.perf||{};
-    d.marketing=d.marketing||[];
-    d.links=d.links||{};
-    if(d.costWatch===undefined){
-      // migrating from the old flat "cost" field — park it under Fixed Costs so
-      // existing profit totals don't change until reconciled manually
-      d.costWatch=0;
-      d.costFixed=Number(d.cost)||0;
-      d.variableCosts=d.variableCosts||[];
-    }
-    d.tracker=d.tracker||{};
-    const t=d.tracker;
-    t.statedValue=t.statedValue||0;
-    t.watchCost=t.watchCost!==undefined?t.watchCost:(Number(d.costWatch)||0);
-    t.maxTickets=t.maxTickets!==undefined?t.maxTickets:(Number(d.pool)||0);
-    t.fullTicketPrice=t.fullTicketPrice!==undefined?t.fullTicketPrice:(Number(d.price)||0);
-    t.launchDiscountPct=t.launchDiscountPct||0;
-    t.compLifeDiscountPct=t.compLifeDiscountPct||0;
-    t.adsBudget=t.adsBudget||0;
-    t.fixed=t.fixed!==undefined?t.fixed:(Number(d.costFixed)||0);
-    t.instantWins=t.instantWins||0;
-    t.paymentFeePct=t.paymentFeePct!==undefined?t.paymentFeePct:0.01;
-    t.adsSpent=t.adsSpent||0;
-    t.dial=t.dial||''; t.setStraps=t.setStraps||''; t.closeNotes=t.closeNotes||''; t.drawNotes=t.drawNotes||'';
-    t.ticketsSoldTotal=t.ticketsSoldTotal||0;
-    t.launchTicketsSold=t.launchTicketsSold||0;
-    t.couponBulkTicketsSold=t.couponBulkTicketsSold||0;
-    t.freeTicketsGiven=t.freeTicketsGiven||0;
-    t.checkpoints=t.checkpoints||[];
-    if(!t.checkpointsGeneratedV2){
-      t.checkpoints=buildCheckpointTemplate(d);
-      t.checkpointsGeneratedV2=true;
-      t.checkpointsGenerated=true;
-    }
+  DB.settings.theme=DB.settings.theme||'dark';
+  DB.settings.paymentFeePct=DB.settings.paymentFeePct!==undefined?DB.settings.paymentFeePct:0.035;
+  DB.winnerResults=DB.winnerResults||[];
+  DB.sourcing=DB.sourcing||[];
+  DB.fixedCosts=DB.fixedCosts||[];
+  DB.dailyTakings=DB.dailyTakings||[];
+  DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
+  Object.keys(DEFAULT_CONTENT_SCHEDULE_TEMPLATES).forEach(ty=>{
+    if(!DB.contentScheduleTemplates[ty]) DB.contentScheduleTemplates[ty]=JSON.parse(JSON.stringify(DEFAULT_CONTENT_SCHEDULE_TEMPLATES[ty]));
   });
+  Object.keys(DB.contentScheduleTemplates).forEach(ty=>{
+    DB.contentScheduleTemplates[ty]=(DB.contentScheduleTemplates[ty]||[]).map(it=>({...it,id:it.id||uid('tpl')}));
+  });
+  (DB.drops||[]).forEach(migrateDrop);
   (DB.watches||[]).forEach(w=>{
-    w.serial=w.serial||''; w.mediaLink=w.mediaLink||'';
+    w.serial=w.serial||''; w.mediaLink=w.mediaLink||''; w.retired=!!w.retired;
+    // Derive Model Family + Variant if missing, so Brand→Model→Variant drill-down works
+    if(w.family===undefined || w.variant===undefined){
+      const sp=splitModel(w.brand,w.model);
+      if(w.family===undefined) w.family=sp.family;
+      if(w.variant===undefined) w.variant=sp.variant;
+    }
     if(w.supplierId===undefined){
       const fromDrop=(DB.drops||[]).find(d=>d.watchId===w.id && d.supplierId);
       w.supplierId = fromDrop ? fromDrop.supplierId : '';
@@ -594,12 +679,17 @@ function migrate(){
     w.trackingNumber=w.trackingNumber||'';
     w.reviewRequested=!!w.reviewRequested;
     w.reviewGiven=!!w.reviewGiven;
+    w.reviewTaskCreated=!!w.reviewTaskCreated;
   });
   (DB.tasks||[]).forEach(t=>{
+    if(t.type==='Delivery') t.type='Prize Delivery';
     t.type=t.type&&TASK_TYPES[t.type]?t.type:'Admin';
     t.assignedTo=t.assignedTo||DB.settings.team[0];
     t.time=t.time||'';
     t.urgent=!!t.urgent;
+    t.personRef=t.personRef||'';
+    t.notes=t.notes||''; t.file=t.file||'';
+    t.repeat=t.repeat||'None';
   });
   const CAT_MIGRATE={'Ideas':'Social Content','Evergreen':'Evergreen Content','Educational':'Educational Content',
     'Trust':'Social Content','Funny':'Funny Content','Behind the Scenes':'BTS Content',
@@ -678,6 +768,8 @@ function seed(){
       {id:s1,name:'Prestige Timepieces Ltd',contact:'Mark',phone:'',email:'',notes:'Primary supplier. Fast on refs.',created:now()},
     ],
     customers:[],
+    winnerResults:[],
+    sourcing:[],
     tasks:[
       {id:uid('t'),title:'Photography — TAG Monaco',dropId:d1,due:today(),done:false,type:'Photography',assignedTo:'Felix',time:'',urgent:true,created:now()},
       {id:uid('t'),title:'Build Meta Ads — low odds hook',dropId:d1,due:today(),done:false,type:'Marketing',assignedTo:'Felix',time:'',urgent:false,created:now()},
@@ -754,7 +846,205 @@ function trkRevenueToSellout(t){ return trkRemainingTickets(t)*trkFullPrice(t); 
 function trkCurrentPct(t){ const max=Number(t.maxTickets)||0; return max? (Number(t.ticketsSoldTotal)||0)/max : 0; }
 function trkStatus(t){ return trkGrossProfit(t)>=0 ? 'PROFITABLE' : 'UNPROFITABLE'; }
 function trkCheckpointTotal(t){ return (t.checkpoints||[]).reduce((a,c)=>a+(Number(c.ticketsSold)||0),0); }
-function trkTotalCostsCombined(d,t){ return (Number(t.watchCost)||0)+(Number(t.fixed)||0)+variableCostsTotal(d)+(Number(t.adsSpent)||0); }
+function toggleContentItem(dropId,itemId){
+  const d=dropById(dropId); if(!d) return;
+  const item=(d.contentChecklist||[]).find(i=>i.id===itemId); if(!item) return;
+  item.done=!item.done; saveDB(); render();
+}
+function updContentItemAssignee(dropId,itemId,val){
+  const d=dropById(dropId); if(!d) return;
+  const item=(d.contentChecklist||[]).find(i=>i.id===itemId); if(!item) return;
+  item.assignee=val; saveDB(); render();
+}
+function openAddContentTemplateItem(){
+  const types=['Main Drop','Weekend Drop','Tech Drop','Vault'];
+  const typeLabels={'Main Drop':'Main','Weekend Drop':'Weekend','Tech Drop':'Tech','Vault':'Vault'};
+  openModal(`<div class="modal"><div class="modal-h"><h3>Add Content Schedule Item</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Drop type</label>${dd('cti_type',types.map(t=>({value:t,label:typeLabels[t]})),csTypeFilter)}</div>
+      <div class="field-row-3">
+        <div class="field"><label>Day (0 = launch day)</label><input id="cti_day" type="number" value="0" min="0"></div>
+        <div class="field"><label>Time</label><input id="cti_time" type="time" value="09:00"></div>
+        <div class="field"><label>Channel</label>${dd('cti_channel',['Email','Post','Story','Text'],'Post')}</div>
+      </div>
+      ${mInput('cti_title','Title','')}
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveContentTemplateItem()">Add</button></div></div>`);
+}
+function saveContentTemplateItem(){
+  const type=ddVal('cti_type');
+  const day=Math.max(0, Number(document.getElementById('cti_day').value)||0);
+  const time=document.getElementById('cti_time').value||'09:00';
+  const channel=ddVal('cti_channel');
+  const title=document.getElementById('cti_title').value.trim();
+  if(!title){ alert('Give it a title first'); return; }
+  DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
+  DB.contentScheduleTemplates[type]=DB.contentScheduleTemplates[type]||[];
+  const item={id:uid('tpl'),day,time,channel,title};
+  DB.contentScheduleTemplates[type].push(item);
+  // sync into whichever drop of this type is currently live, so it shows up without waiting for the next cycle
+  const liveDrop=DB.drops.find(d=>d.status==='Live' && d.type===type);
+  if(liveDrop){
+    liveDrop.contentChecklist=liveDrop.contentChecklist||[];
+    const launch=new Date((liveDrop.launch||today())+'T00:00:00');
+    const dt=new Date(launch); dt.setDate(dt.getDate()+day);
+    liveDrop.contentChecklist.push({id:uid('cs'),date:localISODate(dt),time,channel,title,done:false});
+  }
+  csTypeFilter=type;
+  saveDB(); closeModal(); toast('Added to '+type+' checklist'); render();
+}
+function delContentTemplateItem(type,itemId){
+  if(!confirm('Remove this from the routine checklist?')) return;
+  DB.contentScheduleTemplates[type]=(DB.contentScheduleTemplates[type]||[]).filter(i=>i.id!==itemId);
+  saveDB(); render();
+}
+const CS_CHANNEL_COLOR={Email:'var(--gold2)',Post:'var(--blue)',Story:'var(--danger)',Text:'var(--live)'};
+/* Maps a template's relative "day number" to the real weekday it falls on,
+   based on each drop type's actual launch cadence:
+   Main Drop launches Wednesday and runs to the following Wednesday's draw.
+   Weekend Drop launches Friday and closes Sunday.
+   Tech Drop launches Sunday afternoon and closes Tuesday night. */
+const CS_DAY0_WEEKDAY = {'Main Drop':3, 'Weekend Drop':5, 'Tech Drop':0}; // JS getDay(): 0=Sun..6=Sat
+function csDayLabel(type, dayNum){
+  const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const start=CS_DAY0_WEEKDAY[type];
+  if(start===undefined) return `Day ${dayNum}`;
+  const name=dayNames[(start+dayNum)%7];
+  return dayNum===0? `Launch (${name})` : name;
+}
+let csTypeFilter='Main Drop';
+function vContentSchedule(){
+  const types=['Main Drop','Weekend Drop','Tech Drop','Vault'];
+  const typeLabels={'Main Drop':'Main','Weekend Drop':'Weekend','Tech Drop':'Tech','Vault':'Vault'};
+  const tmr=addDays(today(),1);
+  const dueToday=[], dueTomorrow=[];
+  DB.drops.filter(d=>d.status==='Live').forEach(d=>{
+    (d.contentChecklist||[]).forEach(item=>{
+      if(item.done) return;
+      if(item.date===today()) dueToday.push({d,item});
+      else if(item.date===tmr) dueTomorrow.push({d,item});
+    });
+  });
+  const summaryRow=(label,list)=> list.length? `<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>${label} — ${list.length}</h3></div><div class="card-b">
+    ${list.map(({d,item})=>`<div class="row-item">
+      <div class="tick ${item.done?'done':''}" onclick="toggleContentItem('${d.id}','${item.id}')">${item.done?'✓':''}</div>
+      <div class="txt"><div class="t">${esc(item.title)}</div><div class="meta">${esc(d.number)} — ${esc(watchName(d.watchId))} · ${item.time} · <span style="color:${CS_CHANNEL_COLOR[item.channel]}">${item.channel}</span>${item.assignee?' · '+esc(item.assignee):''}</div></div>
+    </div>`).join('')}
+  </div></div>` : '';
+
+  const liveOfType=DB.drops.find(d=>d.status==='Live' && d.type===csTypeFilter);
+  const template=(DB.contentScheduleTemplates&&DB.contentScheduleTemplates[csTypeFilter])||[];
+  let dayBlocks='';
+  if(liveOfType){
+    const items=liveOfType.contentChecklist||[];
+    const byDay={};
+    items.forEach(item=>{ (byDay[item.date]=byDay[item.date]||[]).push(item); });
+    const dates=Object.keys(byDay).sort();
+    dayBlocks = dates.length? `<div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:8px">
+      ${dates.map(dt=>{
+        const dayName=new Date(dt+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long'});
+        const isToday=dt===today();
+        return `<div style="min-width:220px;flex:0 0 auto;background:var(--panel);border:1px solid ${isToday?'var(--gold)':'var(--line)'};border-radius:var(--radius);padding:14px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:2px">${dayName}${isToday?' <span style="color:var(--gold2);font-size:10px">TODAY</span>':''}</div>
+          <div class="muted" style="font-size:11px;margin-bottom:10px">${fmtDate(dt)}</div>
+          ${byDay[dt].sort((a,b)=>a.time.localeCompare(b.time)).map(item=>`
+            <div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)">
+              <div class="tick ${item.done?'done':''}" style="margin-top:2px" onclick="toggleContentItem('${liveOfType.id}','${item.id}')">${item.done?'✓':''}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12.5px;${item.done?'text-decoration:line-through;color:var(--ink3)':''}">${esc(item.title)}</div>
+                <div class="muted" style="font-size:10.5px;margin-bottom:4px">${item.time} · <span style="color:${CS_CHANNEL_COLOR[item.channel]}">${item.channel}</span></div>
+                <select style="font-size:10.5px;padding:2px 4px;background:var(--bg2);border:1px solid var(--line2);border-radius:5px;color:var(--ink2)" onchange="updContentItemAssignee('${liveOfType.id}','${item.id}',this.value)">
+                  <option value="" ${!item.assignee?'selected':''}>Unassigned</option>
+                  ${teamList().map(p=>`<option value="${esc(p)}" ${item.assignee===p?'selected':''}>${esc(p)}</option>`).join('')}
+                </select>
+              </div>
+            </div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>` : `<div class="card"><div class="empty">No checklist items for this drop type yet.</div></div>`;
+  } else if(template.length){
+    dayBlocks = `<div class="muted" style="font-size:12px;margin-bottom:10px">No ${typeLabels[csTypeFilter]} Drop is currently Live — showing the weekly pattern below (real dates appear once one goes Live).</div>
+    <div style="display:flex;gap:14px;overflow-x:auto;padding-bottom:8px">
+      ${[...new Set(template.map(i=>i.day))].sort((a,b)=>a-b).map(dayNum=>`
+        <div style="min-width:200px;flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px">${csDayLabel(csTypeFilter,dayNum)}</div>
+          ${template.filter(i=>i.day===dayNum).sort((a,b)=>a.time.localeCompare(b.time)).map(item=>`
+            <div style="display:flex;justify-content:space-between;gap:6px;padding:6px 0;border-top:1px solid var(--line)">
+              <div>
+                <div style="font-size:12.5px">${esc(item.title)}</div>
+                <div class="muted" style="font-size:10.5px">${item.time} · <span style="color:${CS_CHANNEL_COLOR[item.channel]}">${item.channel}</span></div>
+              </div>
+              <span style="cursor:pointer;color:var(--danger);opacity:.6;font-size:12px" onclick="delContentTemplateItem('${csTypeFilter}','${item.id}')">×</span>
+            </div>`).join('')}
+        </div>`).join('')}
+    </div>`;
+  } else {
+    dayBlocks = `<div class="card"><div class="empty">Frame ready — no checklist items defined for ${typeLabels[csTypeFilter]} yet. Use ＋ Add Item above to start building it out.</div></div>`;
+  }
+
+  return `<div class="page-head"><div><h2>Content Schedule</h2><div class="desc">Routine content, mapped to each drop's actual cycle — check it off as it goes out.</div></div>
+  <div class="page-actions"><button class="btn btn-gold" onclick="openAddContentTemplateItem()">＋ Add Item</button></div></div>
+  ${summaryRow('Due Today',dueToday)}
+  ${summaryRow('Due Tomorrow',dueTomorrow)}
+  <div class="filters">${types.map(ty=>`<button class="fbtn ${csTypeFilter===ty?'active':''}" onclick="csTypeFilter='${ty}';render()">${typeLabels[ty]}</button>`).join('')}</div>
+  ${dayBlocks}`;
+}
+function trkTotalCostsCombined(d,t){ return (Number(t.watchCost)||0)+(Number(t.fixed)||0)+variableCostsTotal(d)+(Number(t.adsBudget)||0); }
+function trkKpiRow(d,t){
+  const status=trkStatus(t);
+  const totalCostsCombined=trkTotalCostsCombined(d,t);
+  const grossRev=trkGrossRevenue(t), costsIncl=trkCostsInclFees(t), vat=trkVat(t), netProfit=trkNetProfit(t);
+  const maxTicketsVal=Number(t.maxTickets)||0, soldVal=Number(t.ticketsSoldTotal)||0;
+  const ticketsToSellOut=Math.max(0, maxTicketsVal-soldVal);
+  const revenueToSellOut=ticketsToSellOut*trkFullPrice(t);
+  const breakEvenTicketsTotal=trkBreakEvenTickets(t);
+  const ticketsToBreakEven=Math.max(0, breakEvenTicketsTotal-soldVal);
+  const revenueToBreakEven=ticketsToBreakEven*trkFullPrice(t);
+  const launchTicketsN=Number(t.launchTicketsSold)||0, couponTicketsN=Number(t.couponBulkTicketsSold)||0;
+  const missedRevenue = launchTicketsN*(trkFullPrice(t)-trkLaunchPrice(t)) + couponTicketsN*(trkFullPrice(t)-trkCompPrice(t));
+  return `<div class="kpi-row" style="margin:18px 0">
+    <div class="kpi"><div class="label">Current %</div><div class="val">${(trkCurrentPct(t)*100).toFixed(1)}%</div><div class="sub">${soldVal} of ${maxTicketsVal} tickets sold</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Tickets to Sell Out</span><span>${ticketsToSellOut}</span></div>
+        <div class="cb-row"><span>Revenue to Sell Out</span><span>${gbp(revenueToSellOut)}</span></div>
+      </div>
+    </div>
+    <div class="kpi"><div class="label">Status</div><div class="val" style="font-size:18px;${status!=='PROFITABLE'?'color:var(--danger)':'color:var(--gold2)'}">${status}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Break-even Tickets</span><span>${breakEvenTicketsTotal}</span></div>
+        <div class="cb-row"><span>Tickets to Break Even</span><span>${ticketsToBreakEven}</span></div>
+        <div class="cb-row"><span>Revenue to Break Even</span><span>${gbp(revenueToBreakEven)}</span></div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="label">Total Costs</div><div class="val">${gbp(totalCostsCombined)}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Watch Cost</span><span>${gbp(t.watchCost)}</span></div>
+        <div class="cb-row"><span>Fixed £</span><span>${gbp(t.fixed)}</span></div>
+        <div class="cb-row"><span>Variable Costs</span><span>${gbp(variableCostsTotal(d))}</span></div>
+        <div class="cb-row"><span>Ad Spend</span><span>${gbp(t.adsBudget)}</span></div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="label">Discounted Tickets</div><div class="val">${(Number(t.launchTicketsSold)||0)+(Number(t.couponBulkTicketsSold)||0)}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Launch Discount Tickets</span><span>${Number(t.launchTicketsSold)||0}</span></div>
+        <div class="cb-row"><span>Coupon/Bulk Tickets</span><span>${Number(t.couponBulkTicketsSold)||0}</span></div>
+        <div class="cb-row"><span>Missed Revenue</span><span>${gbp(missedRevenue)}</span></div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="label">Net Profit</div><div class="val" style="${netProfit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(netProfit)}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Gross Revenue</span><span>${gbp(grossRev)}</span></div>
+        <div class="cb-row"><span>Gross Profit</span><span>${gbp(trkGrossProfit(t))}</span></div>
+        <div class="cb-row"><span>Costs incl. Fees</span><span>${gbp(costsIncl)}</span></div>
+        <div class="cb-row"><span>VAT</span><span>${gbp(vat)}</span></div>
+      </div>
+    </div>
+    <div class="kpi"><div class="label">Ad Spend</div><div class="val">${gbp(t.adsBudget)}</div><div class="sub">assumed fully spent</div></div>
+  </div>`;
+}
 function buildCheckpointTemplate(d){
   if(d.type==='Free Drop') return []; // no sales tracking needed for free drops
   const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -788,6 +1078,64 @@ function launchDiscountLabel(type){
   if(type==='Weekend Drop') return 'Launch Discount % (2h)';
   return 'Launch Discount % (24h)';
 }
+
+/* ---------- Content Schedule templates (routine content checklist per drop type) ---------- */
+const DEFAULT_CONTENT_SCHEDULE_TEMPLATES = {
+  'Main Drop':[
+    {day:0,time:'20:30',channel:'Post',title:'Launch Post (discount price)'},
+    {day:0,time:'20:30',channel:'Post',title:'Livestream Post'},
+    {day:1,time:'09:00',channel:'Email',title:'Winner / New Drop Email'},
+    {day:1,time:'10:00',channel:'Post',title:'New Drop Post (full price)'},
+    {day:1,time:'11:00',channel:'Post',title:'Winner Post'},
+    {day:1,time:'13:00',channel:'Story',title:'6 hours of discount left'},
+    {day:1,time:'19:00',channel:'Text',title:'Last hour of discount'},
+    {day:2,time:'09:00',channel:'Story',title:'Win this watch'},
+    {day:5,time:'09:00',channel:'Story',title:'Win this watch'},
+    {day:6,time:'09:00',channel:'Story',title:'Ending tomorrow'},
+    {day:6,time:'13:00',channel:'Email',title:'24 hours to go'},
+    {day:6,time:'16:00',channel:'Post',title:'Momentum Building'},
+    {day:6,time:'19:00',channel:'Text',title:'24 hours to go'},
+    {day:7,time:'09:00',channel:'Story',title:'12 hours to go'},
+    {day:7,time:'13:00',channel:'Email',title:'Ending Today'},
+    {day:7,time:'17:00',channel:'Post',title:'Closing Tonight'},
+    {day:7,time:'18:00',channel:'Text',title:'2 hours left'},
+    {day:7,time:'19:00',channel:'Text',title:'Final hour'},
+  ],
+  'Weekend Drop':[
+    {day:0,time:'17:30',channel:'Email',title:'Launch Email'},
+    {day:0,time:'17:30',channel:'Post',title:'Launch Post'},
+    {day:0,time:'18:00',channel:'Post',title:'Entertainment/Education Post'},
+    {day:1,time:'13:00',channel:'Post',title:'Entertainment/Education Post'},
+    {day:2,time:'15:00',channel:'Email',title:'Closing Tonight Email'},
+    {day:2,time:'17:00',channel:'Post',title:'Closing Tonight Post'},
+    {day:2,time:'18:00',channel:'Post',title:'Winner static Post'},
+    {day:2,time:'19:00',channel:'Text',title:'Final hour'},
+  ],
+  'Tech Drop':[
+    {day:0,time:'17:30',channel:'Post',title:'Launch Post'},
+    {day:1,time:'09:00',channel:'Story',title:'Win this watch (reminder)'},
+    {day:2,time:'13:00',channel:'Email',title:'Ending Tonight Email'},
+    {day:2,time:'17:00',channel:'Post',title:'Closing Post'},
+    {day:2,time:'18:00',channel:'Post',title:'Winner static Post'},
+    {day:2,time:'19:00',channel:'Text',title:'Final hour'},
+  ],
+  'Vault':[], // frame ready — items to be defined once the Vault format is finalised
+};
+function buildContentChecklist(d){
+  const template=(DB.contentScheduleTemplates&&DB.contentScheduleTemplates[d.type])||DEFAULT_CONTENT_SCHEDULE_TEMPLATES[d.type]; if(!template) return [];
+  const launch=new Date((d.launch||today())+'T00:00:00');
+  return template.map(item=>{
+    const dt=new Date(launch); dt.setDate(dt.getDate()+item.day);
+    return {id:uid('cs'), date:localISODate(dt), time:item.time, channel:item.channel, title:item.title, done:false, assignee:''};
+  });
+}
+function dueContentToday(){
+  const items=[];
+  DB.drops.filter(d=>d.status==='Live').forEach(d=>{
+    (d.contentChecklist||[]).forEach(item=>{ if(item.date===today() && !item.done) items.push({d,item}); });
+  });
+  return items;
+}
 function dueCheckpoints(){
   const items=[];
   DB.drops.filter(d=>d.status==='Live').forEach(d=>{
@@ -798,6 +1146,24 @@ function dueCheckpoints(){
   return items;
 }
 function profit(d){ return (Number(d.revenue)||0)-totalCost(d); }
+/* Single source of truth for a drop's headline numbers — used by the Drops table,
+   the Dashboard's Live Drops widget, and anywhere else that shows entries/revenue/profit,
+   so they never disagree. Prefers the Drop Tracker (full VAT/fees/ads calc) when present. */
+function dropNumbers(d){
+  if(d.tracker){
+    const t=d.tracker;
+    const entries=Number(t.ticketsSoldTotal)||0, pool=Number(t.maxTickets)||0;
+    return {
+      entries, pool, fillPct: pool? Math.round((entries/pool)*100):0,
+      revenue: trkGrossRevenue(t), profit: trkNetProfit(t),
+      isProfitable: trkStatus(t)==='PROFITABLE'
+    };
+  }
+  const entries=Number(d.entriesSold)||0, pool=Number(d.pool)||0;
+  const p=profit(d);
+  return { entries, pool, fillPct: pool? Math.round((entries/pool)*100):0,
+    revenue: Number(d.revenue)||0, profit: p, isProfitable: p>=0 };
+}
 function logTL(dropId,event){ DB.timeline.unshift({id:uid('tl'),dropId,event,at:now()}); }
 function teamList(){ return (DB.settings && DB.settings.team) || ['Felix']; }
 
@@ -911,6 +1277,18 @@ function videoField(id,label,value){
         <input type="text" id="${id}" placeholder="Paste video link (YouTube, Drive, Vimeo) or upload a file…" value="${v&&!String(v).startsWith('m_')&&!String(v).startsWith('r2:')?esc(v):''}" oninput="onMediaURLInput('${id}')">
         <label class="btn btn-sm btn-ghost media-upload" id="${id}_uploadbtn">Upload<input type="file" accept="video/*" style="display:none" onchange="onMediaUpload(event,'${id}')"></label>
       </div>
+      <div id="${id}_dl">${mediaDownloadLink(v)}</div>
+    </div></div>`;
+}
+function fileField(id,label,value){
+  const v=value||'';
+  return `<div class="field"><label>${label}</label>
+    <div class="media-box" id="${id}_box" data-ref="${esc(v)}">
+      <div class="media-row">
+        <input type="text" id="${id}" placeholder="Paste a file link (Drive, Dropbox…) or upload a file…" value="${v&&!String(v).startsWith('m_')&&!String(v).startsWith('r2:')?esc(v):''}" oninput="onMediaURLInput('${id}')">
+        <label class="btn btn-sm btn-ghost media-upload" id="${id}_uploadbtn">Upload<input type="file" style="display:none" onchange="onMediaUpload(event,'${id}')"></label>
+      </div>
+      ${v.startsWith('r2:')?`<div class="muted" style="font-size:11.5px;margin-top:6px">📎 File attached</div>`:''}
       <div id="${id}_dl">${mediaDownloadLink(v)}</div>
     </div></div>`;
 }
@@ -1057,19 +1435,27 @@ const NAV=[
   {group:null,items:[{k:'dashboard',label:'Dashboard',ico:'◆'}]},
   {group:'Operations',items:[
     {k:'drops',label:'Drops',ico:'⬡',count:()=>DB.drops.length},
-    {k:'tracker',label:'Drop Tracker',ico:'📊',count:()=>DB.drops.filter(d=>d.status==='Live').length},
+    {k:'tracker',label:'Drop Tracker',ico:'📊',count:()=>DB.drops.filter(d=>!['Closed','Complete'].includes(d.status)).length},
     {k:'pastdrops',label:'Past Drops',ico:'🗄',count:()=>DB.drops.filter(d=>['Closed','Complete'].includes(d.status)).length},
     {k:'tasks',label:'Tasks',ico:'☑',count:()=>DB.tasks.filter(t=>!t.done).length},
     {k:'calendar',label:'Calendar',ico:'▦'},
   ]},
   {group:'Databases',items:[
     {k:'watches',label:'Watch Library',ico:'⌚',count:()=>DB.watches.length},
+    {k:'sourcing',label:'Watch Sourcing',ico:'🔍',count:()=>DB.sourcing.filter(s=>!['Rejected','Purchased'].includes(s.status)).length},
     {k:'winners',label:'Winners',ico:'★',count:()=>DB.winners.length},
+    {k:'winnerResults',label:'Winners Results',ico:'📊',count:()=>DB.winnerResults.length},
     {k:'suppliers',label:'Suppliers',ico:'▤',count:()=>DB.suppliers.length},
     {k:'customers',label:'Customers',ico:'◎',count:()=>DB.customers.length},
   ]},
+  {group:'Finance',items:[
+    {k:'finance',label:'Finance Overview',ico:'💷'},
+    {k:'fixedCosts',label:'Fixed Costs',ico:'📌',count:()=>DB.fixedCosts.length},
+    {k:'marketing',label:'Marketing & Ads',ico:'📣'},
+  ]},
   {group:'Content',items:[
     {k:'content',label:'New Content',ico:'✎',count:()=>DB.content.length},
+    {k:'contentSchedule',label:'Content Schedule',ico:'📅',count:()=>dueContentToday().length},
     {k:'assets',label:'Asset Library',ico:'▣',count:()=>DB.assets.length},
     {k:'ideas',label:'Idea Inbox',ico:'✦',count:()=>DB.ideas.length},
   ]},
@@ -1097,7 +1483,7 @@ function renderNav(){
 function render(){
   renderNav();
   const c=document.getElementById('content');
-  const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,tasks:vTasks,calendar:vCalendar,
+  const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
     content:vContent,assets:vAssets,ideas:vIdeas,sops:vSops,kb:vKB};
   c.innerHTML = (V[route.view]||vDashboard)();
@@ -1109,7 +1495,7 @@ const DASH_TASK_COLUMNS=[
   {key:'content',label:'Content',ico:'🎬',types:['Content','Photography']},
   {key:'marketing',label:'Marketing',ico:'✉️',types:['Marketing']},
   {key:'winners',label:'Winners',ico:'★',types:['Winner Call']},
-  {key:'setup',label:'Setup',ico:'🛠️',types:['Website','Purchasing','Meeting','Admin','Payment','Delivery']},
+  {key:'setup',label:'Setup',ico:'🛠️',types:['Website','Purchasing','Meeting','Admin','Payment','Prize Delivery']},
 ];
 function tbRow(t){
   const d=t.dropId?dropById(t.dropId):null;
@@ -1154,15 +1540,79 @@ function taskBoardHTML(){
 }
 
 /* ================= DASHBOARD ================= */
+function monthTakingsTotals(){
+  const ym=today().slice(0,7);
+  const rows=DB.dailyTakings.filter(x=>x.date.startsWith(ym));
+  const amount=rows.reduce((a,x)=>a+(Number(x.amount)||0),0);
+  const costs=rows.reduce((a,x)=>a+(Number(x.costs)||0),0);
+  return {amount,costs,net:amount-costs};
+}
+function weekTakingsTotals(){
+  const ws=startOfWeekISO(today()), we=addDays(ws,6);
+  const rows=DB.dailyTakings.filter(x=>x.date>=ws && x.date<=we);
+  const amount=rows.reduce((a,x)=>a+(Number(x.amount)||0),0);
+  const costs=rows.reduce((a,x)=>a+(Number(x.costs)||0),0);
+  return {amount,costs,net:amount-costs};
+}
+function dailyTakingsWidget(monthRev,weekRev){
+  const y=addDays(today(),-1);
+  const yEntry=takingForDate(y);
+  const mt=monthTakingsTotals();
+  const wt=weekTakingsTotals();
+  const mDiff=mt.amount-monthRev;
+  const wDiff=wt.amount-weekRev;
+  const days=last7Days(); // yesterday back through 7 days ago
+  return `<div class="card" style="margin-bottom:18px">
+    <div class="card-h"><h3>💳 Daily Takings — DNA Payments</h3><span class="muted" style="font-size:11px">Actual money landed vs the app's modelled revenue</span></div>
+    <div class="modal-b" style="max-height:none">
+      <div class="row-item" style="padding:10px 0">
+        <div class="txt"><div class="t">Yesterday — ${new Date(y+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</div>
+          <div class="meta">${yEntry?`Charged: ${gbp(yEntry.amount)} · Costs: ${gbp(yEntry.costs||0)} · Net: ${gbp(yEntry.amount-(yEntry.costs||0))}`:'Not logged yet — enter it once DNA Payments has settled yesterday\'s figure'}</div></div>
+        <button class="btn btn-sm ${yEntry?'':'btn-gold'}" onclick="openDailyTaking('${y}')">${yEntry?'Edit':'＋ Log yesterday'}</button>
+      </div>
+
+      <div class="section-sub" style="margin:14px 0 6px">This Week</div>
+      <div class="kpi-row" style="margin-bottom:16px">
+        <div class="kpi"><div class="label">Charged</div><div class="val">${gbp(wt.amount)}</div></div>
+        <div class="kpi"><div class="label">Costs</div><div class="val">${gbp(wt.costs)}</div></div>
+        <div class="kpi"><div class="label">Net</div><div class="val gold">${gbp(wt.net)}</div></div>
+        <div class="kpi"><div class="label">vs App Modelled</div><div class="val" style="${wDiff<0?'color:var(--danger)':'color:var(--live)'}">${wDiff>=0?'+':''}${gbp(wDiff)}</div><div class="sub">modelled: ${gbp(weekRev)}</div></div>
+      </div>
+
+      <div class="section-sub" style="margin-bottom:6px">This Month</div>
+      <div class="kpi-row" style="margin-bottom:16px">
+        <div class="kpi"><div class="label">Charged</div><div class="val">${gbp(mt.amount)}</div></div>
+        <div class="kpi"><div class="label">Costs</div><div class="val">${gbp(mt.costs)}</div></div>
+        <div class="kpi"><div class="label">Net</div><div class="val gold">${gbp(mt.net)}</div></div>
+        <div class="kpi"><div class="label">vs App Modelled</div><div class="val" style="${mDiff<0?'color:var(--danger)':'color:var(--live)'}">${mDiff>=0?'+':''}${gbp(mDiff)}</div><div class="sub">modelled: ${gbp(monthRev)}</div></div>
+      </div>
+
+      <div class="section-sub" style="margin-bottom:6px">Last 7 days</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${days.map(dt=>{const rec=takingForDate(dt); const lbl=new Date(dt+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric'});
+          return `<div onclick="openDailyTaking('${dt}')" style="cursor:pointer;flex:1;min-width:90px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:8px 10px;text-align:center">
+            <div class="muted" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.4px">${lbl}</div>
+            <div style="font-weight:700;font-size:14px;margin-top:2px;${rec?'':'opacity:.4'}">${rec?gbp(rec.amount-(rec.costs||0)):'—'}</div>
+            <div class="muted" style="font-size:9.5px;margin-top:1px">${rec?'net':'not logged'}</div>
+          </div>`;}).join('')}
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:12px">A running gap between actual and modelled revenue can point to refunds, failed/declined payments not reflected in ticket counts, or payment processor fees — worth checking Fixed Costs and each drop's Variable Costs if the difference grows.</div>
+    </div>
+  </div>`;
+}
 function vDashboard(){
   const live=DB.drops.filter(d=>d.status==='Live');
   const upcoming=DB.drops.filter(d=>d.status==='Upcoming');
-  const monthRev=DB.drops.filter(inThisMonth).reduce((a,d)=>a+(Number(d.revenue)||0),0);
-  const monthProfit=DB.drops.filter(inThisMonth).reduce((a,d)=>a+profit(d),0);
+  const monthRev=DB.drops.filter(inThisMonth).reduce((a,d)=>a+dropNumbers(d).revenue,0);
+  const monthProfit=DB.drops.filter(inThisMonth).reduce((a,d)=>a+dropNumbers(d).profit,0);
+  const weekRev=DB.drops.filter(inThisWeek).reduce((a,d)=>a+dropNumbers(d).revenue,0);
   const awaitingDispatch=DB.winners.filter(w=>!w.dispatched);
   const filmList=DB.content.filter(cn=>cn.status==='Ready'||cn.status==='Writing');
   const noPhoto=DB.watches.filter(w=>!w.img);
-  const due=dueCheckpoints();
+  const dueCp=dueCheckpoints();
+  const dueCs=dueContentToday();
+  const dueTasks=DB.tasks.filter(t=>!t.done && t.due===today());
+  const todayCount=dueCp.length+dueCs.length+dueTasks.length;
 
   return `
   <div class="page-head">
@@ -1170,17 +1620,31 @@ function vDashboard(){
     <div class="page-actions"><button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button></div>
   </div>
 
-  ${due.length?`<div class="card" style="border-color:var(--warn)">
-    <div class="card-h"><h3>⏰ Drop Tracker — Today's Checkpoints</h3></div>
-    <div class="card-b">${due.map(item=>`
+  ${todayCount?`<div class="card" style="border-color:var(--warn)">
+    <div class="card-h"><h3>📋 Today — ${todayCount}</h3></div>
+    <div class="card-b">
+      ${dueTasks.map(t=>`
+      <div class="row-item">
+        <div class="tick" onclick="event.stopPropagation();toggleTask('${t.id}')"></div>
+        <div class="txt" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}</div>
+          <div class="meta">Task${t.assignedTo?' · '+esc(t.assignedTo):''}${t.urgent?' · ⚡ Urgent':''}</div></div>
+      </div>`).join('')}
+      ${dueCp.map(item=>`
       <div class="row-item">
         <div class="txt"><div class="t">${esc(item.dropNumber)} — ${esc(item.watch)}</div>
-          <div class="meta">${esc(item.cp.label)} — enter today's tickets sold</div></div>
+          <div class="meta">Checkpoint · ${esc(item.cp.label)} — enter today's tickets sold</div></div>
         <div style="display:flex;gap:8px;align-items:center">
           <input type="number" placeholder="Tickets" style="width:90px" onchange="fillCheckpointQuick('${item.dropId}','${item.cp.id}',this.value)">
           <button class="btn btn-sm" onclick="openTrackerFor('${item.dropId}')">Open tracker →</button>
         </div>
-      </div>`).join('')}</div>
+      </div>`).join('')}
+      ${dueCs.map(({d,item})=>`
+      <div class="row-item">
+        <div class="tick" onclick="event.stopPropagation();toggleContentItem('${d.id}','${item.id}')"></div>
+        <div class="txt" onclick="go('contentSchedule')"><div class="t">${esc(item.title)}</div>
+          <div class="meta">Content · ${esc(d.number)} — ${esc(watchName(d.watchId))} · ${item.time} · ${item.channel}</div></div>
+      </div>`).join('')}
+    </div>
   </div>`:''}
 
   <div class="kpi-row">
@@ -1189,6 +1653,8 @@ function vDashboard(){
     <div class="kpi"><div class="label">Profit this month</div><div class="val">${gbp(monthProfit)}</div><div class="sub">rev − cost</div></div>
     <div class="kpi"><div class="label">Awaiting dispatch</div><div class="val">${awaitingDispatch.length}</div><div class="sub">winners</div></div>
   </div>
+
+  ${dailyTakingsWidget(monthRev,weekRev)}
 
   <div class="dash-grid">
     <div style="display:flex;flex-direction:column;gap:16px">
@@ -1204,7 +1670,7 @@ function vDashboard(){
           ${[...live,...upcoming].sort((a,b)=>(a.draw||'z').localeCompare(b.draw||'z')).slice(0,5).map(d=>`
             <div class="row-item" onclick="go('drop','${d.id}')">
               <div class="txt"><div class="t">${esc(d.number)} — ${esc(watchName(d.watchId))}</div>
-                <div class="meta">Draws ${fmtDate(d.draw)} · ${fillRate(d)}% filled</div></div>
+                <div class="meta">Draws ${fmtDate(d.draw)} · ${dropNumbers(d).fillPct}% filled</div></div>
               <span class="pill ${STATUS_PILL[d.status]}">${d.status}</span>
             </div>`).join('') || `<div class="empty">Nothing scheduled.</div>`}
         </div>
@@ -1254,60 +1720,76 @@ function vDashboard(){
   </div>
   ${taskBoardHTML()}`;
 }
+function taskPersonLabel(personRef){
+  if(!personRef) return '';
+  if(personRef.startsWith('win_')){ const w=winById(personRef.slice(4)); return w? `🏆 ${w.name||'Unnamed winner'}` : ''; }
+  if(personRef.startsWith('cust_')){ const c=DB.customers.find(x=>x.id===personRef.slice(5)); return c? c.name||'Unnamed customer' : ''; }
+  return '';
+}
 function taskRow(t){
   const d=t.dropId?dropById(t.dropId):null;
   const ty=TASK_TYPES[t.type]||TASK_TYPES.Admin;
+  const personLabel=taskPersonLabel(t.personRef);
   return `<div class="row-item">
     <div class="tick ${t.done?'done':''}" onclick="event.stopPropagation();toggleTask('${t.id}')">${t.done?'✓':''}</div>
     <span class="ttype-dot" style="background:${ty.color}" title="${esc(t.type)}">${ty.ico}</span>
     ${t.urgent?'<span title="Urgent" style="font-size:13px">⚡</span>':''}
-    <div class="txt ${t.done?'done':''}" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}</div>
-      <div class="meta">${d?esc(d.number)+' · ':''}${t.time?esc(t.time)+' · ':''}${t.due<today()&&!t.done?'<span style="color:var(--danger)">Overdue · </span>':''}${fmtDate(t.due)}${t.assignedTo?' · '+esc(t.assignedTo):''}</div></div>
+    <div class="txt ${t.done?'done':''}" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}${t.repeat==='Weekly'?' 🔁':''}${t.notes?' 📝':''}${t.file?' 📎':''}</div>
+      <div class="meta">${d?esc(d.number)+' · ':''}${t.time?esc(t.time)+' · ':''}${t.due<today()&&!t.done?'<span style="color:var(--danger)">Overdue · </span>':''}${fmtDate(t.due)}${t.assignedTo?' · '+esc(t.assignedTo):''}${personLabel?' · '+esc(personLabel):''}</div></div>
     <span class="btn-danger btn-sm" onclick="event.stopPropagation();delTask('${t.id}')" style="opacity:.5">✕</span>
   </div>`;
 }
 function dropRow(d){
-  const t=d.tracker;
-  if(t){
-    const revenue=trkGrossRevenue(t), profit=trkNetProfit(t), status=trkStatus(t);
+  const n=dropNumbers(d);
+  if(d.tracker){
     return `<div class="row-item" onclick="openTrackerFor('${d.id}')">
       <div class="txt"><div class="t">${esc(d.number)} — ${esc(watchName(d.watchId))}</div>
-        <div class="meta">${t.ticketsSoldTotal}/${t.maxTickets} tickets · ${gbp(revenue)} rev · ${gbp(profit)} profit</div></div>
-      <span class="pill ${status==='PROFITABLE'?'pill-done':'pill-closed'}">${status}</span>
+        <div class="meta">${n.entries}/${n.pool} tickets · ${gbp(n.revenue)} rev · ${gbp(n.profit)} profit</div></div>
+      <span class="pill ${n.isProfitable?'pill-done':'pill-closed'}">${n.isProfitable?'PROFITABLE':'UNPROFITABLE'}</span>
     </div>`;
   }
   return `<div class="row-item" onclick="go('drop','${d.id}')">
     <div class="txt"><div class="t">${esc(d.number)} — ${esc(watchName(d.watchId))}</div>
-      <div class="meta">${gbp(d.price)}/entry · ${d.entriesSold}/${d.pool} sold · ${fillRate(d)}% filled</div></div>
+      <div class="meta">${gbp(d.price)}/entry · ${n.entries}/${n.pool} sold · ${n.fillPct}% filled</div></div>
     <span class="pill ${STATUS_PILL[d.status]}">${d.status}</span>
   </div>`;
 }
 
 /* ================= DROPS LIST ================= */
 let dropFilter='All';
+const DROP_TYPE_FILTERS={'Main':'Main Drop','Weekend':'Weekend Drop','Tech':'Tech Drop','Vault':'Vault'};
 function vDrops(){
-  const types=['All','Live','Upcoming','Draft','Complete'];
+  const tabs=[{v:'All',l:'All'},{v:'Live',l:'Live'},{v:'Upcoming',l:'Upcoming'},{v:'Draft',l:'Draft'},
+    {v:'Main',l:'Main'},{v:'Weekend',l:'Weekend'},{v:'Tech',l:'Tech'},{v:'Vault',l:'Vault'},
+    {v:'Complete',l:'Complete'}];
   let ds=[...DB.drops].sort((a,b)=>(b.created||'').localeCompare(a.created||''));
-  if(dropFilter!=='All') ds=ds.filter(d=>d.status===dropFilter);
+  if(dropFilter!=='All'){
+    if(DROP_TYPE_FILTERS[dropFilter]) ds=ds.filter(d=>d.type===DROP_TYPE_FILTERS[dropFilter]);
+    else ds=ds.filter(d=>d.status===dropFilter);
+  }
   return `
   <div class="page-head">
     <div><h2>Drops</h2><div class="desc">Every competition. One click opens the full hub.</div></div>
     <div class="page-actions"><button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button></div>
   </div>
-  <div class="filters">${types.map(t=>`<button class="fbtn ${dropFilter===t?'active':''}" onclick="dropFilter='${t}';render()">${t} ${t==='All'?'':`· ${DB.drops.filter(d=>d.status===t).length}`}</button>`).join('')}</div>
+  <div class="filters">${tabs.map(t=>{
+    const count = t.v==='All'? DB.drops.length : DROP_TYPE_FILTERS[t.v]? DB.drops.filter(d=>d.type===DROP_TYPE_FILTERS[t.v]).length : DB.drops.filter(d=>d.status===t.v).length;
+    return `<button class="fbtn ${dropFilter===t.v?'active':''}" onclick="dropFilter='${t.v}';render()">${t.l} ${t.v==='All'?'':`· ${count}`}</button>`;
+  }).join('')}</div>
   ${ds.length? `<div class="card"><table class="tbl">
-    <thead><tr><th>Drop</th><th>Type</th><th>Watch</th><th>Status</th><th>Entries</th><th>Fill</th><th>Revenue</th><th>Profit</th><th>Draw</th></tr></thead>
-    <tbody>${ds.map(d=>`<tr onclick="go('drop','${d.id}')">
+    <thead><tr><th>Drop</th><th>Type</th><th>Watch</th><th>Status</th><th>Entries</th><th>Fill</th><th>Revenue</th><th>Profit</th><th>Draw</th><th></th></tr></thead>
+    <tbody>${ds.map(d=>{const n=dropNumbers(d);return `<tr onclick="go('drop','${d.id}')">
       <td class="strong">${esc(d.number)}</td>
       <td><span class="pill pill-type">${esc(d.type)}</span></td>
       <td>${esc(watchName(d.watchId))}</td>
       <td><span class="pill ${STATUS_PILL[d.status]}">${d.status}</span></td>
-      <td class="mono">${d.entriesSold}/${d.pool}</td>
-      <td class="mono">${fillRate(d)}%</td>
-      <td class="mono">${gbp(d.revenue)}</td>
-      <td class="mono" style="color:${profit(d)>=0?'var(--live)':'var(--danger)'}">${gbp(profit(d))}</td>
+      <td class="mono">${n.entries}/${n.pool}</td>
+      <td class="mono">${n.fillPct}%</td>
+      <td class="mono">${gbp(n.revenue)}</td>
+      <td class="mono" style="color:${n.isProfitable?'var(--live)':'var(--danger)'}">${gbp(n.profit)}</td>
       <td class="mono muted">${fmtDate(d.draw)}</td>
-    </tr>`).join('')}</tbody></table></div>`
+      <td>${d.status!=='Complete'?`<button class="btn btn-sm btn-gold" onclick="event.stopPropagation();openCloseOut('${d.id}')" title="Close out this drop">🏁</button>`:''}</td>
+    </tr>`;}).join('')}</tbody></table></div>`
   : `<div class="card"><div class="empty">No ${dropFilter==='All'?'':dropFilter} drops yet.<br><button onclick="newDrop()">Create your first drop →</button></div></div>`}`;
 }
 
@@ -1330,6 +1812,7 @@ function vDropHub(){
       </div>
     </div>
     <div style="margin-left:auto;display:flex;gap:9px;align-items:flex-start">
+      ${d.status!=='Complete'?`<button class="btn btn-sm btn-gold" onclick="openCloseOut('${d.id}')">🏁 Close Out Drop</button>`:''}
       <div style="width:150px">${dd('drop_status_'+d.id, ['Draft','Upcoming','Live','Closed','Complete'], d.status, 'onDropStatusChange')}</div>
       <button class="btn btn-sm btn-danger" onclick="delDrop('${d.id}')">Delete</button>
     </div>
@@ -1357,14 +1840,21 @@ function onDropTypeChange(id,val){ updDrop('type',val); }
 function onDropWatchChange(id,val){
   updDrop('watchId',val);
   const d=dropById(route.id);
-  if(d){ const w=watchById(val); d.costWatch = w? (Number(w.cost)||0) : 0; queueSave(); render(); }
+  if(d){
+    const w=watchById(val);
+    const cost = w? (Number(w.cost)||0) : 0;
+    d.costWatch = cost;
+    d.tracker=d.tracker||{}; d.tracker.watchCost=cost;
+    if(w){ d.tracker.statedValue = d.tracker.statedValue || (Number(w.retail)||0); }
+    queueSave(); render();
+  }
 }
 function onDropSupplierChange(id,val){ updDrop('supplierId',val); }
 function onDropStatusChange(id,val){ const dropId=id.replace('drop_status_',''); setDropStatus(dropId,val); }
 
 function dropOverview(d){
   d.images=d.images||{}; d.copy=d.copy||{};
-  const m=d.pool?Math.round((profit(d)/(d.pool*d.price))*100):0;
+  const t=d.tracker||{};
   const dropImages=`<div class="card"><div class="card-h"><h3>Photos</h3><span class="muted" style="font-size:11px">Master + homepage, then catalogue</span></div>
     <div class="modal-b" style="max-height:none">
       ${mediaField(`di_${d.id}_main`,'Main Image (Master)',d.images.main,{type:'drop-image',id:d.id,field:'main'})}
@@ -1389,21 +1879,6 @@ function dropOverview(d){
       ${fld('Slug', d.copy.slug,'copy.slug')}
       <div class="field"><label>Meta Description</label><textarea onchange="updDrop('copy.metaDescription',this.value)">${esc(d.copy.metaDescription)}</textarea></div>
     </div></div>`;
-  const dropVarCosts=`<div class="card"><div class="card-h"><h3>Variable Costs</h3><span class="muted" style="font-size:12px">${gbp(variableCostsTotal(d))} total</span></div>
-    <div class="card-b">
-      ${(d.variableCosts||[]).length? d.variableCosts.map(c=>`
-        <div class="row-item">
-          <div class="txt"><div class="t">${esc(c.label)}</div></div>
-          <span class="mono" style="font-weight:600">${gbp(c.amount)}</span>
-          <span class="btn-danger btn-sm" onclick="delVarCost('${d.id}','${c.id}')">✕</span>
-        </div>`).join('') : `<div class="empty">No variable costs logged yet — SMS, ads, couriers etc.</div>`}
-    </div>
-    <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap">
-      <input id="vc_label_${d.id}" placeholder="e.g. SMS message" style="flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" onkeydown="if(event.key==='Enter')addVarCost('${d.id}')">
-      <input id="vc_amount_${d.id}" type="number" placeholder="£" style="width:100px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" onkeydown="if(event.key==='Enter')addVarCost('${d.id}')">
-      <button class="btn btn-sm" onclick="addVarCost('${d.id}')">Add</button>
-    </div>
-  </div>`;
   return `<div class="two-col">
     <div class="card"><div class="card-h"><h3>Details</h3></div><div class="modal-b" style="max-height:none">
       <div class="field-row">
@@ -1417,33 +1892,19 @@ function dropOverview(d){
       <div class="field"><label>Notes</label><textarea onchange="updDrop('notes',this.value)">${esc(d.notes)}</textarea></div>
     </div></div>
     <div style="display:flex;flex-direction:column;gap:16px">
-      <div class="card"><div class="card-h"><h3>Commercials</h3></div><div class="modal-b" style="max-height:none">
-        <div class="field-row-3">
-          ${fld('Entry Price (£)',d.price,'price','number')}
-          ${fld('Dsct Price (£)',d.discountPrice,'discountPrice','number')}
-          ${fld('Total Tickets',d.pool,'pool','number')}
+      <div class="card"><div class="card-h"><h3>The Offer</h3><span class="muted" style="font-size:11px">What the team and customers see — not financials</span></div>
+        <div class="modal-b" style="max-height:none">
+          <div class="field-row-3">
+            ${trkFld(d,'Entry Price (£)','fullTicketPrice')}
+            ${trkPctFld(d,launchDiscountLabel(d.type),'launchDiscountPct')}
+            ${roFld('Launch Price (£)', trkLaunchPrice(t).toFixed(2))}
+          </div>
+          <div class="field-row">
+            ${trkFld(d,'Total Tickets (Pool)','maxTickets')}
+            ${roFld('Full Sell-Out Value (£)', trkSellOutRevenue(t).toFixed(2))}
+          </div>
+          <div class="muted" style="font-size:11px">This is the plan, not performance — tickets sold, costs, ads and profit all live in the <span class="link" onclick="closeModal();openTrackerFor('${d.id}')" style="cursor:pointer">Drop Tracker →</span></div>
         </div>
-        <div class="field-row-3">
-          ${fld('Entries Sold',d.entriesSold,'entriesSold','number')}
-          ${fld('Dsct Entries Sold',d.discountEntriesSold,'discountEntriesSold','number')}
-          ${roFld('Revenue (£)', (Number(d.revenue)||0).toFixed(2))}
-        </div>
-        <div class="field-row-3">
-          ${roFld('VAT (£)', vatAmount(d).toFixed(2))}
-          ${fld('Watch Cost (£)',d.costWatch,'costWatch','number')}
-          ${fld('Fixed Costs (£)',d.costFixed,'costFixed','number')}
-        </div>
-        <div class="field-row">
-          ${roFld('Variable Costs (£)', variableCostsTotal(d).toFixed(2))}
-          ${roFld('Total Cost (£)', totalCost(d).toFixed(2))}
-        </div>
-        <div class="muted" style="font-size:11px">Watch Cost auto-fills from the Watch Library when you pick a watch above — edit here if the price paid differs. Revenue and VAT are calculated automatically from entries sold (VAT assumed included in ticket price at 20%).</div>
-      </div></div>
-      ${dropVarCosts}
-      <div class="kpi-row" style="margin:18px 0">
-        <div class="kpi"><div class="label">Fill Rate</div><div class="val gold">${fillRate(d)}%</div><div class="sub">${d.entriesSold}/${d.pool}</div></div>
-        <div class="kpi"><div class="label">Profit</div><div class="val ${profit(d)>=0?'green':''}">${gbp(profit(d))}</div><div class="sub">${m}% margin</div></div>
-        <div class="kpi"><div class="label">Potential</div><div class="val">${gbp(d.pool*d.price)}</div><div class="sub">full sell-out</div></div>
       </div>
     </div>
   </div>
@@ -1453,7 +1914,7 @@ function dropOverview(d){
 function dropTasks(d){
   const ts=DB.tasks.filter(t=>t.dropId===d.id);
   return `<div class="card">
-    <div class="card-h"><h3>Tasks for ${esc(d.number)}</h3></div>
+    <div class="card-h"><h3>Tasks for ${esc(d.number)}</h3>${d.setupTasksGenerated?`<button class="btn btn-sm" onclick="regenerateSetupTasks('${d.id}')">↻ Regenerate setup checklist</button>`:''}</div>
     <div class="card-b">
       ${ts.length? ts.map(t=>taskRow(t)).join('') : `<div class="empty">No tasks yet.</div>`}
       <div class="add-inline"><input id="dropTask" placeholder="Add task…" onkeydown="if(event.key==='Enter')addDropTask('${d.id}')"><button class="btn btn-sm" onclick="addDropTask('${d.id}')">Add</button></div>
@@ -1463,6 +1924,12 @@ function dropTasks(d){
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     ${['Photography','Write Launch Email','48hr Email','24hr Email','Closing Email','Build Meta Ads','Upload Website','Schedule SMS','Winner Call','Dispatch','Collect Review'].map(t=>`<button class="btn btn-sm btn-ghost" onclick="addNamedTask('${d.id}','${t}')">＋ ${t}</button>`).join('')}
   </div>`;
+}
+function regenerateSetupTasks(dropId){
+  const d=dropById(dropId); if(!d) return;
+  if(!confirm(`This creates a fresh set of Purchase/Photography/Website/Ads/Email setup tasks for ${d.number}, using its current Launch Date. It won't delete any existing tasks. Continue?`)) return;
+  generateSetupTasks(d);
+  saveDB(); toast('Setup checklist regenerated'); render();
 }
 function dropMarketing(d){
   return `<div class="card">
@@ -1489,11 +1956,11 @@ function onMkStatusChange(id,val){
   const mk=(d.marketing||[]).find(m=>m.id===mkId); if(mk){ mk.status=val; queueSave(); }
 }
 function dropPerformance(d){
-  const cpa = d.entriesSold? (totalCost(d)/d.entriesSold) : 0;
-  const conv = d.pool? (d.entriesSold/d.pool*100):0;
+  const n=dropNumbers(d);
+  const cpa = n.entries? (totalCost(d)/n.entries) : 0;
   const stats=[
-    ['Entries Sold',`${d.entriesSold}`],['Revenue',gbp(d.revenue)],['Profit',gbp(profit(d))],
-    ['Fill Rate',`${fillRate(d)}%`],['Cost per Entry',gbp(cpa)],['Sell-through',`${Math.round(conv)}%`],
+    ['Entries Sold',`${n.entries}`],['Revenue',gbp(n.revenue)],['Profit',gbp(n.profit)],
+    ['Fill Rate',`${n.fillPct}%`],['Cost per Entry',gbp(cpa)],['Sell-through',`${n.fillPct}%`],
   ];
   return `<div class="kpi-row" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
     ${stats.map(s=>`<div class="kpi"><div class="label">${s[0]}</div><div class="val" style="font-size:22px">${s[1]}</div></div>`).join('')}
@@ -1605,6 +2072,15 @@ function trkPctFld(d,label,field){
   const val=(Number(d.tracker[field])||0)*100;
   return `<div class="field"><label>${label}</label><input type="number" value="${val}" onchange="updTrackerPct('${d.id}','${field}',this.value)"></div>`;
 }
+function trkFldC(d,label,field,type='number'){
+  const val=d.tracker[field];
+  return `<div class="field-compact"><label>${label}</label><input type="${type}" value="${esc(val)}" onchange="updTracker('${d.id}','${field}',this.value)"></div>`;
+}
+function trkPctFldC(d,label,field){
+  const val=(Number(d.tracker[field])||0)*100;
+  return `<div class="field-compact"><label>${label}</label><input type="number" value="${val}" onchange="updTrackerPct('${d.id}','${field}',this.value)"></div>`;
+}
+function roFldC(label,val){ return `<div class="field-compact"><label>${label}</label><input value="${esc(val)}" disabled></div>`; }
 function updTracker(dropId,field,val){
   const d=dropById(dropId); if(!d) return;
   const numFields=['statedValue','watchCost','maxTickets','fullTicketPrice','adsBudget','fixed','instantWins','adsSpent','ticketsSoldTotal','launchTicketsSold','couponBulkTicketsSold','freeTicketsGiven'];
@@ -1641,14 +2117,14 @@ function fillCheckpointQuick(dropId,cpId,val){
 function openTrackerFor(dropId){ trackerDropId=dropId; go('tracker'); }
 function calcRow(label,val){ return `<div class="calc-row"><span>${esc(label)}</span><span class="calc-val">${val}</span></div>`; }
 function vDropTracker(){
-  const live=DB.drops.filter(d=>d.status==='Live');
-  if(!live.length) return `<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking for whatever's live right now.</div></div></div>
-    <div class="card"><div class="empty">No live drops right now — trackers appear here automatically once a drop's status is set to Live. Finished ones are still viewable under <span class="link" onclick="go('pastdrops')">Past Drops</span>.</div></div>`;
-  if(!trackerDropId || !live.find(d=>d.id===trackerDropId)) trackerDropId=live[0].id;
+  const active=DB.drops.filter(d=>!['Closed','Complete'].includes(d.status));
+  if(!active.length) return `<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking for every drop that isn't finished yet.</div></div></div>
+    <div class="card"><div class="empty">No active drops right now — trackers appear here automatically for Draft, Upcoming and Live drops. Finished ones are still viewable under <span class="link" onclick="go('pastdrops')">Past Drops</span>.</div></div>`;
+  if(!trackerDropId || !active.find(d=>d.id===trackerDropId)) trackerDropId=active[0].id;
   const d=dropById(trackerDropId);
 
-  const head=`<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking per live drop — watch cost, discounts, fees, VAT and break-even, all in one place.</div></div></div>
-  <div class="filters">${live.map(ld=>`<button class="fbtn ${trackerDropId===ld.id?'active':''}" onclick="trackerDropId='${ld.id}';render()">${esc(ld.number)} — ${esc(watchName(ld.watchId))}</button>`).join('')}</div>`;
+  const head=`<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking per drop — watch cost, discounts, fees, VAT and break-even, all in one place. Covers Draft, Upcoming and Live.</div></div></div>
+  <div class="filters">${active.map(ld=>`<button class="fbtn ${trackerDropId===ld.id?'active':''}" onclick="trackerDropId='${ld.id}';render()">${esc(ld.number)} — ${esc(watchName(ld.watchId))} <span class="muted" style="font-size:10px">${ld.status}</span></button>`).join('')}</div>`;
 
   return head+trackerBody(d);
 }
@@ -1670,97 +2146,59 @@ function trackerBody(d){
     <div class="field-row">${trkTextFld(d,'Close Notes','closeNotes')}${trkTextFld(d,'Draw/Notes','drawNotes')}</div>
   </div></div>`;
 
-  const dropSetup=`<div class="card"><div class="card-h"><h3>Drop Setup</h3></div><div class="modal-b" style="max-height:none">
-    <div class="field-row-3">
-      ${trkFld(d,'Watch Cost (paid) £','watchCost')}
-      ${trkFld(d,'Stated Value £','statedValue')}
-      ${roFld('Value Multiple', trkValueMultiple(t).toFixed(2)+'×')}
-    </div>
-    <div class="field-row-3">
-      ${trkFld(d,'Max Tickets','maxTickets')}
-      ${trkFld(d,'Full Ticket £','fullTicketPrice')}
-      ${trkPctFld(d,launchDiscountLabel(d.type),'launchDiscountPct')}
-    </div>
-    <div class="field-row-3">
-      ${roFld('Launch Discount Ticket £', trkLaunchPrice(t).toFixed(2))}
-      ${trkPctFld(d,'Comp/Life Discount %','compLifeDiscountPct')}
-      ${roFld('Comp/Life Discount Ticket £', trkCompPrice(t).toFixed(2))}
-    </div>
-    <div class="field-row-3">
-      ${trkFld(d,'Ads Budget £','adsBudget')}
-      ${trkFld(d,'Fixed £','fixed')}
-      ${trkFld(d,'Instant Wins £','instantWins')}
-    </div>
-    <div class="field-row-3">
-      ${trkPctFld(d,'Payment Fee %','paymentFeePct')}
-      ${roFld('Total Costs excl. fees £', trkTotalCostsExclFees(t).toFixed(2))}
-      ${roFld('Sell Out Revenue £', trkSellOutRevenue(t).toFixed(2))}
-    </div>
-    <div class="field-row">
-      ${trkFld(d,'Ads Spent £','adsSpent')}
-      ${roFld('Remaining Ad Budget £', trkRemainingAdBudget(t).toFixed(2))}
+  const liveInputs=`<div class="card"><div class="card-h"><h3>Live Inputs</h3><span class="muted" style="font-size:11px">Update these after every sale</span></div><div class="modal-b" style="max-height:none">
+    <div class="field-wrap">
+      ${trkFldC(d,'Tickets Sold (Total)','ticketsSoldTotal')}
+      ${trkFldC(d,'Launch Disc. Tickets','launchTicketsSold')}
+      ${trkFldC(d,'Coupon/Bulk Tickets','couponBulkTicketsSold')}
+      ${trkFldC(d,'Free Tickets Given','freeTicketsGiven')}
     </div>
   </div></div>`;
 
-  const liveInputs=`<div class="card"><div class="card-h"><h3>Live Inputs</h3></div><div class="modal-b" style="max-height:none">
-    <div class="field-row-3">
-      ${trkFld(d,'Tickets Sold (Total, incl. free)','ticketsSoldTotal')}
-      ${trkFld(d,'Launch Discount Tickets Sold (24h)','launchTicketsSold')}
-      ${trkFld(d,'Discounted Tickets (coupon/bulk)','couponBulkTicketsSold')}
+  const varCosts=`<div class="card"><div class="card-h"><h3>Variable Costs</h3><span class="muted" style="font-size:12px">${gbp(variableCostsTotal(d))} total</span></div>
+    <div class="card-b">
+      ${(d.variableCosts||[]).length? d.variableCosts.map(c=>`
+        <div class="row-item">
+          <div class="txt"><div class="t">${esc(c.label)}</div></div>
+          <span class="mono" style="font-weight:600">${gbp(c.amount)}</span>
+          <span class="btn-danger btn-sm" onclick="delVarCost('${d.id}','${c.id}')">✕</span>
+        </div>`).join('') : `<div class="empty">No variable costs logged yet — SMS, ads, couriers etc.</div>`}
     </div>
-    <div class="field-row">
-      ${trkFld(d,'Free Tickets Given (to date)','freeTicketsGiven')}
+    <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap">
+      <input id="vc_label_${d.id}" placeholder="e.g. SMS message" style="flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" onkeydown="if(event.key==='Enter')addVarCost('${d.id}')">
+      <input id="vc_amount_${d.id}" type="number" placeholder="£" style="width:100px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" onkeydown="if(event.key==='Enter')addVarCost('${d.id}')">
+      <button class="btn btn-sm" onclick="addVarCost('${d.id}')">Add</button>
     </div>
-  </div></div>`;
-
-  const status=trkStatus(t);
-  const totalCostsCombined=trkTotalCostsCombined(d,t);
-  const adRemaining=trkRemainingAdBudget(t);
-  const grossRev=trkGrossRevenue(t), costsIncl=trkCostsInclFees(t), vat=trkVat(t), netProfit=trkNetProfit(t);
-  // Recalculated directly (not derived from the spreadsheet's break-even chain): straightforward
-  // tickets remaining to reach max capacity, and the revenue those tickets represent at full price.
-  const maxTicketsVal=Number(t.maxTickets)||0, soldVal=Number(t.ticketsSoldTotal)||0;
-  const ticketsToSellOut=Math.max(0, maxTicketsVal-soldVal);
-  const revenueToSellOut=ticketsToSellOut*trkFullPrice(t);
-  const breakEven=`<div class="kpi-row" style="margin:18px 0">
-    <div class="kpi"><div class="label">Current %</div><div class="val">${(trkCurrentPct(t)*100).toFixed(1)}%</div><div class="sub">of max tickets</div></div>
-    <div class="kpi"><div class="label">Status</div><div class="val" style="font-size:18px;${status!=='PROFITABLE'?'color:var(--danger)':'color:var(--gold2)'}">${status}</div>
-      <div class="cost-breakdown">
-        <div class="cb-row"><span>Break-even Tickets</span><span>${trkBreakEvenTickets(t)}</span></div>
-        <div class="cb-row"><span>Sell-through needed</span><span>${(trkBreakEvenPct(t)*100).toFixed(1)}%</span></div>
-      </div>
-    </div>
-    <div class="kpi"><div class="label">Tickets to Sell Out</div><div class="val">${ticketsToSellOut}</div>
-      <div class="cost-breakdown">
-        <div class="cb-row"><span>Revenue to Sell Out</span><span>${gbp(revenueToSellOut)}</span></div>
-      </div>
-    </div>
-    <div class="kpi">
-      <div class="label">Total Costs</div><div class="val">${gbp(totalCostsCombined)}</div>
-      <div class="cost-breakdown">
-        <div class="cb-row"><span>Watch Cost</span><span>${gbp(t.watchCost)}</span></div>
-        <div class="cb-row"><span>Fixed £</span><span>${gbp(t.fixed)}</span></div>
-        <div class="cb-row"><span>Variable Costs</span><span>${gbp(variableCostsTotal(d))}</span></div>
-        <div class="cb-row"><span>Ad Spend</span><span>${gbp(t.adsSpent)}</span></div>
-      </div>
-    </div>
-    <div class="kpi">
-      <div class="label">Discounted Tickets</div><div class="val">${(Number(t.launchTicketsSold)||0)+(Number(t.couponBulkTicketsSold)||0)}</div>
-      <div class="cost-breakdown">
-        <div class="cb-row"><span>Launch Discount Tickets</span><span>${Number(t.launchTicketsSold)||0}</span></div>
-        <div class="cb-row"><span>Coupon/Bulk Tickets</span><span>${Number(t.couponBulkTicketsSold)||0}</span></div>
-      </div>
-    </div>
-    <div class="kpi">
-      <div class="label">Net Profit</div><div class="val" style="${netProfit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(netProfit)}</div>
-      <div class="cost-breakdown">
-        <div class="cb-row"><span>Gross Revenue</span><span>${gbp(grossRev)}</span></div>
-        <div class="cb-row"><span>Costs incl. Fees</span><span>${gbp(costsIncl)}</span></div>
-        <div class="cb-row"><span>VAT</span><span>${gbp(vat)}</span></div>
-      </div>
-    </div>
-    <div class="kpi"><div class="label">Ad Spend</div><div class="val">${gbp(t.adsSpent)}</div><div class="sub">of ${gbp(t.adsBudget)} budget · ${gbp(adRemaining)} left</div></div>
   </div>`;
+
+  const dropSetup=`<div class="card"><div class="card-h"><h3>Drop Setup</h3><span class="muted" style="font-size:11px">Set once, tweak occasionally</span></div><div class="modal-b" style="max-height:none">
+    <div class="field-wrap" style="margin-bottom:16px">
+      ${trkFldC(d,'Watch Cost (paid) £','watchCost')}
+      ${trkFldC(d,'Stated Value £','statedValue')}
+      ${roFldC('Value Multiple', trkValueMultiple(t).toFixed(2)+'×')}
+      ${trkFldC(d,'Max Tickets','maxTickets')}
+      ${trkFldC(d,'Full Ticket £','fullTicketPrice')}
+    </div>
+    <div class="field-wrap" style="margin-bottom:16px">
+      ${trkPctFldC(d,launchDiscountLabel(d.type),'launchDiscountPct')}
+      ${roFldC('Launch Disc. Ticket £', trkLaunchPrice(t).toFixed(2))}
+      ${trkPctFldC(d,'Comp/Life Disc. %','compLifeDiscountPct')}
+      ${roFldC('Comp/Life Disc. Ticket £', trkCompPrice(t).toFixed(2))}
+    </div>
+    <div class="field-wrap" style="margin-bottom:16px">
+      ${trkFldC(d,'Ads Budget £','adsBudget')}
+      ${trkFldC(d,'Fixed £','fixed')}
+      ${trkFldC(d,'Instant Wins £','instantWins')}
+      ${trkPctFldC(d,'Payment Fee %','paymentFeePct')}
+    </div>
+    <div class="field-wrap">
+      ${roFldC('Total Costs excl. fees £', trkTotalCostsExclFees(t).toFixed(2))}
+      ${roFldC('Sell Out Revenue £', trkSellOutRevenue(t).toFixed(2))}
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:12px">Ad spend is assumed equal to Ads Budget above — if you didn't spend the full budget, just edit Ads Budget to match what was actually spent.</div>
+  </div></div>`;
+
+  const breakEven=trkKpiRow(d,t);
 
   const autoCalcs=`<div class="card"><div class="card-h"><h3>Auto Calcs (no circular refs)</h3></div><div class="modal-b" style="max-height:none">
     <div class="calc-grid">
@@ -1806,13 +2244,15 @@ function trackerBody(d){
       <td><button class="btn btn-sm btn-danger" onclick="delCheckpoint('${d.id}','${cp.id}')">×</button></td></tr>`;
   }).join('');
   const cpTotal=trkCheckpointTotal(t), cpPct=maxT?(cpTotal/maxT*100):0;
+  const paceChart = cps.length? barChart(cps.map(cp=>({label:cp.label.replace(/\s*\d+(am|pm)$/i,'').trim().slice(0,3),value:Number(cp.ticketsSold)||0,display:Number(cp.ticketsSold)||0}))) : '';
   const dailyData=`<div class="card"><div class="card-h"><h3>Daily Data</h3><button class="btn btn-sm btn-gold" onclick="addCheckpoint('${d.id}')">＋ Add Checkpoint</button></div><div class="modal-b" style="max-height:none">
+    ${paceChart?`<div class="muted" style="font-size:11px;margin-bottom:-4px">Pace — tickets sold at each checkpoint</div>${paceChart}`:''}
     <table class="tbl"><thead><tr><th>Checkpoint</th><th>Tickets Sold</th><th>Total %</th><th></th></tr></thead>
     <tbody>${cpRows||'<tr><td colspan=4 class="empty">No checkpoints logged yet.</td></tr>'}</tbody>
     <tfoot><tr><td class="strong">Total</td><td class="strong">${cpTotal}</td><td class="strong">${cpPct.toFixed(1)}%</td><td></td></tr></tfoot></table>
   </div></div>`;
 
-  return watchDetails+dropSetup+liveInputs+breakEven+autoCalcs+sellThrough+dailyData;
+  return liveInputs+varCosts+breakEven+dropSetup+watchDetails+autoCalcs+sellThrough+dailyData;
 }
 
 /* ================= PAST DROPS (finished drops — review history, same detail as Drop Tracker) ================= */
@@ -1825,11 +2265,11 @@ function vPastDrops(){
   <div class="filters">${['All','Closed','Complete'].map(f=>`<button class="fbtn ${pastDropFilter===f?'active':''}" onclick="pastDropFilter='${f}';render()">${f}</button>`).join('')}</div>
   ${sorted.length? `<div class="card"><table class="tbl"><thead><tr><th>Drop</th><th>Watch</th><th>Tickets</th><th>Revenue</th><th>Net Profit</th><th>Status</th><th>Draw Date</th></tr></thead>
   <tbody>${sorted.map(d=>{
-    const t=d.tracker||{}; const rev=trkGrossRevenue(t), np=trkNetProfit(t), st=trkStatus(t);
+    const n=dropNumbers(d);
     return `<tr onclick="openPastDrop('${d.id}')"><td class="strong">${esc(d.number)}</td><td>${esc(watchName(d.watchId))}</td>
-      <td>${t.ticketsSoldTotal||0}/${t.maxTickets||0}</td><td>${gbp(rev)}</td>
-      <td style="color:${np>=0?'var(--live)':'var(--danger)'}">${gbp(np)}</td>
-      <td><span class="pill ${st==='PROFITABLE'?'pill-done':'pill-closed'}">${st}</span></td>
+      <td>${n.entries}/${n.pool}</td><td>${gbp(n.revenue)}</td>
+      <td style="color:${n.isProfitable?'var(--live)':'var(--danger)'}">${gbp(n.profit)}</td>
+      <td><span class="pill ${n.isProfitable?'pill-done':'pill-closed'}">${n.isProfitable?'PROFITABLE':'UNPROFITABLE'}</span></td>
       <td class="muted">${fmtDate(d.draw)}</td></tr>`;
   }).join('')}</tbody></table></div>`
   : `<div class="card"><div class="empty">No finished drops yet — they'll show up here once a drop's status is set to Closed or Complete.</div></div>`}`;
@@ -1841,18 +2281,22 @@ function vPastDropDetail(){
   if(!d) return `<div class="empty">Drop not found. <span class="link" onclick="go('pastdrops')">Back to Past Drops</span></div>`;
   const head=`<div class="page-actions" style="margin-bottom:14px"><span class="link muted" onclick="go('pastdrops')" style="cursor:pointer;font-size:13px">← All past drops</span></div>
   <div class="page-head"><div><h2>${esc(d.number)} — ${esc(watchName(d.watchId))}</h2>
-    <div class="desc">Archived drop · ${d.status} · Drew ${fmtDate(d.draw)} <span class="link" onclick="go('drop','${d.id}')" style="margin-left:8px">Open full Drop Hub →</span></div></div></div>`;
+    <div class="desc">Archived drop · ${d.status} · Drew ${fmtDate(d.draw)} <span class="link" onclick="go('drop','${d.id}')" style="margin-left:8px">Open full Drop Hub →</span></div></div>
+    ${d.status!=='Complete'?`<div class="page-actions"><button class="btn btn-sm btn-gold" onclick="openCloseOut('${d.id}')">🏁 Close Out Drop</button></div>`:''}
+  </div>
+  <div class="muted" style="font-size:11.5px;margin:-6px 0 16px">✎ Everything below is still fully editable — if you spot an error in any figure, correct it here and it updates the drop's numbers everywhere in the app immediately.</div>`;
   return head+trackerBody(d);
 }
 
 
 
-let taskFilter='Today', taskPerson='All', taskUrgentOnly=false;
+let taskFilter='Today', taskPerson='All', taskUrgentOnly=false, taskDropFilter='All';
 function vTasks(){
   const groups={Today:[],Tomorrow:[],'This Week':[],Overdue:[],Completed:[]};
   const tmr=addDays(today(),1), wk=addDays(today(),7);
   let all=DB.tasks.filter(t=> taskPerson==='All' || t.assignedTo===taskPerson);
   if(taskUrgentOnly) all=all.filter(t=>t.urgent);
+  if(taskDropFilter!=='All') all=all.filter(t=>t.dropId===taskDropFilter);
   all.forEach(t=>{
     if(t.done){groups.Completed.push(t);return;}
     if(t.due<today())groups.Overdue.push(t);
@@ -1862,10 +2306,16 @@ function vTasks(){
   });
   const cats=['Today','Tomorrow','This Week','Overdue','Completed'];
   const list=groups[taskFilter]||[];
-  return `<div class="page-head"><div><h2>Tasks</h2><div class="desc">Everything you need to do, typed and assigned.</div></div></div>
+  const dropsWithTasks=DB.drops.filter(d=>DB.tasks.some(t=>t.dropId===d.id));
+  return `<div class="page-head"><div><h2>Tasks</h2><div class="desc">Everything you need to do, typed and assigned.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="newTask()">＋ New Task</button></div></div>
   <div class="filters">${cats.map(c=>`<button class="fbtn ${taskFilter===c?'active':''}" onclick="taskFilter='${c}';render()">${c} · ${groups[c].length}</button>`).join('')}</div>
-  <div class="filters">${['All',...teamList()].map(p=>`<button class="fbtn ${taskPerson===p?'active':''}" onclick="taskPerson='${p}';render()">${p}</button>`).join('')}<button class="fbtn" onclick="addTeamMember()">＋ Person</button>
+  <div class="filters">${['All',...teamList()].map(p=>`<button class="fbtn ${taskPerson===p?'active':''}" onclick="taskPerson='${p}';render()">${p}</button>`).join('')}
     <button class="fbtn ${taskUrgentOnly?'active':''}" onclick="taskUrgentOnly=!taskUrgentOnly;render()">⚡ Urgent only</button></div>
+  ${dropsWithTasks.length?`<div class="filters">
+    <button class="fbtn ${taskDropFilter==='All'?'active':''}" onclick="taskDropFilter='All';render()">All Drops</button>
+    ${dropsWithTasks.map(d=>`<button class="fbtn ${taskDropFilter===d.id?'active':''}" onclick="taskDropFilter='${d.id}';render()">${esc(d.number)}</button>`).join('')}
+  </div>`:''}
   <div class="card"><div class="card-b">
     ${list.length? list.map(t=>taskRow(t)).join('') : `<div class="empty">Nothing in ${taskFilter}.</div>`}
     <div class="add-inline"><input id="pageTask" placeholder="Add a task…" onkeydown="if(event.key==='Enter')pageAddTask()">
@@ -1878,6 +2328,13 @@ function addTeamMember(){
   DB.settings.team=DB.settings.team||[]; if(!DB.settings.team.includes(n.trim())) DB.settings.team.push(n.trim());
   saveDB(); render();
 }
+function toggleWatchRetiredBtn(){
+  const b=document.getElementById('w_retired_btn'); if(!b) return;
+  const on=b.dataset.val==='1';
+  b.dataset.val = on? '0':'1';
+  b.classList.toggle('btn-gold', !on);
+  b.textContent = (!on? 'Retired':'Mark Retired');
+}
 function toggleUrgentBtn(){
   const b=document.getElementById('tk_urgent'); if(!b) return;
   const on = b.dataset.val==='1';
@@ -1885,20 +2342,30 @@ function toggleUrgentBtn(){
   b.classList.toggle('btn-gold', !on);
   b.textContent = (!on? '⚡ Urgent':'⚡ Mark urgent');
 }
+function newTask(){
+  const t={id:uid('t'),title:'New task',dropId:'',due:today(),done:false,type:'Admin',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()};
+  DB.tasks.unshift(t); saveDB(); openTask(t.id);
+}
 function openTask(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t)return;
   openModal(`<div class="modal"><div class="modal-h"><h3>Task</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
       ${mInput('tk_title','Title',t.title)}
+      ${mArea('tk_notes','Notes (optional)',t.notes)}
       <div class="field-row">
-        <div class="field"><label>Type</label>${dd('tk_type',Object.keys(TASK_TYPES),t.type||'Admin')}</div>
+        <div class="field"><label>Type</label>${dd('tk_type',Object.keys(TASK_TYPES),t.type||'Admin','onTaskTypeChange')}</div>
         <div class="field"><label>Assigned to</label>${dd('tk_assignee',teamList(),t.assignedTo||teamList()[0])}</div>
       </div>
       <div class="field-row">
         <div class="field"><label>Due date</label><input id="tk_due" type="date" value="${esc(t.due)}"></div>
         <div class="field"><label>Time (optional)</label><input id="tk_time" type="time" value="${esc(t.time||'')}"></div>
       </div>
+      <div class="field"><label>Repeat</label>${dd('tk_repeat',['None','Weekly'], t.repeat||'None')}</div>
       <div class="field"><label>Linked drop</label>${dd('tk_drop',[{value:'',label:'—'},...DB.drops.map(d=>({value:d.id,label:d.number}))], t.dropId||'')}</div>
+      <div class="field" id="tk_person_field" style="${t.type==='Prize Delivery'?'':'display:none'}"><label>Linked customer/winner</label>${dd('tk_person',[{value:'',label:'— none —'},
+        ...DB.winners.map(w=>({value:'win_'+w.id,label:`🏆 ${w.name||'Unnamed winner'}`})),
+        ...DB.customers.map(c=>({value:'cust_'+c.id,label:`${c.name||'Unnamed customer'}`}))], t.personRef||'')}</div>
+      ${fileField('tk_file','Attachment (optional)',t.file)}
       <div class="field"><label>Priority</label>
         <button type="button" id="tk_urgent" class="btn btn-sm ${t.urgent?'btn-gold':''}" data-val="${t.urgent?'1':'0'}" onclick="toggleUrgentBtn()">⚡ ${t.urgent?'Urgent':'Mark urgent'}</button>
       </div>
@@ -1906,12 +2373,20 @@ function openTask(id){
     <div class="modal-f"><button class="btn btn-danger" onclick="delTask('${id}');closeModal()">Delete</button>
       <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveTask('${id}')">Save</button></div></div>`);
 }
+function onTaskTypeChange(id,val){
+  const wrap=document.getElementById('tk_person_field');
+  if(wrap) wrap.style.display = (val==='Prize Delivery') ? '' : 'none';
+}
 function saveTask(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t)return;
   t.title=document.getElementById('tk_title').value||t.title;
   t.type=ddVal('tk_type'); t.assignedTo=ddVal('tk_assignee');
   t.due=document.getElementById('tk_due').value; t.time=document.getElementById('tk_time').value;
   t.dropId=ddVal('tk_drop');
+  t.personRef = (t.type==='Prize Delivery') ? ddVal('tk_person') : '';
+  t.notes=document.getElementById('tk_notes').value;
+  t.file=mediaVal('tk_file');
+  t.repeat=ddVal('tk_repeat');
   const ub=document.getElementById('tk_urgent'); t.urgent = ub? ub.dataset.val==='1' : !!t.urgent;
   saveDB();closeModal();toast('Task saved');render();
 }
@@ -1925,19 +2400,29 @@ function vCalendar(){
     if(d.draw)events.push({date:d.draw,label:`${d.number} draw — ${watchName(d.watchId)}`,type:'Draw',id:d.id});
   });
   DB.tasks.filter(t=>!t.done).forEach(t=>events.push({date:t.due,label:t.title,type:'Task',id:t.dropId}));
-  DB.winners.filter(w=>!w.dispatched&&w.dropId).forEach(w=>{const d=dropById(w.dropId);if(d)events.push({date:d.draw,label:`Dispatch to ${w.name}`,type:'Delivery',id:w.dropId});});
+  DB.winners.filter(w=>!w.dispatched&&w.dropId).forEach(w=>{const d=dropById(w.dropId);if(d)events.push({date:d.draw,label:`Dispatch to ${w.name}`,type:'Prize Delivery',id:w.dropId});});
+  DB.drops.filter(d=>d.status==='Live').forEach(d=>{
+    (d.contentChecklist||[]).forEach(item=>{ if(!item.done) events.push({date:item.date,label:`${item.channel}: ${item.title}`,type:'Content',id:d.id}); });
+    (d.tracker&&d.tracker.checkpoints||[]).forEach(cp=>{ if(!cp.filled) events.push({date:cp.date,label:`${d.number} checkpoint — ${cp.label}`,type:'Checkpoint',id:d.id}); });
+  });
   events.sort((a,b)=>(a.date||'z').localeCompare(b.date||'z'));
   return `<div class="page-head"><div><h2>Calendar</h2><div class="desc">Drops, draws, tasks, deliveries — visualised.</div></div>
     <div class="page-actions"><button class="btn btn-sm ${calMode==='list'?'btn-gold':''}" onclick="calMode='list';render()">List</button>
     <button class="btn btn-sm ${calMode==='grid'?'btn-gold':''}" onclick="calMode='grid';render()">Grid</button></div></div>
   ${calMode==='grid'? calendarGrid(events) : calendarList(events.filter(e=>e.date>=today()))}`;
 }
+function calEventClick(type,id){
+  if(!id) return;
+  if(type==='Content') go('contentSchedule');
+  else if(type==='Checkpoint') openTrackerFor(id);
+  else go('drop',id);
+}
 function calendarList(upcoming){
   const byDate={}; upcoming.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
   return Object.keys(byDate).length? Object.keys(byDate).sort().map(date=>`
     <div class="section-sub">${date===today()?'Today · ':''}${fmtDate(date)}</div>
     <div class="card"><div class="card-b">${byDate[date].map(e=>`
-      <div class="row-item" ${e.id?`onclick="go('drop','${e.id}')"`:''}>
+      <div class="row-item" ${e.id?`onclick="calEventClick('${e.type}','${e.id}')"`:''}>
         <span class="pill ${CAL_TYPE_PILL[e.type]||'pill-draft'}">${e.type}</span>
         <div class="txt"><div class="t">${esc(e.label)}</div></div></div>`).join('')}</div></div>`).join('')
   : `<div class="card"><div class="empty">Nothing scheduled ahead.</div></div>`;
@@ -1952,7 +2437,7 @@ function calendarGrid(events){
   for(let d=1; d<=daysInMonth; d++){
     const dateStr=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const evs=byDate[dateStr]||[];
-    cells+=`<div class="cal-cell ${dateStr===today()?'today':''}" onclick="${evs[0]&&evs[0].id?`go('drop','${evs[0].id}')`:''}">
+    cells+=`<div class="cal-cell ${dateStr===today()?'today':''}" onclick="${evs[0]&&evs[0].id?`calEventClick('${evs[0].type}','${evs[0].id}')`:''}">
       <div class="cal-daynum">${d}</div>
       ${evs.slice(0,3).map(e=>`<span class="cal-ev pill ${CAL_TYPE_PILL[e.type]||'pill-draft'}">${esc(e.label.slice(0,18))}</span>`).join('')}
       ${evs.length>3?`<div class="cal-more">+${evs.length-3} more</div>`:''}
@@ -1967,25 +2452,152 @@ function calendarGrid(events){
 }
 function calShift(n){ const [y,m]=calMonth.split('-').map(Number); const d=new Date(y,m-1+n,1); calMonth=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); render(); }
 /* ================= WATCH LIBRARY (grouped by brand) ================= */
+/* Split a full model string into Model Family + Variant.
+   Family = first word, with a few known two-word families kept whole. */
+const TWO_WORD_FAMILIES={'Tudor|Black':'Black Bay','TAG Heuer|Formula':'Formula 1','Rado|Captain':'Captain Cook','Blancpain x Swatch|Fifty':'Fifty Fathoms'};
+const FAMILY_OVERRIDE={'Rolex|Oyster Perpetual 39mm':['Oyster Perpetual','39mm'],'Apple|Watch Ultra 3':['Watch Ultra','3']};
+function splitModel(brand,model){
+  brand=(brand||'').trim(); const m=(model||'').trim();
+  if(!m) return {family:'',variant:''};
+  if(FAMILY_OVERRIDE[brand+'|'+m]){ const o=FAMILY_OVERRIDE[brand+'|'+m]; return {family:o[0],variant:o[1]}; }
+  const toks=m.split(/\s+/);
+  const two=TWO_WORD_FAMILIES[brand+'|'+toks[0]];
+  if(two && toks.length>=2){ const fw=two.split(' ').length; return {family:two,variant:toks.slice(fw).join(' ').trim()}; }
+  if(brand==='Cartier' && toks[0].indexOf('Santos')===0){
+    if(toks[0]==='Santos-Dumont') return {family:'Santos-Dumont',variant:toks.slice(1).join(' ').trim()};
+    return {family:'Santos',variant:toks.slice(1).join(' ').trim()};
+  }
+  return {family:toks[0],variant:toks.slice(1).join(' ').trim()};
+}
+let watchShowRetired=false;
+let watchBrandFilter='All';
+let watchFamilyFilter='All';
+let watchSearch='';
+let watchPriceMin='';
+let watchPriceMax='';
+let watchSort='default'; // default | price-asc | price-desc
+function watchApplyFilters(){
+  const pool=watchShowRetired? DB.watches : DB.watches.filter(w=>!w.retired);
+  let list = watchBrandFilter==='All'? pool : pool.filter(w=>(w.brand||'Unbranded')===watchBrandFilter);
+  if(watchBrandFilter!=='All' && watchFamilyFilter!=='All')
+    list = list.filter(w=>(w.family||w.model||'')===watchFamilyFilter);
+  const q=watchSearch.trim().toLowerCase();
+  if(q) list=list.filter(w=>((w.model||'')+' '+(w.variant||'')+' '+(w.family||'')+' '+(w.ref||'')+' '+(w.serial||'')+' '+(w.brand||'')).toLowerCase().includes(q));
+  const mn=parseFloat(watchPriceMin), mx=parseFloat(watchPriceMax);
+  if(!isNaN(mn)) list=list.filter(w=>(Number(w.retail)||0)>=mn);
+  if(!isNaN(mx)) list=list.filter(w=>(Number(w.retail)||0)<=mx);
+  if(watchSort==='price-asc') list=[...list].sort((a,b)=>(Number(a.retail)||0)-(Number(b.retail)||0));
+  else if(watchSort==='price-desc') list=[...list].sort((a,b)=>(Number(b.retail)||0)-(Number(a.retail)||0));
+  return list;
+}
+function watchResultsHTML(list){
+  const q=watchSearch.trim().toLowerCase();
+  if(watchBrandFilter==='All'){
+    // grouped by brand
+    const brands={}; list.forEach(w=>{ const b=w.brand||'Unbranded'; (brands[b]=brands[b]||[]).push(w); });
+    const names=Object.keys(brands).sort();
+    return names.length? names.map(b=>`
+      <div class="brand-group">
+        <div class="brand-head" onclick="toggleBrand('${slug(b)}')">
+          <span class="bg-car" id="car_${slug(b)}">▾</span><h3>${esc(b)}</h3><span class="muted">${brands[b].length} watch${brands[b].length===1?'':'es'}</span>
+        </div>
+        <div class="grid brand-grid" id="grid_${slug(b)}">${brands[b].map(w=>watchCard(w)).join('')}</div>
+      </div>`).join('')
+      : `<div class="card"><div class="empty">No watches match your filters.</div></div>`;
+  }
+  if(watchFamilyFilter==='All'){
+    // one brand selected, no family yet -> group by family
+    const fams={}; list.forEach(w=>{ const f=w.family||w.model||'Other'; (fams[f]=fams[f]||[]).push(w); });
+    const names=Object.keys(fams).sort();
+    return names.length? names.map(f=>`
+      <div class="brand-group">
+        <div class="brand-head" onclick="toggleBrand('fam_${slug(f)}')">
+          <span class="bg-car" id="car_fam_${slug(f)}">▾</span><h3>${esc(f)}</h3><span class="muted">${fams[f].length} model${fams[f].length===1?'':'s'}</span>
+        </div>
+        <div class="grid brand-grid" id="grid_fam_${slug(f)}">${fams[f].map(w=>watchCard(w)).join('')}</div>
+      </div>`).join('')
+      : `<div class="card"><div class="empty">No ${esc(watchBrandFilter)} watches match your filters.</div></div>`;
+  }
+  // brand + family selected -> flat grid of variants
+  return list.length
+    ? `<div class="grid">${list.map(w=>watchCard(w)).join('')}</div>`
+    : `<div class="card"><div class="empty">No ${esc(watchFamilyFilter)} variants match your filters.</div></div>`;
+}
 function vWatches(){
-  const brands={}; DB.watches.forEach(w=>{ const b=w.brand||'Unbranded'; (brands[b]=brands[b]||[]).push(w); });
-  const brandNames=Object.keys(brands).sort();
-  return `<div class="page-head"><div><h2>Watch Library</h2><div class="desc">Every watch you've owned, grouped by brand. ${DB.watches.length} total.</div></div>
-    <div class="page-actions"><button class="btn btn-gold" onclick="openWatch()">＋ Add Watch</button></div></div>
-  ${brandNames.length? brandNames.map(b=>`
-    <div class="brand-group">
-      <div class="brand-head" onclick="toggleBrand('${slug(b)}')">
-        <span class="bg-car" id="car_${slug(b)}">▾</span><h3>${esc(b)}</h3><span class="muted">${brands[b].length} watch${brands[b].length===1?'':'es'}</span>
-      </div>
-      <div class="grid brand-grid" id="grid_${slug(b)}">${brands[b].map(w=>watchCard(w)).join('')}</div>
-    </div>`).join('') : `<div class="card"><div class="empty">No watches yet.<br><button onclick="openWatch()">Add your first →</button></div></div>`}`;
+  const active=DB.watches.filter(w=>!w.retired);
+  const retiredCount=DB.watches.length-active.length;
+  const pool=watchShowRetired? DB.watches : active;
+
+  // Level 1 — brands
+  const brandCounts={}; pool.forEach(w=>{ const b=w.brand||'Unbranded'; brandCounts[b]=(brandCounts[b]||0)+1; });
+  const brandNames=Object.keys(brandCounts).sort();
+  if(watchBrandFilter!=='All' && !brandCounts[watchBrandFilter]){ watchBrandFilter='All'; watchFamilyFilter='All'; }
+
+  const brandTabs=`<div class="filters" style="margin-bottom:12px">
+    <button class="fbtn ${watchBrandFilter==='All'?'active':''}" onclick="setWatchBrand('All')">All · ${pool.length}</button>
+    ${brandNames.map(b=>`<button class="fbtn ${watchBrandFilter===b?'active':''}" onclick="setWatchBrand(${esc(JSON.stringify(b))})">${esc(b)} · ${brandCounts[b]}</button>`).join('')}
+  </div>`;
+
+  // Level 2 — model families (only when a brand is chosen)
+  let familyTabs='';
+  if(watchBrandFilter!=='All'){
+    const inBrand=pool.filter(w=>(w.brand||'Unbranded')===watchBrandFilter);
+    const famCounts={}; inBrand.forEach(w=>{ const f=w.family||w.model||'Other'; famCounts[f]=(famCounts[f]||0)+1; });
+    const famNames=Object.keys(famCounts).sort();
+    if(watchFamilyFilter!=='All' && !famCounts[watchFamilyFilter]) watchFamilyFilter='All';
+    familyTabs=`<div class="filters" style="margin:-4px 0 14px;padding-left:2px">
+      <span class="muted" style="font-size:11px;align-self:center;margin-right:4px">${esc(watchBrandFilter)} models:</span>
+      <button class="fbtn ${watchFamilyFilter==='All'?'active':''}" onclick="setWatchFamily('All')">All · ${inBrand.length}</button>
+      ${famNames.map(f=>`<button class="fbtn ${watchFamilyFilter===f?'active':''}" onclick="setWatchFamily(${esc(JSON.stringify(f))})">${esc(f)} · ${famCounts[f]}</button>`).join('')}
+    </div>`;
+  }
+
+  const scopeLabel = watchFamilyFilter!=='All'? esc(watchFamilyFilter)+' variants'
+                    : watchBrandFilter!=='All'? esc(watchBrandFilter)+' models'
+                    : 'all watches';
+  const controls=`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px">
+    <div class="search-wrap" style="max-width:none;flex:1;min-width:220px">
+      <span class="si">⌕</span>
+      <input id="watchSearchInput" placeholder="Search ${scopeLabel} by name, ref or serial…" value="${esc(watchSearch)}" oninput="watchSearch=this.value;liveWatchFilter()">
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="muted" style="font-size:11px">£</span>
+      <input type="number" id="wpmin" placeholder="Min" value="${esc(watchPriceMin)}" style="width:90px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 10px;outline:none" oninput="watchPriceMin=this.value;liveWatchFilter()">
+      <span class="muted">–</span>
+      <input type="number" id="wpmax" placeholder="Max" value="${esc(watchPriceMax)}" style="width:90px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 10px;outline:none" oninput="watchPriceMax=this.value;liveWatchFilter()">
+    </div>
+    <div style="width:170px">${dd('watchSortDD',[{value:'default',label:'Sort: Default'},{value:'price-desc',label:'Price: High → Low'},{value:'price-asc',label:'Price: Low → High'}],watchSort,'onWatchSortChange')}</div>
+    ${(watchSearch||watchPriceMin||watchPriceMax||watchSort!=='default')?`<button class="btn btn-sm btn-ghost" onclick="clearWatchFilters()">Clear</button>`:''}
+  </div>`;
+
+  const body=watchResultsHTML(watchApplyFilters());
+
+  return `<div class="page-head"><div><h2>Watch Library</h2><div class="desc">Every watch you've owned. ${active.length} active${retiredCount?', '+retiredCount+' retired':''}.</div></div>
+    <div class="page-actions">
+      ${retiredCount?`<button class="btn btn-sm ${watchShowRetired?'btn-gold':''}" onclick="watchShowRetired=!watchShowRetired;render()">${watchShowRetired?'Showing retired':'Show retired'}</button>`:''}
+      <button class="btn btn-gold" onclick="openWatch()">＋ Add Watch</button></div></div>
+  ${brandTabs}
+  ${familyTabs}
+  ${controls}
+  <div id="watchResults">${body}</div>`;
+}
+function setWatchBrand(b){ watchBrandFilter=b; watchFamilyFilter='All'; watchSearch=''; render(); }
+function setWatchFamily(f){ watchFamilyFilter=f; render(); }
+function onWatchSortChange(id,val){ watchSort=val; liveWatchFilter(); }
+function clearWatchFilters(){ watchSearch=''; watchPriceMin=''; watchPriceMax=''; watchSort='default'; render(); }
+/* Live-filter without full re-render so inputs keep focus while typing */
+function liveWatchFilter(){
+  const box=document.getElementById('watchResults'); if(!box) return;
+  box.innerHTML=watchResultsHTML(watchApplyFilters());
+  hydrateMedia();
 }
 function toggleBrand(s){ const el=document.getElementById('grid_'+s); const car=document.getElementById('car_'+s); if(!el)return; el.classList.toggle('collapsed'); car.textContent = el.classList.contains('collapsed')?'▸':'▾'; }
 function watchCard(w){
   const drops=DB.drops.filter(d=>d.watchId===w.id);
-  return `<div class="gcard" onclick="openWatch('${w.id}')">
+  const title = (w.family && w.variant)? `${esc(w.family)} <span class="muted" style="font-weight:600">${esc(w.variant)}</span>` : esc(w.model);
+  return `<div class="gcard" onclick="openWatch('${w.id}')" style="${w.retired?'opacity:.55':''}">
     <div class="thumb">${w.img?`<img data-mediaref="${esc(w.img)}">`:'⌚'}</div>
-    <div class="gbody"><div class="gtitle">${esc(w.model)}</div><div class="gsub">Ref ${esc(w.ref||'—')}${w.serial?' · SN '+esc(w.serial):''}</div>
+    <div class="gbody"><div class="gtitle">${title}${w.retired?' <span class="pill pill-closed" style="font-size:9px">RETIRED</span>':''}</div><div class="gsub">Ref ${esc(w.ref||'—')}${w.serial?' · SN '+esc(w.serial):''}</div>
     <div class="gmeta"><span class="pill pill-type">${gbp(w.retail)} RRP</span>${drops.length?`<span class="pill pill-done">${drops.length} drop${drops.length>1?'s':''}</span>`:''}</div></div></div>`;
 }
 
@@ -2002,15 +2614,397 @@ function vWinners(){
   </table></div>`:`<div class="card"><div class="empty">No winners recorded yet.</div></div>`}`;
 }
 
+/* ================= WINNERS RESULTS (weekly entrant/customer summary log) ================= */
+function vWinnerResults(){
+  const rows=[...DB.winnerResults].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  return `<div class="page-head"><div><h2>Winners Results</h2><div class="desc">Weekly entrant summaries — paste in what Claude gives you after analysing each drop's CSV, and build a running record over time.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="openWinnerResult()">＋ Log Results</button></div></div>
+  ${rows.length?`<div class="card"><table class="tbl">
+    <thead><tr><th>Date</th><th>Drop</th><th>Total Entries</th><th>Unique Orders</th><th>Unique Customers</th><th>New</th><th>Returning</th></tr></thead>
+    <tbody>${rows.map(r=>{const d=r.dropId?dropById(r.dropId):null;return `<tr onclick="openWinnerResult('${r.id}')">
+      <td class="muted">${fmtDate(r.date)}</td><td class="strong">${d?esc(d.number)+' — '+esc(watchName(d.watchId)):esc(r.dropLabel||'—')}</td>
+      <td class="mono">${r.totalEntries||0}</td><td class="mono">${r.uniqueOrders||0}</td><td class="mono">${r.uniqueCustomers||0}</td>
+      <td class="mono">${r.newCustomers||0}</td><td class="mono">${r.returningCustomers||0}</td></tr>`;}).join('')}</tbody>
+  </table></div>`:`<div class="card"><div class="empty">Nothing logged yet — after each drop closes, ask Claude to summarise the entrants CSV, then log the numbers here.</div></div>`}`;
+}
+function openWinnerResult(id){
+  const r=id?DB.winnerResults.find(x=>x.id===id):{};
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Winners Results':'Log Results'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field-row">
+        <div class="field"><label>Linked drop</label>${dd('wr_drop',[{value:'',label:'— select —'},...DB.drops.map(d=>({value:d.id,label:`${d.number} — ${watchName(d.watchId)}`}))], r.dropId||'')}</div>
+        <div class="field"><label>Date</label><input id="wr_date" type="date" value="${esc(r.date||today())}"></div>
+      </div>
+      <div class="field-row-3">
+        ${mInput('wr_total','Total Entries',r.totalEntries,'number')}
+        ${mInput('wr_orders','Unique Orders',r.uniqueOrders,'number')}
+        ${mInput('wr_customers','Unique Customers',r.uniqueCustomers,'number')}
+      </div>
+      <div class="field-row-3">
+        ${mInput('wr_new','New Customers',r.newCustomers,'number')}
+        ${mInput('wr_returning','Returning Customers',r.returningCustomers,'number')}
+        ${mInput('wr_discount','Discount Usage (%)',r.discountUsagePct,'number')}
+      </div>
+      ${mArea('wr_spenders','Top Spenders / Frequent Buyers',r.topSpenders)}
+      ${mArea('wr_notes','Notes',r.notes)}
+    </div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delWinnerResult('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveWinnerResult('${id||''}')">Save</button></div></div>`);
+}
+function saveWinnerResult(id){
+  const g=k=>document.getElementById(k).value;
+  const data={dropId:ddVal('wr_drop'),date:g('wr_date')||today(),
+    totalEntries:Number(g('wr_total'))||0,uniqueOrders:Number(g('wr_orders'))||0,uniqueCustomers:Number(g('wr_customers'))||0,
+    newCustomers:Number(g('wr_new'))||0,returningCustomers:Number(g('wr_returning'))||0,discountUsagePct:Number(g('wr_discount'))||0,
+    topSpenders:g('wr_spenders'),notes:g('wr_notes')};
+  if(id){ Object.assign(DB.winnerResults.find(x=>x.id===id),data); }
+  else{ DB.winnerResults.unshift({id:uid('wr'),...data,created:now()}); }
+  saveDB();closeModal();toast('Results logged');render();
+}
+function delWinnerResult(id){
+  if(!confirm('Delete this results log?')) return;
+  DB.winnerResults=DB.winnerResults.filter(x=>x.id!==id);
+  saveDB();closeModal();render();
+}
+
+/* ================= FINANCE OVERVIEW ================= */
+function barChart(items,cls){
+  const max=Math.max(1,...items.map(i=>i.value));
+  return `<div class="bar-chart">${items.map(i=>`
+    <div class="bar-col">
+      <div class="bar-val">${i.display!==undefined?i.display:i.value}</div>
+      <div class="bar-fill ${cls||''}" style="height:${Math.max(2,(i.value/max)*110)}px"></div>
+      <div class="bar-label">${esc(i.label)}</div>
+    </div>`).join('')}</div>`;
+}
+function vFinance(){
+  const drops=[...DB.drops].filter(d=>d.launch).sort((a,b)=>a.launch.localeCompare(b.launch));
+  const nums=new Map(drops.map(d=>[d.id,dropNumbers(d)]));
+  const totalRevenue=drops.reduce((a,d)=>a+nums.get(d.id).revenue,0);
+  const totalProfit=drops.reduce((a,d)=>a+nums.get(d.id).profit,0);
+  const totalCosts=drops.reduce((a,d)=>a+totalCost(d),0);
+  const margin=totalRevenue? (totalProfit/totalRevenue*100) : 0;
+
+  const byMonth={};
+  drops.forEach(d=>{ const m=d.launch.slice(0,7); byMonth[m]=byMonth[m]||{revenue:0,profit:0}; const n=nums.get(d.id); byMonth[m].revenue+=n.revenue; byMonth[m].profit+=n.profit; });
+  const months=Object.keys(byMonth).sort().slice(-6);
+  const revChart=barChart(months.map(m=>({label:new Date(m+'-01').toLocaleDateString('en-GB',{month:'short'}),value:byMonth[m].revenue,display:gbp(byMonth[m].revenue)})));
+  const profitChart=barChart(months.map(m=>({label:new Date(m+'-01').toLocaleDateString('en-GB',{month:'short'}),value:Math.max(0,byMonth[m].profit),display:gbp(byMonth[m].profit)})),'blue');
+
+  const byType={};
+  drops.forEach(d=>{ byType[d.type]=byType[d.type]||{count:0,revenue:0,profit:0}; const n=nums.get(d.id); byType[d.type].count++; byType[d.type].revenue+=n.revenue; byType[d.type].profit+=n.profit; });
+
+  const wCost=drops.reduce((a,d)=>a+(Number(d.costWatch)||0),0);
+  const fCost=drops.reduce((a,d)=>a+(Number(d.costFixed)||0),0);
+  const vCost=drops.reduce((a,d)=>a+variableCostsTotal(d),0);
+
+  const recent=[...drops].reverse().slice(0,10);
+
+  return `<div class="page-head"><div><h2>Finance Overview</h2><div class="desc">The whole business, not just one drop — revenue, profit and cost trends over time.</div></div></div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="label">Total Revenue</div><div class="val">${gbp(totalRevenue)}</div><div class="sub">${drops.length} drops</div></div>
+    <div class="kpi"><div class="label">Total Profit</div><div class="val" style="${totalProfit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(totalProfit)}</div><div class="sub">${margin.toFixed(1)}% margin</div></div>
+    <div class="kpi"><div class="label">Total Costs</div><div class="val">${gbp(totalCosts)}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Watch Cost</span><span>${gbp(wCost)}</span></div>
+        <div class="cb-row"><span>Fixed</span><span>${gbp(fCost)}</span></div>
+        <div class="cb-row"><span>Variable</span><span>${gbp(vCost)}</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="card"><div class="card-h"><h3>Revenue — last ${months.length} months</h3></div><div class="modal-b" style="max-height:none">${months.length?revChart:'<div class="empty">Not enough data yet.</div>'}</div></div>
+    <div class="card"><div class="card-h"><h3>Profit — last ${months.length} months</h3></div><div class="modal-b" style="max-height:none">${months.length?profitChart:'<div class="empty">Not enough data yet.</div>'}</div></div>
+  </div>
+  <div class="card"><div class="card-h"><h3>Margin by Drop Type</h3></div><div class="modal-b" style="max-height:none">
+    <table class="tbl"><thead><tr><th>Type</th><th>Drops</th><th>Revenue</th><th>Profit</th><th>Margin</th></tr></thead>
+    <tbody>${Object.keys(byType).map(ty=>{const b=byType[ty];const m=b.revenue?(b.profit/b.revenue*100):0;return `<tr><td class="strong">${esc(ty)}</td><td>${b.count}</td><td>${gbp(b.revenue)}</td>
+      <td style="color:${b.profit>=0?'var(--live)':'var(--danger)'}">${gbp(b.profit)}</td><td>${m.toFixed(1)}%</td></tr>`;}).join('')||'<tr><td colspan=5 class="empty">No data yet.</td></tr>'}</tbody></table>
+  </div></div>
+  <div class="card"><div class="card-h"><h3>Recent Drops</h3></div><div class="modal-b" style="max-height:none">
+    <table class="tbl"><thead><tr><th>Drop</th><th>Type</th><th>Revenue</th><th>Profit</th><th>Margin</th><th>Status</th></tr></thead>
+    <tbody>${recent.map(d=>{const n=nums.get(d.id);const m=n.revenue?(n.profit/n.revenue*100):0;return `<tr onclick="go('drop','${d.id}')"><td class="strong">${esc(d.number)}</td><td>${esc(d.type)}</td>
+      <td>${gbp(n.revenue)}</td><td style="color:${n.profit>=0?'var(--live)':'var(--danger)'}">${gbp(n.profit)}</td><td>${m.toFixed(1)}%</td>
+      <td><span class="pill ${STATUS_PILL[d.status]}">${d.status}</span></td></tr>`;}).join('')||'<tr><td colspan=6 class="empty">No drops yet.</td></tr>'}</tbody></table>
+  </div></div>`;
+}
+
+/* ================= DAILY TAKINGS (actual revenue from DNA Payments) ================= */
+function takingForDate(dt){ return DB.dailyTakings.find(x=>x.date===dt); }
+function last7Days(){
+  const out=[]; for(let i=1;i<=7;i++) out.push(addDays(today(),-i)); return out;
+}
+function openDailyTaking(dateStr){
+  const existing=takingForDate(dateStr);
+  const d=new Date(dateStr+'T00:00:00');
+  const label=d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  const feePct=(Number(DB.settings.paymentFeePct)||0.035)*100;
+  openModal(`<div class="modal"><div class="modal-h"><h3>💳 Daily Takings — ${esc(label)}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="muted" style="font-size:11.5px;margin-bottom:12px">Enter the amount <strong>Charged</strong> from DNA Payments for this day (the gross figure, before fees are taken out) — Costs will estimate the payment fee automatically at ${feePct.toFixed(1)}%, or overwrite it with the real figure from the settlement report.</div>
+      <div class="field-row">
+        ${mNum('dt_amount','Amount Charged (£)',existing?existing.amount:'')}
+        ${mNum('dt_costs','Costs Accounted For (£)',existing?existing.costs:'')}
+      </div>
+      <div class="muted" id="dt_fee_hint" style="font-size:11px;margin-top:-8px;margin-bottom:12px"></div>
+      ${mArea('dt_notes','Notes (what the costs were, refunds, discrepancies etc.)',existing?existing.notes:'')}
+    </div>
+    <div class="modal-f">${existing?`<button class="btn btn-danger" onclick="delDailyTaking('${dateStr}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveDailyTaking('${dateStr}')">Save</button></div></div>`);
+  document.getElementById('dt_amount').addEventListener('input', onDtAmountInput);
+}
+function onDtAmountInput(){
+  const amtEl=document.getElementById('dt_amount'), costsEl=document.getElementById('dt_costs'), hint=document.getElementById('dt_fee_hint');
+  const amount=Number(amtEl.value)||0;
+  const feePct=Number(DB.settings.paymentFeePct)||0.035;
+  const estFee=Math.round(amount*feePct*100)/100;
+  costsEl.value=estFee;
+  if(hint) hint.textContent = amount? `Estimated at ${(feePct*100).toFixed(1)}% of £${amount.toFixed(2)} = £${estFee.toFixed(2)} — edit Costs above if you have the exact fee from the settlement report.` : '';
+}
+function saveDailyTaking(dateStr){
+  const g=k=>{const el=document.getElementById(k); return el?el.value:'';};
+  const amount=Number(g('dt_amount'))||0;
+  const costs=Number(g('dt_costs'))||0;
+  const notes=g('dt_notes');
+  const existing=takingForDate(dateStr);
+  if(existing){ existing.amount=amount; existing.costs=costs; existing.notes=notes; }
+  else DB.dailyTakings.unshift({id:uid('dt'),date:dateStr,amount,costs,notes,created:now()});
+  saveDB(); closeModal(); toast('Daily takings saved'); render();
+}
+function delDailyTaking(dateStr){
+  if(!confirm('Delete this day\'s takings entry?')) return;
+  DB.dailyTakings=DB.dailyTakings.filter(x=>x.date!==dateStr);
+  saveDB(); closeModal(); render();
+}
+
+let fcCutSet=new Set();
+function fcWeekly(fc){ return fc.frequency==='Weekly'? (Number(fc.amount)||0) : (Number(fc.amount)||0)*12/52; }
+function fcMonthly(fc){ return fc.frequency==='Monthly'? (Number(fc.amount)||0) : (Number(fc.amount)||0)*52/12; }
+function fcAnnual(fc){ return fc.frequency==='Weekly'? (Number(fc.amount)||0)*52 : (Number(fc.amount)||0)*12; }
+function fcBillingLabel(fc){
+  if(fc.frequency==='Weekly'){
+    const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    return 'Every '+(days[Number(fc.billingDay)]||days[1]);
+  }
+  const n=Number(fc.billingDay)||1;
+  const suf = (n>=11&&n<=13)?'th' : {1:'st',2:'nd',3:'rd'}[n%10]||'th';
+  return `${n}${suf} of the month`;
+}
+function toggleFcCut(id){ if(fcCutSet.has(id)) fcCutSet.delete(id); else fcCutSet.add(id); render(); }
+function vFixedCosts(){
+  const active=DB.fixedCosts.filter(fc=>fc.active!==false);
+  const paused=DB.fixedCosts.filter(fc=>fc.active===false);
+  const wTotal=active.reduce((a,fc)=>a+fcWeekly(fc),0);
+  const mTotal=active.reduce((a,fc)=>a+fcMonthly(fc),0);
+  const aTotal=active.reduce((a,fc)=>a+fcAnnual(fc),0);
+
+  const cutItems=active.filter(fc=>fcCutSet.has(fc.id));
+  const cutW=cutItems.reduce((a,fc)=>a+fcWeekly(fc),0);
+  const cutM=cutItems.reduce((a,fc)=>a+fcMonthly(fc),0);
+  const cutA=cutItems.reduce((a,fc)=>a+fcAnnual(fc),0);
+
+  const whatIf = cutItems.length? `<div class="card" style="border-color:var(--gold);margin-bottom:18px"><div class="card-h"><h3>💡 What if you cut these ${cutItems.length} cost${cutItems.length===1?'':'s'}?</h3><span class="link" style="cursor:pointer;font-size:12px" onclick="fcCutSet=new Set();render()">Clear selection</span></div>
+    <div class="modal-b" style="max-height:none">
+      <div class="kpi-row" style="margin-bottom:0">
+        <div class="kpi"><div class="label">You'd save weekly</div><div class="val gold">${gbp(cutW)}</div></div>
+        <div class="kpi"><div class="label">You'd save monthly</div><div class="val gold">${gbp(cutM)}</div></div>
+        <div class="kpi"><div class="label">You'd save annually</div><div class="val gold">${gbp(cutA)}</div></div>
+        <div class="kpi"><div class="label">Remaining fixed costs / month</div><div class="val">${gbp(mTotal-cutM)}</div></div>
+      </div>
+    </div></div>`
+    : `<div class="muted" style="font-size:12px;margin:-4px 0 18px">Tick the checkbox next to any cost below to see what you'd save by cutting it — tick a few to compare combinations.</div>`;
+
+  const row=fc=>`<tr>
+    <td onclick="event.stopPropagation();toggleFcCut('${fc.id}')" style="cursor:pointer;width:34px">
+      <input type="checkbox" ${fcCutSet.has(fc.id)?'checked':''} onclick="event.stopPropagation();toggleFcCut('${fc.id}')" style="width:16px;height:16px;cursor:pointer">
+    </td>
+    <td class="strong" onclick="openFixedCost('${fc.id}')" style="cursor:pointer">${esc(fc.name)}</td>
+    <td class="muted">${esc(fc.category||'—')}</td>
+    <td><span class="pill pill-type">${fc.frequency}</span></td>
+    <td class="muted">${fcBillingLabel(fc)}</td>
+    <td class="mono">${gbp(fc.amount)}</td>
+    <td class="mono">${gbp(fcWeekly(fc))}</td>
+    <td class="mono">${gbp(fcMonthly(fc))}</td>
+    <td class="mono strong">${gbp(fcAnnual(fc))}</td>
+  </tr>`;
+
+  return `<div class="page-head"><div><h2>Fixed Costs</h2><div class="desc">Every subscription and recurring fee — weekly, monthly and annual, all in one place.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="openFixedCost()">＋ Add Fixed Cost</button></div></div>
+  <div class="kpi-row" style="margin-bottom:18px">
+    <div class="kpi"><div class="label">Total / Week</div><div class="val">${gbp(wTotal)}</div><div class="sub">${active.length} active cost${active.length===1?'':'s'}</div></div>
+    <div class="kpi"><div class="label">Total / Month</div><div class="val">${gbp(mTotal)}</div></div>
+    <div class="kpi"><div class="label">Total / Year</div><div class="val gold">${gbp(aTotal)}</div></div>
+  </div>
+  ${whatIf}
+  ${active.length?`<div class="card"><table class="tbl">
+    <thead><tr><th></th><th>Name</th><th>Category</th><th>Frequency</th><th>Billing Date</th><th>Amount</th><th>/ Week</th><th>/ Month</th><th>/ Year</th></tr></thead>
+    <tbody>${active.map(row).join('')}</tbody>
+  </table></div>` : `<div class="card"><div class="empty">No fixed costs logged yet.<br><button onclick="openFixedCost()">Add your first →</button></div></div>`}
+  ${paused.length?`<div class="section-sub" style="margin-top:22px">Paused / Inactive (${paused.length})</div>
+    <div class="card" style="opacity:.6"><table class="tbl">
+    <thead><tr><th>Name</th><th>Category</th><th>Frequency</th><th>Billing Date</th><th>Amount</th></tr></thead>
+    <tbody>${paused.map(fc=>`<tr onclick="openFixedCost('${fc.id}')"><td class="strong">${esc(fc.name)}</td><td class="muted">${esc(fc.category||'—')}</td><td><span class="pill pill-closed">${fc.frequency}</span></td><td class="muted">${fcBillingLabel(fc)}</td><td class="mono">${gbp(fc.amount)}</td></tr>`).join('')}</tbody>
+  </table></div>`:''}`;
+}
+function openFixedCost(id){
+  const fc=id?DB.fixedCosts.find(x=>x.id===id):{frequency:'Monthly',billingDay:1,active:true};
+  openModal(`<div class="modal"><div class="modal-h"><h3>${id?'Fixed Cost':'Add Fixed Cost'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      ${mInput('fc_name','Name (e.g. Klaviyo, Zap platform fee)',fc.name)}
+      <div class="field-row">${mInput('fc_amount','Amount (£)',fc.amount,'number')}${mInput('fc_category','Category (Subscription / Fee / Software…)',fc.category)}</div>
+      <div class="field-row">
+        <div class="field"><label>Frequency</label>${dd('fc_frequency',['Weekly','Monthly'],fc.frequency||'Monthly','onFcFrequencyChange')}</div>
+        <div class="field" id="fc_billingday_wrap">${fcBillingDayField(fc)}</div>
+      </div>
+      <div class="field"><label>Status</label><button type="button" class="btn btn-sm ${fc.active!==false?'btn-gold':''}" id="fc_active_btn" data-val="${fc.active!==false?'1':'0'}" onclick="this.dataset.val=this.dataset.val==='1'?'0':'1';this.className='btn btn-sm '+(this.dataset.val==='1'?'btn-gold':'');this.textContent=this.dataset.val==='1'?'Active':'Paused'">${fc.active!==false?'Active':'Paused'}</button></div>
+      ${mArea('fc_notes','Notes',fc.notes)}
+    </div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delFixedCost('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveFixedCost('${id||''}')">Save</button></div></div>`);
+}
+function fcBillingDayField(fc){
+  if((fc.frequency||'Monthly')==='Weekly'){
+    const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    return `<label>Billing Day</label>${dd('fc_billingday',days.map((d,i)=>({value:i,label:d})),fc.billingDay!==undefined?fc.billingDay:1)}`;
+  }
+  return `<label>Day of Month</label><input id="fc_billingday" type="number" min="1" max="31" value="${esc(fc.billingDay!==undefined?fc.billingDay:1)}">`;
+}
+function onFcFrequencyChange(id,val){
+  const wrap=document.getElementById('fc_billingday_wrap');
+  if(wrap) wrap.innerHTML=fcBillingDayField({frequency:val,billingDay:val==='Weekly'?1:1});
+}
+function saveFixedCost(id){
+  const g=k=>{const el=document.getElementById(k); return el?el.value:'';};
+  const activeBtn=document.getElementById('fc_active_btn');
+  const freq=ddVal('fc_frequency')||'Monthly';
+  // Weekly uses the custom dropdown (dd/ddVal); Monthly uses a plain number input (g)
+  const billingDayRaw = freq==='Weekly' ? ddVal('fc_billingday') : g('fc_billingday');
+  const data={name:g('fc_name'),amount:Number(g('fc_amount'))||0,category:g('fc_category'),
+    frequency:freq, billingDay:Number(billingDayRaw)||1,
+    active: activeBtn? activeBtn.dataset.val==='1' : true, notes:g('fc_notes')};
+  if(!data.name){alert('Name required');return;}
+  if(id){Object.assign(DB.fixedCosts.find(x=>x.id===id),data);}
+  else{DB.fixedCosts.unshift({id:uid('fc'),...data,created:now()});}
+  saveDB();closeModal();toast('Fixed cost saved');render();
+}
+function delFixedCost(id){if(!confirm('Delete this fixed cost?'))return;
+  DB.fixedCosts=DB.fixedCosts.filter(x=>x.id!==id); fcCutSet.delete(id);
+  saveDB();closeModal();render();}
+
+function vMarketing(){
+  const drops=[...DB.drops].filter(d=>d.launch).sort((a,b)=>a.launch.localeCompare(b.launch));
+  const withSpend=drops.filter(d=>d.tracker && (Number(d.tracker.adsBudget)||0)>0);
+  const totalSpend=withSpend.reduce((a,d)=>a+(Number(d.tracker.adsBudget)||0),0);
+  const totalRev=withSpend.reduce((a,d)=>a+trkGrossRevenue(d.tracker),0);
+  const roas=totalSpend? (totalRev/totalSpend) : 0;
+
+  const rows=[...drops].reverse().map(d=>{
+    const t=d.tracker||{}; const spend=Number(t.adsBudget)||0;
+    const rev=trkGrossRevenue(t); const soldTotal=Number(t.ticketsSoldTotal)||0;
+    const cpe=soldTotal? (spend/soldTotal) : 0;
+    const rr=spend? (rev/spend) : 0;
+    const paidAdsCount=DB.content.filter(c=>c.dropId===d.id && (c.useCases||[]).includes('Paid Ad')).length;
+    return {d,spend,rev,cpe,rr,fill:dropNumbers(d).fillPct,paidAdsCount};
+  });
+
+  const live=DB.drops.find(d=>d.status==='Live');
+  let comparisonBlock='';
+  if(live){
+    const priorDrops=drops.filter(d=>d.id!==live.id && d.launch<live.launch).slice(-3);
+    const compareSet=[...priorDrops, live];
+    const t=live.tracker||{};
+    const mk=(getter,label,cls,fmt)=>barChart(compareSet.map(d=>{
+      const dt=d.tracker||{}; const v=getter(d,dt);
+      return {label:d.id===live.id?`${d.number} (live)`:d.number, value:v, display:fmt(v)};
+    }),cls);
+    comparisonBlock=`<div class="card"><div class="card-h"><h3>${esc(live.number)} vs Previous 3 Drops</h3><span class="muted" style="font-size:12px">${esc(watchName(live.watchId))}</span></div>
+      <div class="modal-b" style="max-height:none">
+        <div class="two-col">
+          <div><div class="muted" style="font-size:11px;margin-bottom:4px">AD SPEND</div>${mk((d,dt)=>Number(dt.adsBudget)||0,'','',v=>gbp(v))}</div>
+          <div><div class="muted" style="font-size:11px;margin-bottom:4px">ROAS (× return)</div>${mk((d,dt)=>{const s=Number(dt.adsBudget)||0;return s?trkGrossRevenue(dt)/s:0;},'','blue',v=>v.toFixed(2)+'×')}</div>
+        </div>
+        <div class="two-col">
+          <div><div class="muted" style="font-size:11px;margin-bottom:4px">COST PER ENTRY</div>${mk((d,dt)=>{const s=Number(dt.ticketsSoldTotal)||0;return s?(Number(dt.adsBudget)||0)/s:0;},'','',v=>gbp(v))}</div>
+          <div><div class="muted" style="font-size:11px;margin-bottom:4px">FILL RATE %</div>${mk((d)=>dropNumbers(d).fillPct,'','blue',v=>v.toFixed(0)+'%')}</div>
+        </div>
+      </div></div>`;
+  }
+
+  return `<div class="page-head"><div><h2>Marketing &amp; Ad Performance</h2><div class="desc">Ad spend, return, and cost efficiency — per drop and over time.</div></div></div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="label">Total Ad Spend</div><div class="val">${gbp(totalSpend)}</div><div class="sub">${withSpend.length} drops with spend</div></div>
+    <div class="kpi"><div class="label">Total Revenue (spend drops)</div><div class="val">${gbp(totalRev)}</div></div>
+    <div class="kpi"><div class="label">Blended ROAS</div><div class="val gold">${roas.toFixed(2)}×</div><div class="sub">revenue per £1 spent</div></div>
+  </div>
+  ${comparisonBlock}
+  <div class="card"><div class="card-h"><h3>All Drops</h3></div><div class="modal-b" style="max-height:none">
+    <table class="tbl"><thead><tr><th>Drop</th><th>Ad Spend</th><th>Revenue</th><th>ROAS</th><th>Cost/Entry</th><th>Fill Rate</th><th>Paid Ad Content</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr onclick="openTrackerFor('${r.d.id}')"><td class="strong">${esc(r.d.number)}</td><td>${gbp(r.spend)}</td><td>${gbp(r.rev)}</td>
+      <td>${r.rr.toFixed(2)}×</td><td>${gbp(r.cpe)}</td><td>${r.fill}%</td><td>${r.paidAdsCount}</td></tr>`).join('')||'<tr><td colspan=7 class="empty">No drops yet.</td></tr>'}</tbody></table>
+  </div></div>`;
+}
+
+/* ================= WATCH SOURCING PIPELINE ================= */
+const SOURCING_STATUSES=['Considering','Negotiating','Agreed','Purchased','Rejected'];
+function vSourcing(){
+  const cols=SOURCING_STATUSES.filter(s=>s!=='Purchased');
+  return `<div class="page-head"><div><h2>Watch Sourcing</h2><div class="desc">Watches you're considering, before they're real inventory.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="openSourcing()">＋ Add Lead</button></div></div>
+  <div class="kanban">${cols.map(st=>{
+    const items=DB.sourcing.filter(s=>s.status===st);
+    return `<div class="kcol"><div class="kcol-h"><span>${st}</span><span>${items.length}</span></div>
+      ${items.map(s=>`<div class="kcard" onclick="openSourcing('${s.id}')"><div class="kt">${esc(s.brand)} ${esc(s.model)}</div>
+        <div class="km">${s.supplierId?esc(supName(s.supplierId)):'No supplier yet'}${s.quotedPrice?' · '+gbp(s.quotedPrice)+' quoted':''}</div></div>`).join('')}
+    </div>`;}).join('')}</div>
+  ${DB.sourcing.filter(s=>s.status==='Purchased').length?`<div class="card" style="margin-top:16px"><div class="card-h"><h3>Purchased — converted to Watch Library</h3></div>
+    <div class="card-b">${DB.sourcing.filter(s=>s.status==='Purchased').map(s=>`<div class="row-item"><div class="txt"><div class="t">${esc(s.brand)} ${esc(s.model)}</div></div></div>`).join('')}</div>
+  </div>`:''}`;
+}
+function openSourcing(id){
+  const s=id?DB.sourcing.find(x=>x.id===id):{};
+  openModal(`<div class="modal"><div class="modal-h"><h3>${id?'Sourcing Lead':'Add Sourcing Lead'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field-row">${mInput('sc_brand','Brand',s.brand)}${mInput('sc_model','Model',s.model)}</div>
+      <div class="field-row">${mInput('sc_ref','Reference',s.ref)}<div class="field"><label>Supplier</label>${dd('sc_supplier',[{value:'',label:'— none —'},...DB.suppliers.map(sp=>({value:sp.id,label:sp.name}))], s.supplierId||'')}</div></div>
+      <div class="field-row">${mInput('sc_quoted','Quoted Price (£)',s.quotedPrice,'number')}${mInput('sc_value','Stated Value (£)',s.statedValue,'number')}</div>
+      <div class="field"><label>Status</label>${dd('sc_status',SOURCING_STATUSES,s.status||'Considering')}</div>
+      ${mArea('sc_notes','Notes',s.notes)}
+    </div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delSourcing('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveSourcing('${id||''}')">Save</button></div></div>`);
+}
+function saveSourcing(id){
+  const g=k=>document.getElementById(k).value;
+  const data={brand:g('sc_brand'),model:g('sc_model'),ref:g('sc_ref'),supplierId:ddVal('sc_supplier'),
+    quotedPrice:Number(g('sc_quoted'))||0,statedValue:Number(g('sc_value'))||0,status:ddVal('sc_status'),notes:g('sc_notes')};
+  if(!data.brand){alert('Brand required');return;}
+  const wasNotPurchased = id ? DB.sourcing.find(x=>x.id===id).status!=='Purchased' : true;
+  if(id) Object.assign(DB.sourcing.find(x=>x.id===id),data);
+  else DB.sourcing.unshift({id:uid('src'),...data,created:now()});
+  if(data.status==='Purchased' && wasNotPurchased){
+    DB.watches.unshift({id:uid('watch'),brand:data.brand,model:data.model,ref:data.ref,serial:'',movement:'',
+      retail:data.statedValue,cost:data.quotedPrice,specs:'',mediaLink:'',desc:data.notes,supplierId:data.supplierId,
+      media:{},img:'',links:{},created:now()});
+    toast('Purchased — added to Watch Library');
+  } else toast('Saved');
+  saveDB();closeModal();render();
+}
+function delSourcing(id){
+  if(!confirm('Delete this sourcing lead?')) return;
+  DB.sourcing=DB.sourcing.filter(x=>x.id!==id);
+  saveDB();closeModal();render();
+}
+
 /* ================= SUPPLIERS ================= */
 function vSuppliers(){
   return `<div class="page-head"><div><h2>Suppliers</h2><div class="desc">Who you buy from.</div></div>
     <div class="page-actions"><button class="btn btn-gold" onclick="openSupplier()">＋ Add Supplier</button></div></div>
   ${DB.suppliers.length?`<div class="grid">${DB.suppliers.map(s=>{
-    const boughtIds=DB.watches.filter(w=>w.supplierId===s.id).map(w=>w.id);
+    const bought=DB.watches.filter(w=>w.supplierId===s.id);
+    const totalSpend=bought.reduce((a,w)=>a+(Number(w.cost)||0),0);
     return `<div class="gcard" onclick="openSupplier('${s.id}')"><div class="gbody">
       <div class="gtitle">${esc(s.name)}</div><div class="gsub">${esc(s.contact||'')} ${s.phone?'· '+esc(s.phone):''}</div>
-      <div class="gmeta"><span class="pill pill-type">${boughtIds.length} watch${boughtIds.length===1?'':'es'}</span></div>
+      <div class="gmeta"><span class="pill pill-type">${bought.length} watch${bought.length===1?'':'es'}</span><span class="pill pill-done">${gbp(totalSpend)} total</span></div>
     </div></div>`;}).join('')}</div>`:`<div class="card"><div class="empty">No suppliers yet.</div></div>`}`;
 }
 
@@ -2028,6 +3022,26 @@ function vCustomers(){
 
 /* ================= NEW CONTENT (creation pipeline) ================= */
 let contentView='board', contentCat='All', contentStatusFilter='All', contentStageFilter='All';
+let contentSelected=new Set();
+function toggleContentSelect(id){
+  if(contentSelected.has(id)) contentSelected.delete(id); else contentSelected.add(id);
+  render();
+}
+function selectAllVisibleContent(ids){
+  const allSelected=ids.every(id=>contentSelected.has(id));
+  if(allSelected) ids.forEach(id=>contentSelected.delete(id));
+  else ids.forEach(id=>contentSelected.add(id));
+  render();
+}
+function clearContentSelection(){ contentSelected=new Set(); render(); }
+function bulkSetStatus(status){
+  DB.content.forEach(c=>{ if(contentSelected.has(c.id)) c.status=status; });
+  saveDB(); toast(`Updated ${contentSelected.size} item(s)`); clearContentSelection();
+}
+function bulkSetCreator(creator){
+  DB.content.forEach(c=>{ if(contentSelected.has(c.id)) c.creator=creator; });
+  saveDB(); toast(`Updated ${contentSelected.size} item(s)`); clearContentSelection();
+}
 function vContent(){
   const cats=['All',...CONTENT_CATS]; const statuses=['All',...CONTENT_STATUSES]; const stages=['All','Raw','Finished'];
   let items=[...DB.content];
@@ -2035,6 +3049,18 @@ function vContent(){
   if(contentStatusFilter!=='All') items=items.filter(c=>c.status===contentStatusFilter);
   if(contentStageFilter!=='All') items=items.filter(c=>(c.mediaStage||'Finished')===contentStageFilter);
   const noDrops=DB.drops.length===0;
+  const visibleIds=items.map(c=>c.id);
+  const allVisibleSelected=visibleIds.length && visibleIds.every(id=>contentSelected.has(id));
+  const bulkBar = contentSelected.size? `<div class="card" style="margin-bottom:10px;border-color:var(--gold)"><div class="card-b" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span class="strong" style="font-size:13px">${contentSelected.size} selected</span>
+    <select onchange="if(this.value)bulkSetStatus(this.value);this.value=''" style="font-size:12px;padding:5px 8px;background:var(--bg2);border:1px solid var(--line2);border-radius:6px;color:var(--ink)">
+      <option value="">Set status…</option>${CONTENT_STATUSES.map(s=>`<option value="${s}">${s}</option>`).join('')}
+    </select>
+    <select onchange="if(this.value)bulkSetCreator(this.value);this.value=''" style="font-size:12px;padding:5px 8px;background:var(--bg2);border:1px solid var(--line2);border-radius:6px;color:var(--ink)">
+      <option value="">Set creator…</option>${teamList().map(p=>`<option value="${p}">${p}</option>`).join('')}
+    </select>
+    <button class="btn btn-sm" onclick="clearContentSelection()">Clear</button>
+  </div></div>` : '';
   return `<div class="page-head"><div><h2>New Content</h2><div class="desc">Idea → script → filmed → edited → posted. Once it's posted (or has a finished video attached), it shows up automatically in the Asset Library.</div></div>
     <div class="page-actions">
       <button class="btn btn-sm ${contentView==='board'?'btn-gold':''}" onclick="contentView='board';render()">Board</button>
@@ -2043,6 +3069,7 @@ function vContent(){
   <div class="filters">${cats.map(c=>`<button class="fbtn ${contentCat===c?'active':''}" onclick="contentCat='${c}';render()">${c}</button>`).join('')}</div>
   <div class="filters">${statuses.map(s=>`<button class="fbtn ${contentStatusFilter===s?'active':''}" onclick="contentStatusFilter='${s}';render()">${s}</button>`).join('')}</div>
   <div class="filters">${stages.map(s=>`<button class="fbtn ${contentStageFilter===s?'active':''}" onclick="contentStageFilter='${s}';render()">${s}</button>`).join('')}</div>
+  ${contentView==='list'?bulkBar:''}
   ${contentView==='board'? `<div class="kanban">${CONTENT_STATUSES.map(st=>{
     const col=items.filter(c=>c.status===st);
     return `<div class="kcol"><div class="kcol-h"><span>${st}</span><span>${col.length}</span></div>
@@ -2051,10 +3078,10 @@ function vContent(){
         <div style="margin-top:5px"><span class="stage-badge ${(c.mediaStage||'Finished').toLowerCase()}">${c.mediaStage||'Finished'}</span></div>
         ${statusQuickButtons(c)}</div>`).join('')}
     </div>`;}).join('')}</div>`
-  : `<div class="card"><table class="tbl"><thead><tr><th>Drop</th><th>Title</th><th>Category</th><th>Type</th><th>Status</th><th>Film Date</th></tr></thead>
-    <tbody>${items.map(c=>`<tr onclick="openContent('${c.id}')"><td class="strong">${c.dropId?esc((dropById(c.dropId)||{}).number||''):'—'}</td><td>${esc(c.title)}</td>
+  : `<div class="card"><table class="tbl"><thead><tr><th><input type="checkbox" ${allVisibleSelected?'checked':''} onclick="event.stopPropagation();selectAllVisibleContent(${JSON.stringify(visibleIds)})"></th><th>Drop</th><th>Title</th><th>Category</th><th>Type</th><th>Status</th><th>Film Date</th></tr></thead>
+    <tbody>${items.map(c=>`<tr onclick="openContent('${c.id}')"><td><input type="checkbox" ${contentSelected.has(c.id)?'checked':''} onclick="event.stopPropagation();toggleContentSelect('${c.id}')"></td><td class="strong">${c.dropId?esc((dropById(c.dropId)||{}).number||''):'—'}</td><td>${esc(c.title)}</td>
       <td>${esc(c.category)}</td><td><span class="stage-badge ${(c.mediaStage||'Finished').toLowerCase()}">${c.mediaStage||'Finished'}</span></td><td>${statusQuickButtons(c)}</td>
-      <td class="muted">${c.filmDate?fmtDate(c.filmDate):'—'}</td></tr>`).join('')||'<tr><td colspan=6 class="empty">No content.</td></tr>'}</tbody></table></div>`}`;
+      <td class="muted">${c.filmDate?fmtDate(c.filmDate):'—'}</td></tr>`).join('')||'<tr><td colspan=7 class="empty">No content.</td></tr>'}</tbody></table></div>`}`;
 }
 function statusQuickButtons(c){
   return `<div class="status-quick" onclick="event.stopPropagation()">
@@ -2088,7 +3115,7 @@ function libraryItems(){
       const w=wid?watchById(wid):null;
       items.push({id:'cn_'+c.id, name:c.title, type:'Video', url:c.video, dropId:c.dropId||'',
         tags:c.tags||[], creator:c.creator||teamList()[0], useCases:c.useCases||['Organic Post'], mediaStage:c.mediaStage||'Finished',
-        watchId:wid, brand:w?w.brand:'', model:w?w.model:'', category:c.category||'',
+        watchId:wid, brand:w?w.brand:'', model:w?w.model:'', category:c.category||'', created:c.created||'',
         sourceType:'content', sourceId:c.id});
     }
   });
@@ -2097,14 +3124,14 @@ function libraryItems(){
     const w=d.watchId?watchById(d.watchId):null;
     [['main','Main Image'],['cat1','Catalogue 1'],['cat2','Catalogue 2'],['cat3','Catalogue 3'],['webHero','Homepage Web'],['phoneHero','Homepage Phone']].forEach(([k,label])=>{
       if(imgs[k]) items.push({id:'dr_'+d.id+'_'+k, name:`${d.number} — ${label}`, type:'Photo', url:imgs[k], dropId:d.id,
-        tags:[watchName(d.watchId)], creator:'', useCases:[], watchId:d.watchId||'', brand:w?w.brand:'', model:w?w.model:'', category:'Watch Photos',
+        tags:[watchName(d.watchId)], creator:'', useCases:[], watchId:d.watchId||'', brand:w?w.brand:'', model:w?w.model:'', category:'Watch Photos', created:d.created||'',
         sourceType:'drop-image', sourceId:d.id});
     });
   });
   DB.assets.forEach(a=>{
     const d=a.dropId?dropById(a.dropId):null; const w=d&&d.watchId?watchById(d.watchId):null;
     items.push({id:'as_'+a.id, name:a.name, type:a.type, url:a.url, dropId:a.dropId||'',
-      tags:a.tags||[], creator:'', useCases:[], watchId:w?w.id:'', brand:w?w.brand:'', model:w?w.model:'', category:'',
+      tags:a.tags||[], creator:'', useCases:[], watchId:w?w.id:'', brand:w?w.brand:'', model:w?w.model:'', category:'', created:a.created||'',
       sourceType:'asset', sourceId:a.id});
   });
   return items;
@@ -2123,7 +3150,7 @@ function openLibItem(id){
   else if(i.sourceType==='drop-image'){ go('drop', i.sourceId, 'files'); }
   else if(i.sourceType==='asset'){ openAsset(i.sourceId); }
 }
-let libFilter='All', libUseCase='All', libCreator='All', libGroupByWatch=false, libSearch='', libBrand='All', libModel='All';
+let libFilter='All', libUseCase='All', libCreator='All', libGroupByWatch=false, libSearch='', libBrand='All', libModel='All', libSort='newest';
 function vAssets(){
   const all=libraryItems();
   let filtered=all;
@@ -2138,12 +3165,17 @@ function vAssets(){
   if(libUseCase==='Posts') filtered=filtered.filter(i=>(i.useCases||[]).includes('Organic Post'));
   if(libUseCase==='Ads') filtered=filtered.filter(i=>(i.useCases||[]).includes('Paid Ad'));
   if(libCreator!=='All') filtered=filtered.filter(i=>i.creator===libCreator);
+  filtered=[...filtered].sort((a,b)=> libSort==='oldest'? (a.created||'').localeCompare(b.created||'') : (b.created||'').localeCompare(a.created||''));
 
   const brandPool = libBrand==='All'? all : all.filter(i=>i.brand===libBrand);
   const brands=['All',...new Set(all.map(i=>i.brand).filter(Boolean))].sort((a,b)=>a==='All'?-1:b==='All'?1:a.localeCompare(b));
   const models=libBrand!=='All' ? ['All',...new Set(brandPool.map(i=>i.model).filter(Boolean))] : [];
 
-  const head=`<div class="page-head"><div><h2>Asset Library</h2><div class="desc">Everything finished, pulled automatically from New Content and Drop Hub — nothing is uploaded here directly. ${all.length} total.</div></div></div>
+  const head=`<div class="page-head"><div><h2>Asset Library</h2><div class="desc">Everything finished, pulled automatically from New Content and Drop Hub — nothing is uploaded here directly. ${all.length} total.</div></div>
+  <div class="page-actions"><select onchange="libSort=this.value;render()" style="font-size:12.5px;padding:7px 10px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--ink)">
+    <option value="newest" ${libSort==='newest'?'selected':''}>Newest first</option>
+    <option value="oldest" ${libSort==='oldest'?'selected':''}>Oldest first</option>
+  </select></div></div>
   <div class="field" style="max-width:360px;margin-bottom:10px"><input type="text" placeholder="Search by name or drop number…" value="${esc(libSearch)}" oninput="libSearch=this.value;render()"></div>
   <div class="filters">${brands.map(b=>`<button class="fbtn ${libBrand===b?'active':''}" onclick="libBrand='${esc(b)}';libModel='All';render()">${esc(b)}</button>`).join('')}</div>
   ${models.length>1?`<div class="filters">${models.map(m=>`<button class="fbtn ${libModel===m?'active':''}" onclick="libModel='${esc(m)}';render()">${esc(m)}</button>`).join('')}</div>`:''}
@@ -2243,6 +3275,7 @@ function newDrop(){
     notes:'',websiteLink:'',copy:{headline:'',body:'',seoKeyphrase:'',seoTitle:'',slug:'',metaDescription:''},
     images:{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''},
     entrants:{filename:'',headers:[],rows:[]},marketing:[],perf:{},links:{drive:'',canva:''},winnerId:'',created:now()};
+  migrateDrop(d);
   DB.drops.unshift(d);
   logTL(d.id,`${d.number} created`);
   saveDB();toast(`${d.number} created — full hub ready`);go('drop',d.id,'overview');
@@ -2252,12 +3285,312 @@ function delDrop(id){const d=dropById(id);if(!confirm(`Delete ${d.number}? This 
   DB.tasks=DB.tasks.filter(t=>t.dropId!==id);
   saveDB();toast('Drop deleted');go('drops');}
 
+/* ================= CLOSE OUT DROP — one modal, everything you need at the end of a draw ================= */
+let closeoutCSV=null; // holds {filename,headers,rows,stats} for the drop currently being closed out
+function findCol(headers,patterns){
+  for(const p of patterns){
+    const hit=headers.find(h=>p.test(h));
+    if(hit) return hit;
+  }
+  return null;
+}
+function cleanMoney(v){ return parseFloat(String(v||'').replace(/[^0-9.\-]/g,''))||0; }
+function analyseEntrantsCSV(headers,rows,dropId){
+  const emailCol=findCol(headers,[/billing.*email/i,/^email$/i,/customer.*email/i,/email/i]);
+  const orderCol=findCol(headers,[/order.*(number|id|#)/i,/^order$/i]);
+  const couponCol=findCol(headers,[/coupon/i,/discount.*code/i]);
+  const totalCol=findCol(headers,[/order.*total/i,/^total$/i,/grand.*total/i]);
+  const nameCol=findCol(headers,[/billing.*name/i,/customer.*name/i,/^name$/i,/first.*name/i]);
+
+  const totalEntries=rows.length;
+  const orderSet=new Set(), emailSet=new Set();
+  const perCustomer={}; // email -> {name,orders:Set,spend}
+  let discountRows=0;
+
+  rows.forEach(r=>{
+    const email=emailCol? (r[emailCol]||'').trim().toLowerCase() : '';
+    const order=orderCol? (r[orderCol]||'').trim() : '';
+    if(order) orderSet.add(order);
+    if(email){
+      emailSet.add(email);
+      perCustomer[email]=perCustomer[email]||{name:nameCol?r[nameCol]:'',orders:new Set(),spend:0};
+      if(order) perCustomer[email].orders.add(order);
+      if(totalCol) perCustomer[email].spend+=cleanMoney(r[totalCol]);
+    }
+    if(couponCol && (r[couponCol]||'').trim()) discountRows++;
+  });
+
+  const uniqueOrders=orderSet.size || totalEntries;
+  const uniqueCustomers=emailSet.size || totalEntries;
+
+  // cross-reference against the customer registry built up from previous closed-out drops
+  let newCustomers=0, returningCustomers=0;
+  Object.keys(perCustomer).forEach(email=>{
+    const known=DB.customers.find(c=>c.email===email && c.dropIds && c.dropIds.some(id=>id!==dropId));
+    if(known) returningCustomers++; else newCustomers++;
+  });
+
+  const discountUsagePct = totalEntries? Math.round((discountRows/totalEntries)*1000)/10 : 0;
+
+  const topSpendersList=Object.entries(perCustomer)
+    .map(([email,c])=>({email,name:c.name,orders:c.orders.size||1,spend:c.spend}))
+    .sort((a,b)=> totalCol? (b.spend-a.spend) : (b.orders-a.orders))
+    .slice(0,8)
+    .map(c=> totalCol? `${c.name||c.email} — ${gbp(c.spend)} (${c.orders} order${c.orders===1?'':'s'})` : `${c.name||c.email} — ${c.orders} order${c.orders===1?'':'s'}`)
+    .join('\n');
+
+  return {totalEntries,uniqueOrders,uniqueCustomers,newCustomers,returningCustomers,discountUsagePct,topSpendersList,
+    emails:Object.keys(perCustomer),perCustomer,columnsFound:{emailCol,orderCol,couponCol,totalCol,nameCol}};
+}
+function closeoutClaudePrompt(d){
+  return `Please analyse the attached CSV export of entries/orders for ${d.number} (${watchName(d.watchId)}) and give me these figures so I can log them in Watch Drop HQ:
+
+1. Total Entries — total number of rows/tickets in the file
+2. Unique Orders — count of distinct order numbers/IDs
+3. Unique Customers — count of distinct customer emails
+4. New Customers — customers who appear only once in this file
+5. Returning Customers — customers with more than one order in this file (note: this only reflects repeats within this file — I may separately know some of these are returning from previous drops)
+6. Discount Usage (%) — percentage of rows that used a coupon/discount code
+7. Top Spenders / Frequent Buyers — the top 5–8 customers by total spend (or by number of orders if there's no spend column), with name/email and their total
+
+Please give me the answer as a short numbered list in that exact order, so I can copy the numbers straight into the app.`;
+}
+function copyCloseoutPrompt(){
+  const el=document.getElementById('co_claude_prompt'); if(!el) return;
+  const text=el.value;
+  const done=()=>toast('Prompt copied — paste it into Claude along with the CSV file');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>{ el.select(); document.execCommand('copy'); done(); });
+  } else { el.select(); document.execCommand('copy'); done(); }
+}
+function closeoutUploadCSV(e,dropId){
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    const parsed=parseCSV(r.result);
+    if(!parsed.rows.length){ alert('Could not find any rows in that file.'); return; }
+    const stats=analyseEntrantsCSV(parsed.headers,parsed.rows,dropId);
+    closeoutCSV={filename:f.name,headers:parsed.headers,rows:parsed.rows,stats};
+    const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
+    set('co_totalentries',stats.totalEntries);
+    set('co_orders',stats.uniqueOrders);
+    set('co_uniquecust',stats.uniqueCustomers);
+    set('co_newcust',stats.newCustomers);
+    set('co_returncust',stats.returningCustomers);
+    set('co_discountpct',stats.discountUsagePct);
+    if(stats.topSpendersList) set('co_spenders',stats.topSpendersList);
+    const missing=Object.entries(stats.columnsFound).filter(([k,v])=>!v).map(([k])=>k.replace('Col',''));
+    const statusEl=document.getElementById('co_csv_status');
+    if(statusEl){
+      statusEl.innerHTML = `✓ Parsed ${parsed.rows.length} rows from <strong>${esc(f.name)}</strong> — Total Entries, Unique Orders, Unique Customers, New/Returning and Discount Usage filled in below.`
+        + (missing.length? `<br><span style="color:var(--warn)">Couldn't confidently find a column for: ${missing.join(', ')} — double check the numbers above, particularly Unique Orders and Discount Usage.</span>` : '');
+    }
+  };
+  r.onerror=()=>alert('Could not read that file.');
+  r.readAsText(f);
+}
+function openCloseOut(dropId){
+  const d=dropById(dropId); if(!d) return;
+  closeoutCSV=null;
+  d.tracker=d.tracker||{}; const t=d.tracker;
+  const w=d.winnerId? winById(d.winnerId) : null;
+  const existingResult=DB.winnerResults.find(r=>r.dropId===d.id);
+
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>🏁 Close Out — ${esc(d.number)} · ${esc(watchName(d.watchId))}</h3><span class="x" onclick="closeModal()">×</span></div>
+  <div class="modal-b">
+    <div class="muted" style="font-size:12px;margin-bottom:14px">Everything below saves in one go, and sets this drop's status to <strong>Complete</strong>. Leave anything blank you don't have yet — you can always reopen this from the Drops list.</div>
+
+    <div class="section-sub">Final Ticket Numbers</div>
+    <div class="field-row-3">
+      ${mNum('co_sold','Tickets Sold (Total, incl. free)',t.ticketsSoldTotal)}
+      ${mNum('co_launch','Launch Discount Tickets Sold',t.launchTicketsSold)}
+      ${mNum('co_coupon','Discounted Tickets (coupon/bulk)',t.couponBulkTicketsSold)}
+    </div>
+    ${mNum('co_free','Free Tickets Given',t.freeTicketsGiven)}
+
+    <div class="section-sub">Cost Confirmation</div>
+    <div class="field-row-3">
+      ${mNum('co_watchcost','Watch Cost Paid (£)',t.watchCost)}
+      ${mNum('co_adsbudget','Ads Budget / Actual Spend (£)',t.adsBudget)}
+      ${mNum('co_fixed','Fixed £',t.fixed)}
+    </div>
+    <div class="field-row">
+      ${mNum('co_instant','Instant Wins £',t.instantWins)}
+      ${mNum('co_fee','Payment Fee %',(Number(t.paymentFeePct)||0)*100)}
+    </div>
+
+    <div class="section-sub">Variable Costs <span class="muted" id="co_vc_total" style="font-size:11px;text-transform:none;font-weight:400">— ${gbp(variableCostsTotal(d))} total</span></div>
+    <div id="co_vc_list" style="margin-bottom:8px">
+      ${(d.variableCosts||[]).length? d.variableCosts.map(c=>`
+        <div class="row-item" style="padding:8px 0">
+          <div class="txt"><div class="t">${esc(c.label)}</div></div>
+          <span class="mono" style="font-weight:600">${gbp(c.amount)}</span>
+          <span class="btn-danger btn-sm" onclick="closeoutDelVarCost('${d.id}','${c.id}')">✕</span>
+        </div>`).join('') : `<div class="muted" style="font-size:12px">None logged yet.</div>`}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      <input id="co_vc_label" placeholder="e.g. SMS message" style="flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" onkeydown="if(event.key==='Enter')closeoutAddVarCost('${d.id}')">
+      <input id="co_vc_amount" type="number" placeholder="£" style="width:100px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" onkeydown="if(event.key==='Enter')closeoutAddVarCost('${d.id}')">
+      <button class="btn btn-sm" onclick="closeoutAddVarCost('${d.id}')">Add</button>
+    </div>
+
+    <div class="section-sub">Watch Details</div>
+    <div class="field-row">${mInput('co_dial','Dial',t.dial)}${mInput('co_straps','Set/Straps',t.setStraps)}</div>
+    <div class="field-row">${mInput('co_closenotes','Close Notes',t.closeNotes)}${mInput('co_drawnotes','Draw/Notes',t.drawNotes)}</div>
+
+    <div class="section-sub">Winner</div>
+    <div class="field-row">${mInput('co_wname','Name',w?w.name:'')}${mInput('co_wphone','Phone',w?w.phone:'')}</div>
+    <div class="field-row">${mInput('co_wemail','Email',w?w.email:'')}${mInput('co_wig','Instagram',w?w.instagram:'')}</div>
+    <div class="field-row">${mInput('co_waddr','Address',w?w.address:'')}${mInput('co_wpostcode','Postcode',w?w.postcode:'')}</div>
+    <div class="field-row">${mInput('co_wlocation','Location (town/city)',w?w.location:'')}${mInput('co_wtracking','Tracking Number',w?w.trackingNumber:'')}</div>
+    <div class="field-row">
+      <div class="field"><label>Dispatched?</label><button class="btn btn-sm ${w&&w.dispatched?'btn-gold':''}" id="co_wdispatched" data-val="${w&&w.dispatched?'1':'0'}" onclick="this.dataset.val=this.dataset.val==='1'?'0':'1';this.className='btn btn-sm '+(this.dataset.val==='1'?'btn-gold':'')">${w&&w.dispatched?'✓ Dispatched':'Mark dispatched'}</button></div>
+      <div class="field"><label>Delivered in person?</label><button class="btn btn-sm ${w&&w.deliveryInPerson?'btn-gold':''}" id="co_wperson" data-val="${w&&w.deliveryInPerson?'1':'0'}" onclick="this.dataset.val=this.dataset.val==='1'?'0':'1';this.className='btn btn-sm '+(this.dataset.val==='1'?'btn-gold':'')">${w&&w.deliveryInPerson?'✓ In person':'Mark in person'}</button></div>
+    </div>
+
+    <div class="section-sub">Winners Results — customer data for this drop</div>
+    <div class="card" style="background:var(--panel2);margin-bottom:14px"><div class="modal-b" style="max-height:none">
+      <div class="field"><label>Upload the entrants/orders CSV export</label>
+        <input type="file" accept=".csv" onchange="closeoutUploadCSV(event,'${d.id}')">
+      </div>
+      <div id="co_csv_status" class="muted" style="font-size:11.5px">${existingResult?'Previously logged — upload a fresh CSV to recalculate, or edit the numbers below directly.':'The fields below fill in automatically once uploaded — or copy the prompt below and ask Claude directly, using the same CSV file.'}</div>
+      <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);font-weight:600">Prompt to paste into Claude, alongside the CSV</label>
+          <button class="btn btn-sm" onclick="copyCloseoutPrompt()">📋 Copy</button>
+        </div>
+        <textarea id="co_claude_prompt" readonly style="width:100%;min-height:150px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink2);border-radius:8px;padding:10px 12px;font-size:12px;resize:vertical">${esc(closeoutClaudePrompt(d))}</textarea>
+      </div>
+    </div></div>
+    <div class="muted" style="font-size:11px;margin:-6px 0 10px">Total Entries, Unique Orders and Unique Customers are required before this drop can be closed out — fill these in from the CSV upload, Claude's answer, or by hand.</div>
+    <div class="field-row-3">
+      ${mNum('co_totalentries','Total Entries *',existingResult?existingResult.totalEntries:'')}
+      ${mNum('co_orders','Unique Orders *',existingResult?existingResult.uniqueOrders:'')}
+      ${mNum('co_uniquecust','Unique Customers *',existingResult?existingResult.uniqueCustomers:'')}
+    </div>
+    <div class="field-row-3">
+      ${mNum('co_newcust','New Customers',existingResult?existingResult.newCustomers:'')}
+      ${mNum('co_returncust','Returning Customers',existingResult?existingResult.returningCustomers:'')}
+      ${mNum('co_discountpct','Discount Usage (%)',existingResult?existingResult.discountUsagePct:'')}
+    </div>
+    ${mArea('co_spenders','Top Spenders / Frequent Buyers',existingResult?existingResult.topSpenders:'')}
+    ${mArea('co_resultnotes','Notes',existingResult?existingResult.notes:'')}
+
+  </div>
+  <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveCloseOut('${d.id}')">🏁 Save & Mark Complete</button></div></div>`);
+}
+function closeoutRenderVarCosts(d){
+  const listEl=document.getElementById('co_vc_list'), totalEl=document.getElementById('co_vc_total');
+  if(!listEl) return;
+  listEl.innerHTML = (d.variableCosts||[]).length? d.variableCosts.map(c=>`
+    <div class="row-item" style="padding:8px 0">
+      <div class="txt"><div class="t">${esc(c.label)}</div></div>
+      <span class="mono" style="font-weight:600">${gbp(c.amount)}</span>
+      <span class="btn-danger btn-sm" onclick="closeoutDelVarCost('${d.id}','${c.id}')">✕</span>
+    </div>`).join('') : `<div class="muted" style="font-size:12px">None logged yet.</div>`;
+  if(totalEl) totalEl.textContent = `— ${gbp(variableCostsTotal(d))} total`;
+}
+function closeoutAddVarCost(dropId){
+  const d=dropById(dropId); if(!d) return;
+  const labelEl=document.getElementById('co_vc_label'), amtEl=document.getElementById('co_vc_amount');
+  const label=labelEl.value.trim(); const amount=Number(amtEl.value)||0;
+  if(!label){ alert('Give this cost a label, e.g. "SMS message"'); return; }
+  d.variableCosts=d.variableCosts||[];
+  d.variableCosts.push({id:uid('vc'),label,amount});
+  saveDB();
+  labelEl.value=''; amtEl.value='';
+  closeoutRenderVarCosts(d);
+}
+function closeoutDelVarCost(dropId,costId){
+  const d=dropById(dropId); if(!d) return;
+  d.variableCosts=(d.variableCosts||[]).filter(c=>c.id!==costId);
+  saveDB();
+  closeoutRenderVarCosts(d);
+}
+function saveCloseOut(dropId){
+  const d=dropById(dropId); if(!d) return;
+  const g=k=>{const el=document.getElementById(k); return el?el.value:'';};
+
+  // Mandatory: Total Entries, Unique Orders, Unique Customers must all be entered
+  // (either auto-filled from the CSV upload above, or typed in by hand).
+  const totalEntriesVal=g('co_totalentries'), ordersVal=g('co_orders'), custVal=g('co_uniquecust');
+  if(totalEntriesVal===''||ordersVal===''||custVal===''){
+    alert('Total Entries, Unique Orders and Unique Customers are required before this drop can be closed out.\n\nUpload the entrants CSV above to fill these in automatically, or enter them by hand.');
+    return;
+  }
+
+  d.tracker=d.tracker||{}; const t=d.tracker;
+
+  t.ticketsSoldTotal=Number(g('co_sold'))||0;
+  t.launchTicketsSold=Number(g('co_launch'))||0;
+  t.couponBulkTicketsSold=Number(g('co_coupon'))||0;
+  t.freeTicketsGiven=Number(g('co_free'))||0;
+  t.watchCost=Number(g('co_watchcost'))||0;
+  t.adsBudget=Number(g('co_adsbudget'))||0;
+  t.fixed=Number(g('co_fixed'))||0;
+  t.instantWins=Number(g('co_instant'))||0;
+  t.paymentFeePct=(Number(g('co_fee'))||0)/100;
+  t.dial=g('co_dial'); t.setStraps=g('co_straps'); t.closeNotes=g('co_closenotes'); t.drawNotes=g('co_drawnotes');
+  d.costWatch=t.watchCost; // keep legacy field aligned
+
+  // Winner — create or update
+  const wname=g('co_wname').trim();
+  if(wname){
+    let w = d.winnerId? winById(d.winnerId) : null;
+    const dispatchedBtn=document.getElementById('co_wdispatched'), personBtn=document.getElementById('co_wperson');
+    const winData={name:wname,phone:g('co_wphone'),email:g('co_wemail'),instagram:g('co_wig'),
+      address:g('co_waddr'),postcode:g('co_wpostcode'),location:g('co_wlocation'),trackingNumber:g('co_wtracking'),
+      dispatched: dispatchedBtn? dispatchedBtn.dataset.val==='1' : false,
+      deliveryInPerson: personBtn? personBtn.dataset.val==='1' : false, dropId:d.id};
+    if(w){ Object.assign(w,winData); }
+    else { w={id:uid('win'),...winData,reviewRequested:false,reviewGiven:false,review:'',notes:'',created:now()}; DB.winners.unshift(w); }
+    d.winnerId=w.id;
+  }
+
+  // Winners Results — create or update the one entry for this drop
+  const resData={totalEntries:Number(g('co_totalentries'))||0,uniqueOrders:Number(g('co_orders'))||0,
+    uniqueCustomers:Number(g('co_uniquecust'))||0,newCustomers:Number(g('co_newcust'))||0,
+    returningCustomers:Number(g('co_returncust'))||0,discountUsagePct:Number(g('co_discountpct'))||0,
+    topSpenders:g('co_spenders'),notes:g('co_resultnotes'),dropId:d.id,dropLabel:d.number,date:d.draw||today()};
+  const existing=DB.winnerResults.find(r=>r.dropId===d.id);
+  if(existing) Object.assign(existing,resData);
+  else DB.winnerResults.unshift({id:uid('wr'),...resData,created:now()});
+
+  // Persist the uploaded CSV (if any) as this drop's entrants record, and grow the
+  // customer registry so future drops can tell new vs returning buyers apart.
+  if(closeoutCSV){
+    d.entrants={filename:closeoutCSV.filename, headers:closeoutCSV.headers, rows:closeoutCSV.rows};
+    Object.entries(closeoutCSV.stats.perCustomer).forEach(([email,c])=>{
+      let cust=DB.customers.find(x=>x.email===email);
+      if(!cust){
+        cust={id:uid('cust'),name:c.name||'',email,phone:'',notes:'',dropIds:[d.id],ordersCount:c.orders.size||1,spend:c.spend||0,firstSeen:today(),created:now()};
+        DB.customers.unshift(cust);
+      } else {
+        cust.dropIds=cust.dropIds||[];
+        if(!cust.dropIds.includes(d.id)) cust.dropIds.push(d.id);
+        cust.ordersCount=(cust.ordersCount||0)+(c.orders.size||1);
+        cust.spend=(cust.spend||0)+(c.spend||0);
+        cust.name=cust.name||c.name||'';
+      }
+    });
+  }
+
+  d.status='Complete';
+  saveDB(); closeModal(); toast(`${d.number} closed out ✓`); render();
+}
+
 function drawWinner(dropId){const name=prompt('Winner name:');if(!name)return;
   const w={id:uid('win'),name,email:'',phone:'',address:'',instagram:'',dropId,dispatched:false,review:'',notes:'',created:now()};
   DB.winners.unshift(w);const d=dropById(dropId);d.winnerId=w.id;logTL(dropId,`Winner drawn: ${name}`);
   saveDB();toast('Winner recorded');render();}
 function toggleDispatch(id){const w=winById(id);w.dispatched=!w.dispatched;
-  if(w.dispatched&&w.dropId)logTL(w.dropId,`Dispatched to ${w.name}`);queueSave();render();}
+  if(w.dispatched&&w.dropId)logTL(w.dropId,`Dispatched to ${w.name}`);
+  if(w.dispatched && !w.reviewTaskCreated){
+    DB.tasks.unshift({id:uid('t'),title:`Request review from ${w.name}`,dropId:w.dropId||'',due:addDays(today(),5),
+      done:false,type:'Prize Delivery',assignedTo:DB.settings.team[0],time:'',urgent:false,personRef:'win_'+w.id,notes:'',file:'',repeat:'None',created:now()});
+    w.reviewTaskCreated=true;
+  }
+  queueSave();render();}
 function toggleDeliveryInPerson(id){const w=winById(id);w.deliveryInPerson=!w.deliveryInPerson;
   if(w.deliveryInPerson)w.trackingNumber='';queueSave();render();}
 function toggleReviewRequested(id){const w=winById(id);w.reviewRequested=!w.reviewRequested;
@@ -2265,8 +3598,28 @@ function toggleReviewRequested(id){const w=winById(id);w.reviewRequested=!w.revi
 function toggleReviewGiven(id){const w=winById(id);w.reviewGiven=!w.reviewGiven;queueSave();render();}
 
 /* Tasks quick-add */
+function generateSetupTasks(d){
+  const items=[
+    {title:`Purchase Watch — ${d.number}`, type:'Purchasing', due:addDays(d.launch,-6)},
+    {title:`Confirm supplier & arrange collection — ${d.number}`, type:'Purchasing', due:addDays(d.launch,-6)},
+    {title:`Studio photography — ${d.number}`, type:'Photography', due:addDays(d.launch,-3)},
+    {title:`Write website copy/listing — ${d.number}`, type:'Website', due:addDays(d.launch,-2)},
+    {title:`Build Meta Ads — ${d.number}`, type:'Marketing', due:addDays(d.launch,-2)},
+    {title:`Schedule launch email — ${d.number}`, type:'Marketing', due:addDays(d.launch,-1)},
+    {title:`Review Content Schedule for ${d.number}`, type:'Admin', due:addDays(d.launch,-1)},
+  ];
+  items.forEach(it=>{
+    DB.tasks.unshift({id:uid('t'),title:it.title,dropId:d.id,due:it.due,done:false,type:it.type,
+      assignedTo:DB.settings.team[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()});
+  });
+}
 function toggleTask(id){const t=DB.tasks.find(x=>x.id===id);t.done=!t.done;
-  if(t.done&&t.dropId)logTL(t.dropId,`Task done: ${t.title}`);queueSave();render();}
+  if(t.done&&t.dropId)logTL(t.dropId,`Task done: ${t.title}`);
+  if(t.done && t.repeat==='Weekly'){
+    DB.tasks.unshift({id:uid('t'),title:t.title,dropId:t.dropId,due:addDays(t.due,7),done:false,
+      type:t.type,assignedTo:t.assignedTo,time:t.time,urgent:false,personRef:'',notes:t.notes,file:'',repeat:'Weekly',created:now()});
+  }
+  queueSave();render();}
 function delTask(id){DB.tasks=DB.tasks.filter(t=>t.id!==id);queueSave();render();}
 function quickAddTask(){const el=document.getElementById('quickTask');if(!el.value.trim())return;
   DB.tasks.unshift({id:uid('t'),title:el.value.trim(),dropId:'',due:today(),done:false,type:'Admin',assignedTo:teamList()[0],time:'',urgent:false,created:now()});saveDB();render();}
@@ -2276,7 +3629,7 @@ function pageAddTask(){const el=document.getElementById('pageTask');
 function addDropTask(id){const el=document.getElementById('dropTask');if(!el.value.trim())return;
   DB.tasks.push({id:uid('t'),title:el.value.trim(),dropId:id,due:today(),done:false,type:'Admin',assignedTo:teamList()[0],time:'',urgent:false,created:now()});saveDB();render();}
 function addNamedTask(id,title){
-  const typeMap={'Photography':'Photography','Write Launch Email':'Marketing','48hr Email':'Marketing','24hr Email':'Marketing','Closing Email':'Marketing','Build Meta Ads':'Marketing','Upload Website':'Website','Schedule SMS':'Marketing','Winner Call':'Winner Call','Dispatch':'Delivery','Collect Review':'Admin'};
+  const typeMap={'Photography':'Photography','Write Launch Email':'Marketing','48hr Email':'Marketing','24hr Email':'Marketing','Closing Email':'Marketing','Build Meta Ads':'Marketing','Upload Website':'Website','Schedule SMS':'Marketing','Winner Call':'Winner Call','Dispatch':'Prize Delivery','Collect Review':'Admin'};
   DB.tasks.push({id:uid('t'),title,dropId:id,due:today(),done:false,type:typeMap[title]||'Admin',assignedTo:teamList()[0],time:'',urgent:false,created:now()});saveDB();toast(`Added: ${title}`);render();}
 
 /* Marketing */
@@ -2306,6 +3659,13 @@ function openModal(html){
 }
 function closeModal(){const o=document.getElementById('overlay');if(o)o.remove();pendingIdeaId=null;}
 function mInput(id,label,val,type='text'){return `<div class="field"><label>${label}</label><input id="${id}" type="${type}" value="${esc(val||'')}"></div>`;}
+/* Like mInput but for numbers where 0 is a real, meaningful value — mInput's
+   val||'' treats 0 as empty and blanks the field, which looks like the data
+   is missing when it's actually just genuinely zero. */
+function mNum(id,label,val){
+  const shown = (val===undefined||val===null||val==='') ? '' : val;
+  return `<div class="field"><label>${label}</label><input id="${id}" type="number" value="${esc(shown)}"></div>`;
+}
 function mArea(id,label,val){return `<div class="field"><label>${label}</label><textarea id="${id}">${esc(val||'')}</textarea></div>`;}
 function useCaseChips(selected){
   const opts=['Organic Post','Paid Ad'];
@@ -2360,9 +3720,15 @@ function openWatch(id){
   const bname=(w.brand||'').toLowerCase(), mname=(w.model||'').toLowerCase();
   const linkedMedia=id? libraryItems().filter(i=> drops.some(d=>d.id===i.dropId) || (i.tags||[]).some(t=>t.toLowerCase()===bname||t.toLowerCase()===mname)) : [];
   const linkedContent=id? DB.content.filter(c=> drops.some(d=>d.id===c.dropId) || (c.tags||[]).some(t=>t.toLowerCase()===bname||t.toLowerCase()===mname)) : [];
-  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Edit Watch':'Add Watch'}</h3><span class="x" onclick="closeModal()">×</span></div>
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Edit Watch':'Add Watch'}</h3>
+    <div style="display:flex;align-items:center;gap:12px">
+      ${id?`<button type="button" class="btn btn-sm ${w.retired?'btn-gold':''}" id="w_retired_btn" data-val="${w.retired?'1':'0'}" onclick="toggleWatchRetiredBtn()">${w.retired?'Retired':'Mark Retired'}</button>`:''}
+      <span class="x" onclick="closeModal()">×</span>
+    </div></div>
     <div class="modal-b"><div class="two-col">
-      <div>${mInput('w_brand','Brand',w.brand)}${mInput('w_model','Model',w.model)}
+      <div>${mInput('w_brand','Brand',w.brand)}${mInput('w_model','Full Model Name',w.model)}
+        <div class="field-row">${mInput('w_family','Model Family (e.g. Speedmaster)',w.family)}${mInput('w_variant','Variant / Spec (e.g. Moonwatch)',w.variant)}</div>
+        <div class="muted" style="font-size:11px;margin-top:-8px;margin-bottom:12px">Family + Variant power the Brand → Model → Variant drill-down. Leave blank and Atlas will split the full model name for you.</div>
         <div class="field-row">${mInput('w_ref','Reference',w.ref)}${mInput('w_serial','Serial Number',w.serial)}</div>
         ${mInput('w_move','Movement',w.movement)}
         <div class="field"><label>Supplier</label>${dd('w_supplier',[{value:'',label:'— select —'},...DB.suppliers.map(s=>({value:s.id,label:s.name}))], w.supplierId||'')}</div></div>
@@ -2385,9 +3751,12 @@ function saveWatch(id){const g=k=>document.getElementById(k).value;
   CONTENT_CATS.forEach(cat=>{ const k=slug(cat); media[k]=(media[k]||[]).filter(it=>!it.uploading); });
   const explicitThumb=mediaVal('w_thumb');
   const coverImg=explicitThumb||((media[slug('Watch Photos')]||[]).map(x=>x.ref).find(Boolean))||'';
-  const data={brand:g('w_brand'),model:g('w_model'),ref:g('w_ref'),serial:g('w_serial'),movement:g('w_move'),
+  const retiredBtn=document.getElementById('w_retired_btn');
+  let fam=g('w_family').trim(), variant=g('w_variant').trim();
+  if(!fam && !variant){ const sp=splitModel(g('w_brand'),g('w_model')); fam=sp.family; variant=sp.variant; }
+  const data={brand:g('w_brand'),model:g('w_model'),family:fam,variant:variant,ref:g('w_ref'),serial:g('w_serial'),movement:g('w_move'),
     retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),mediaLink:g('w_medialink'),desc:g('w_desc'),
-    supplierId:ddVal('w_supplier'),
+    supplierId:ddVal('w_supplier'), retired: retiredBtn? retiredBtn.dataset.val==='1' : false,
     media, img:coverImg};
   if(!data.brand){alert('Brand required');return;}
   if(id){Object.assign(watchById(id),data);}else{DB.watches.unshift({id:uid('watch'),...data,links:{},created:now()});}
@@ -2400,6 +3769,7 @@ function openWinner(id){const w=id?winById(id):{};
     <div class="modal-b"><div class="two-col">
       <div>${mInput('wn_name','Name',w.name)}${mInput('wn_phone','Phone',w.phone)}${mInput('wn_email','Email',w.email)}${mInput('wn_ig','Instagram',w.instagram)}</div>
       <div>${mArea('wn_addr','Address',w.address)}
+        <div class="field-row">${mInput('wn_postcode','Postcode',w.postcode)}${mInput('wn_location','Location (town/city)',w.location)}</div>
         <div class="field"><label>Drop won</label>${dd('wn_drop',[{value:'',label:'—'},...DB.drops.map(d=>({value:d.id,label:`${d.number} — ${watchName(d.watchId)}`}))], w.dropId||'')}</div>
       </div></div>
       ${id?`<div class="section-sub">Delivery & Review${w.reviewRequested&&w.reviewGiven?' — <span class="pill pill-done">✓ Complete</span>':''}</div>
@@ -2418,7 +3788,7 @@ function openWinner(id){const w=id?winById(id):{};
 }
 function saveWinner(id){const g=k=>document.getElementById(k).value;
   const data={name:g('wn_name'),phone:g('wn_phone'),email:g('wn_email'),instagram:g('wn_ig'),
-    address:g('wn_addr'),dropId:ddVal('wn_drop'),review:g('wn_review'),notes:g('wn_notes')};
+    address:g('wn_addr'),postcode:g('wn_postcode'),location:g('wn_location'),dropId:ddVal('wn_drop'),review:g('wn_review'),notes:g('wn_notes')};
   if(!data.name){alert('Name required');return;}
   if(id){Object.assign(winById(id),data);}else{const w={id:uid('win'),...data,dispatched:false,deliveryInPerson:false,trackingNumber:'',reviewRequested:false,reviewGiven:false,created:now()};DB.winners.unshift(w);id=w.id;}
   if(data.dropId){const d=dropById(data.dropId);if(d)d.winnerId=id;}
@@ -2434,15 +3804,16 @@ function openSupplier(id){const s=id?supById(id):{};
     <div class="modal-b">${mInput('s_name','Name',s.name)}
       <div class="field-row">${mInput('s_contact','Contact',s.contact)}${mInput('s_phone','Phone',s.phone)}</div>
       ${mInput('s_email','Email',s.email)}
+      ${mArea('s_address','Address',s.address)}
       ${mArea('s_notes','Notes',s.notes)}
-      ${boughtIds.length?`<div class="section-sub">Watches purchased from this supplier</div>
+      ${boughtIds.length?`<div class="section-sub">Watches purchased from this supplier — ${gbp(boughtIds.reduce((a,wid)=>a+(Number((watchById(wid)||{}).cost)||0),0))} total</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px">${boughtIds.map(wid=>{const w=watchById(wid);return w?`<span class="pill pill-type" style="cursor:pointer" onclick="closeModal();go('watches');setTimeout(()=>openWatch('${wid}'),50)">${esc(w.brand)} ${esc(w.model)}</span>`:'';}).join('')}</div>`:''}
     </div>
     <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delSupplier('${id}')">Delete</button>`:''}
       <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveSupplier('${id||''}')">Save</button></div></div>`);
 }
 function saveSupplier(id){const g=k=>document.getElementById(k).value;
-  const data={name:g('s_name'),contact:g('s_contact'),phone:g('s_phone'),email:g('s_email'),notes:g('s_notes')};
+  const data={name:g('s_name'),contact:g('s_contact'),phone:g('s_phone'),email:g('s_email'),address:g('s_address'),notes:g('s_notes')};
   if(!data.name){alert('Name required');return;}
   if(id)Object.assign(supById(id),data);else DB.suppliers.unshift({id:uid('sup'),...data,created:now()});
   saveDB();closeModal();toast('Supplier saved');render();}
