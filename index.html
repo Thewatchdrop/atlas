@@ -4335,13 +4335,14 @@ function saveContent(id){
     tags:document.getElementById('cn_tags').value.split(',').map(t=>t.trim()).filter(Boolean),
     body:document.getElementById('cn_body').value};
   if(!data.title){alert('Title required');return;}
+  const _existingC = id ? DB.content.find(x=>x.id===id) : null;
   const urlInput=document.getElementById('cn_video_url');
   if(urlInput&&urlInput.value.trim()) data.video=urlInput.value.trim();
-  else data.video=(c&&c.video)||'';
+  else data.video=(_existingC&&_existingC.video)||'';
   // Collect images from preview thumbnails + hidden inputs
   const imgEls=[...document.querySelectorAll('#cn_media_preview img[data-mediaref]')];
   const hiddenImgs=[...document.querySelectorAll('#cn_images_list input[name="cn_img"]')];
-  const existingImgs=(c&&c.images)||[];
+  const existingImgs=(_existingC&&_existingC.images)||[];
   const newImgRefs=hiddenImgs.map(i=>i.value).filter(Boolean);
   data.images=[...existingImgs.filter(ref=>imgEls.some(el=>el.dataset.mediaref===ref)),...newImgRefs];
   const fromIdea=pendingIdeaId;
