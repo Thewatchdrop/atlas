@@ -658,6 +658,7 @@ function migrate(){
   DB.sourcing=DB.sourcing||[];
   DB.projects=DB.projects||[];
   DB.customerImports=DB.customerImports||[];
+  (DB.drops||[]).forEach(d=>{ if(d.type==='Vault') d.vaultPrizes=d.vaultPrizes||[]; });
   DB.fixedCosts=DB.fixedCosts||[];
   DB.dailyTakings=DB.dailyTakings||[];
   DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
@@ -1707,7 +1708,6 @@ function vDashboard(){
     <div class="kpi"><div class="label">Awaiting dispatch</div><div class="val">${awaitingDispatch.length}</div><div class="sub">winners</div></div>
   </div>
 
-  ${dailyTakingsWidget(monthRev,weekRev)}
 
   <div class="dash-grid">
     <div style="display:flex;flex-direction:column;gap:16px">
@@ -2341,7 +2341,152 @@ function trackerBody(d){
     <tfoot><tr><td class="strong">Total</td><td class="strong">${cpTotal}</td><td class="strong">${cpPct.toFixed(1)}%</td><td></td></tr></tfoot></table>
   </div></div>`;
 
+  // Vault drops get their own prize-tracking view instead of watch cost model
+  if(d.type==='Vault') return vaultTrackerBody(d);
+
   return liveInputs+varCosts+breakEven+dropSetup+watchDetails+autoCalcs+sellThrough+dailyData;
+}
+
+/* ================= VAULT TRACKER ================= */
+function vaultTrackerBody(d){
+  const t=d.tracker||{};
+  d.vaultPrizes=d.vaultPrizes||[];
+
+  // Tally won prizes
+  const watchesWon   = d.vaultPrizes.filter(p=>p.type==='watch');
+  const cashWon      = d.vaultPrizes.filter(p=>p.type==='cash');
+  const creditIssued = d.vaultPrizes.filter(p=>p.type==='credit');
+  const watchCostTotal = watchesWon.reduce((a,p)=>a+(Number(p.cost)||0),0);
+  const cashCostTotal  = cashWon.reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const totalPrizeCost = watchCostTotal + cashCostTotal;
+
+  const entriesSold  = Number(t.ticketsSoldTotal)||0;
+  const entryPrice   = Number(t.fullTicketPrice)||2.49;
+  const grossRev     = entriesSold * entryPrice;
+  const vatAmt       = grossRev * (0.2/1.2);
+  const netRev       = grossRev - vatAmt;
+  const fees         = grossRev * (Number(t.paymentFeePct)||0.01);
+  const fixed        = Number(t.fixed)||0;
+  const adsBudget    = Number(t.adsBudget)||0;
+  const totalCost    = totalPrizeCost + fixed + adsBudget + fees;
+  const netProfit    = grossRev - totalCost - vatAmt;
+  const maxTickets   = Number(t.maxTickets)||99999;
+  const fillPct      = maxTickets? (entriesSold/maxTickets*100).toFixed(1) : 0;
+
+  // Prize rows
+  const prizeRows = d.vaultPrizes.slice().reverse().map(p=>`
+    <div class="row-item">
+      <span class="pill ${p.type==='watch'?'pill-done':p.type==='cash'?'pill-live':'pill-type'}" style="font-size:10px;text-transform:capitalize">${p.type}</span>
+      <div class="txt"><div class="t">${esc(p.label||'')}</div>
+        <div class="meta">${p.date?fmtDate(p.date):''}</div>
+      </div>
+      <span class="mono" style="font-weight:700">${p.type==='watch'?gbp(p.cost||0):p.type==='cash'?gbp(p.amount||0):'Credit'}</span>
+      <span class="btn-danger btn-sm" onclick="delVaultPrize('${d.id}','${p.id}')">✕</span>
+    </div>`).join('');
+
+  return `
+  <!-- KPI row -->
+  <div class="kpi-row" style="margin:18px 0">
+    <div class="kpi"><div class="label">Entries Sold</div><div class="val">${entriesSold.toLocaleString()}</div><div class="sub">${fillPct}% of ${maxTickets.toLocaleString()} pool</div></div>
+    <div class="kpi"><div class="label">Gross Revenue</div><div class="val gold">${gbp(grossRev)}</div><div class="sub">net ex-VAT: ${gbp(netRev)}</div></div>
+    <div class="kpi"><div class="label">Prize Cost to Date</div><div class="val">${gbp(totalPrizeCost)}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Watches (${watchesWon.length} won)</span><span>${gbp(watchCostTotal)}</span></div>
+        <div class="cb-row"><span>Cash (${cashWon.length} paid)</span><span>${gbp(cashCostTotal)}</span></div>
+        <div class="cb-row"><span>Credit issued</span><span>${creditIssued.length} prizes</span></div>
+      </div>
+    </div>
+    <div class="kpi"><div class="label">Running Costs</div><div class="val">${gbp(totalCost)}</div>
+      <div class="cost-breakdown">
+        <div class="cb-row"><span>Fixed</span><span>${gbp(fixed)}</span></div>
+        <div class="cb-row"><span>Ads</span><span>${gbp(adsBudget)}</span></div>
+        <div class="cb-row"><span>Fees (${((Number(t.paymentFeePct)||0.01)*100).toFixed(1)}%)</span><span>${gbp(fees)}</span></div>
+        <div class="cb-row"><span>VAT</span><span>${gbp(vatAmt)}</span></div>
+      </div>
+    </div>
+    <div class="kpi"><div class="label">Net Profit</div>
+      <div class="val" style="${netProfit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(netProfit)}</div>
+      <div class="sub">${netProfit>=0?'PROFITABLE':'LOSS'} — updates as prizes are won</div>
+    </div>
+  </div>
+
+  <!-- Log a won prize -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-h"><h3>Log a Won Prize</h3><span class="muted" style="font-size:11.5px">Record each prize as it's triggered — keeps the P&L live</span></div>
+    <div class="modal-b" style="max-height:none">
+      <div class="field-row">
+        <div class="field"><label>Prize Type</label>
+          <select id="vp_type_${d.id}" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px" onchange="onVaultPrizeTypeChange('${d.id}')">
+            <option value="watch">Watch</option>
+            <option value="cash">Cash</option>
+            <option value="credit">Credit</option>
+          </select>
+        </div>
+        <div class="field"><label>Label (e.g. Tudor BB58)</label><input id="vp_label_${d.id}" placeholder="Prize name…"></div>
+      </div>
+      <div class="field-row">
+        <div class="field" id="vp_cost_wrap_${d.id}"><label>Cost Paid (£)</label><input id="vp_cost_${d.id}" type="number" placeholder="What you paid for the watch"></div>
+        <div class="field"><label>Date Won</label><input id="vp_date_${d.id}" type="date" value="${today()}"></div>
+      </div>
+    </div>
+    <div style="padding:0 18px 14px;display:flex;justify-content:flex-end">
+      <button class="btn btn-gold" onclick="addVaultPrize('${d.id}')">＋ Log Prize</button>
+    </div>
+  </div>
+
+  <!-- Prize log -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-h"><h3>Prizes Won — ${d.vaultPrizes.length} total</h3>
+      <span class="muted" style="font-size:12px">${gbp(watchCostTotal)} watches · ${gbp(cashCostTotal)} cash · ${creditIssued.length} credit</span>
+    </div>
+    <div class="card-b">
+      ${prizeRows||'<div class="empty">No prizes logged yet — log each watch or cash prize as it's won.</div>'}
+    </div>
+  </div>
+
+  <!-- Vault setup -->
+  <div class="card">
+    <div class="card-h"><h3>Vault Setup</h3><span class="muted" style="font-size:11px">Set once</span></div>
+    <div class="modal-b" style="max-height:none">
+      <div class="field-wrap">
+        ${trkFldC(d,'Entry Price £','fullTicketPrice')}
+        ${trkFldC(d,'Pool Size','maxTickets')}
+        ${trkFldC(d,'Entries Sold','ticketsSoldTotal')}
+        ${trkFldC(d,'Fixed £','fixed')}
+        ${trkFldC(d,'Ads Budget £','adsBudget')}
+        ${trkPctFldC(d,'Payment Fee %','paymentFeePct')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function onVaultPrizeTypeChange(dropId){
+  const sel=document.getElementById('vp_type_'+dropId);
+  const wrap=document.getElementById('vp_cost_wrap_'+dropId);
+  if(!sel||!wrap) return;
+  const type=sel.value;
+  const lbl=wrap.querySelector('label'); const inp=wrap.querySelector('input');
+  if(type==='watch'){ lbl.textContent='Cost Paid (£)'; inp.placeholder='What you paid'; wrap.style.display=''; }
+  else if(type==='cash'){ lbl.textContent='Amount (£)'; inp.placeholder='Cash prize amount'; wrap.style.display=''; }
+  else { wrap.style.display='none'; }
+}
+
+function addVaultPrize(dropId){
+  const d=dropById(dropId); if(!d) return;
+  const type=(document.getElementById('vp_type_'+dropId)||{}).value||'watch';
+  const label=(document.getElementById('vp_label_'+dropId)||{}).value||'';
+  const cost=Number((document.getElementById('vp_cost_'+dropId)||{}).value)||0;
+  const date=(document.getElementById('vp_date_'+dropId)||{}).value||today();
+  if(!label){ alert('Enter a label for this prize'); return; }
+  d.vaultPrizes=d.vaultPrizes||[];
+  d.vaultPrizes.push({id:uid('vp'),type,label,cost:type==='watch'?cost:0,amount:type==='cash'?cost:0,date,created:now()});
+  saveDB(); render();
+}
+
+function delVaultPrize(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  d.vaultPrizes=(d.vaultPrizes||[]).filter(p=>p.id!==prizeId);
+  saveDB(); render();
 }
 
 /* ================= PAST DROPS (finished drops — review history, same detail as Drop Tracker) ================= */
