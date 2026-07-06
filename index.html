@@ -373,7 +373,6 @@
         <div id="sresults" class="sresults"></div>
       </div>
       <button class="btn btn-sm btn-ghost" id="themeToggleBtn" onclick="toggleTheme()" title="Switch appearance">🌙 Dark</button>
-      <button class="btn btn-sm btn-ghost" onclick="reloadDataScreen()" title="Load Supabase data" style="font-size:12px">📥 Load Data</button>
       <button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button>
     </div>
     <div class="content" id="content"><div class="loading">Loading Atlas…</div></div>
@@ -467,11 +466,19 @@ async function bootApp(){
   await loadDB(); migrate(); applyTheme(); render();
 }
 async function checkSessionAndBoot(){
-  // PREVIEW MODE - bypass login for local design review
-  await bootApp();
+  if(!sb){ showLoginErr(supabaseLoadError); return; }
+  const { data } = await sb.auth.getSession();
+  if(data && data.session){ await bootApp(); return; }
+  document.getElementById('loginScreen').style.display='flex';
 }
-// PREVIEW MODE - auth state change disabled
-// if(sb){ sb.auth.onAuthStateChange(...) }
+if(sb){
+  sb.auth.onAuthStateChange((event)=>{
+    if(event==='SIGNED_OUT'){
+      document.getElementById('app').style.display='none';
+      document.getElementById('loginScreen').style.display='flex';
+    }
+  });
+}
 
 const K = 'atlas:db:v1';
 let DB = null;
@@ -546,11 +553,10 @@ const CONTENT_STATUSES=['Idea','In Motion','Done'];
 
 /* ---------- Storage ---------- */
 async function loadDB(){
-  // PREVIEW MODE - use localStorage, fall back to seed data
-  try{
-    const stored = localStorage.getItem(K);
-    if(stored){ DB = JSON.parse(stored); return; }
-  }catch(e){ /* not found */ }
+  const r = await dbStorage.get(K);
+  if(r && r.value){
+    try{ DB = JSON.parse(r.value); return; }catch(e){ console.error('DB parse error',e); }
+  }
   DB = seed();
   await saveDB();
 }
@@ -560,8 +566,7 @@ async function loadDB(){
 
 let saveTimer=null;
 async function saveDB(){
-  // PREVIEW MODE - save to localStorage
-  try{ localStorage.setItem(K, JSON.stringify(DB)); }
+  try{ await dbStorage.set(K, JSON.stringify(DB)); }
   catch(e){ console.error('save failed',e); }
 }
 function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveDB,300); }
