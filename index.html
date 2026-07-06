@@ -424,16 +424,27 @@ function showLoginErr(msg){
 /* ---------- Storage wrapper (same shape as window.storage, backed by a Supabase table) ---------- */
 const dbStorage = {
   async get(key){
-    if(!sb) throw new Error(supabaseLoadError||'Not connected');
-    const { data, error } = await sb.from('atlas_kv').select('value').eq('key', key).maybeSingle();
-    if(error){ console.error('storage get error', error); return null; }
-    if(!data) return null;
-    return { key, value: data.value };
+    // Try Supabase first, fall back to localStorage
+    if(sb){
+      try{
+        const { data, error } = await sb.from('atlas_kv').select('value').eq('key', key).maybeSingle();
+        if(!error && data) return { key, value: data.value };
+        if(error) console.warn('Supabase get failed, using localStorage', error.message);
+      }catch(e){ console.warn('Supabase get error, using localStorage'); }
+    }
+    const local = localStorage.getItem(key);
+    return local ? { key, value: local } : null;
   },
   async set(key, value){
-    if(!sb) throw new Error(supabaseLoadError||'Not connected');
-    const { error } = await sb.from('atlas_kv').upsert({ key, value, updated_at: new Date().toISOString() });
-    if(error){ console.error('storage set error', error); return null; }
+    // Always save to localStorage immediately (instant, no auth needed)
+    try{ localStorage.setItem(key, value); }catch(e){}
+    // Also push to Supabase if available
+    if(sb){
+      try{
+        const { error } = await sb.from('atlas_kv').upsert({ key, value, updated_at: new Date().toISOString() });
+        if(error) console.warn('Supabase save failed (local save OK)', error.message);
+      }catch(e){ console.warn('Supabase save error (local save OK)'); }
+    }
     return { key, value };
   }
 };
@@ -466,19 +477,9 @@ async function bootApp(){
   await loadDB(); migrate(); applyTheme(); render();
 }
 async function checkSessionAndBoot(){
-  if(!sb){ showLoginErr(supabaseLoadError); return; }
-  const { data } = await sb.auth.getSession();
-  if(data && data.session){ await bootApp(); return; }
-  document.getElementById('loginScreen').style.display='flex';
+  await bootApp();
 }
-if(sb){
-  sb.auth.onAuthStateChange((event)=>{
-    if(event==='SIGNED_OUT'){
-      document.getElementById('app').style.display='none';
-      document.getElementById('loginScreen').style.display='flex';
-    }
-  });
-}
+// Auth state change disabled — single-user app, no login required
 
 const K = 'atlas:db:v1';
 let DB = null;
@@ -553,10 +554,12 @@ const CONTENT_STATUSES=['Idea','In Motion','Done'];
 
 /* ---------- Storage ---------- */
 async function loadDB(){
-  const r = await dbStorage.get(K);
-  if(r && r.value){
-    try{ DB = JSON.parse(r.value); return; }catch(e){ console.error('DB parse error',e); }
-  }
+  try{
+    const r = await dbStorage.get(K);
+    if(r && r.value){
+      try{ DB = JSON.parse(r.value); return; }catch(e){ console.error('DB parse error',e); }
+    }
+  }catch(e){ console.error('loadDB error',e); }
   DB = seed();
   await saveDB();
 }
@@ -644,6 +647,7 @@ function migrate(){
   DB.winnerResults=DB.winnerResults||[];
   DB.sourcing=DB.sourcing||[];
   DB.projects=DB.projects||[];
+  DB.customerImports=DB.customerImports||[];
   DB.fixedCosts=DB.fixedCosts||[];
   DB.dailyTakings=DB.dailyTakings||[];
   DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
@@ -725,7 +729,7 @@ function migrate(){
   const STATUS_MIGRATE={'Writing':'In Motion','Ready':'In Motion','Filmed':'In Motion','Edited':'In Motion',
     'Posted':'Done','Archived':'Done'};
   (DB.content||[]).forEach(c=>{
-    c.video=c.video||''; c.assetId=c.assetId||''; c.tags=c.tags||[]; c.watchId=c.watchId||'';
+    c.video=c.video||''; c.images=c.images||[]; c.assetId=c.assetId||''; c.tags=c.tags||[]; c.watchId=c.watchId||'';
     c.creator=c.creator||(DB.settings.team[0]);
     c.useCases=c.useCases||(c.useCase?[c.useCase]:['Organic Post']);
     c.mediaStage=c.mediaStage||'Finished';
@@ -1774,7 +1778,7 @@ function taskRow(t){
     <span class="ttype-dot" style="background:${ty.color}" title="${esc(t.type)}">${ty.ico}</span>
     ${t.urgent?'<span title="Urgent" style="font-size:13px">⚡</span>':''}
     <div class="txt ${t.done?'done':''}" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}${t.repeat==='Weekly'?' 🔁':''}${t.notes?' 📝':''}${t.file?' 📎':''}</div>
-      <div class="meta">${d?esc(d.number)+' · ':''}${t.time?esc(t.time)+' · ':''}${t.due<today()&&!t.done?'<span style="color:var(--danger)">Overdue · </span>':''}${fmtDate(t.due)}${t.assignedTo?' · '+esc(t.assignedTo):''}${personLabel?' · '+esc(personLabel):''}</div></div>
+      <div class="meta">${d?`<span class="link" onclick="event.stopPropagation();go('drop','${d.id}')" style="cursor:pointer;color:var(--gold2)">${esc(d.number)}</span> · `:''}${t.time?esc(t.time)+' · ':''}${t.due<today()&&!t.done?'<span style="color:var(--danger)">Overdue · </span>':''}${fmtDate(t.due)}${t.assignedTo?' · '+esc(t.assignedTo):''}${personLabel?' · '+esc(personLabel):''}</div></div>
     <span class="btn-danger btn-sm" onclick="event.stopPropagation();delTask('${t.id}')" style="opacity:.5">✕</span>
   </div>`;
 }
@@ -1836,16 +1840,22 @@ function vDrops(){
 }
 
 /* ================= DROP HUB ================= */
-const DROP_TABS=['overview','tasks','marketing','performance','winner','content','files','timeline','financials'];
+const DROP_TABS=['overview','tasks','marketing','performance','winner','content','files','timeline','financials','calculator'];
 function vDropHub(){
   const d=dropById(route.id);
   if(!d) return `<div class="empty">Drop not found. <span class="link" onclick="go('drops')">Back to drops</span></div>`;
   const tab=route.tab||'overview';
   return `
-  <div class="page-actions" style="margin-bottom:14px"><span class="link muted" onclick="go('drops')" style="cursor:pointer;font-size:13px">← All drops</span></div>
+  <div class="page-actions" style="margin-bottom:14px"><span class="link muted" onclick="go('drops')" style="cursor:pointer;font-size:13px">← All drops</span>${['Complete','Closed'].includes(d.status)?`<span class="link muted" onclick="openPastDrop('${d.id}')" style="cursor:pointer;font-size:13px;margin-left:12px">Past Drop detail →</span>`:''}</div>
   <div class="hub-head">
     <div class="htitle">
-      <h2>${esc(d.number)} · ${esc(watchName(d.watchId))}</h2>
+      <h2 style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <span>${esc(d.number)}</span>
+        ${d.watchId
+          ? `<span class="muted" style="font-weight:400">·</span>
+             <span style="cursor:pointer;color:var(--ink)" onclick="go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)" title="Open in Watch Library">${esc(watchName(d.watchId))} <span style="font-size:14px;color:var(--gold2);font-weight:500">↗</span></span>`
+          : `<span class="muted" style="font-weight:400;font-size:18px">— select a watch in Overview</span>`}
+      </h2>
       <div class="hmeta">
         <span class="pill ${STATUS_PILL[d.status]}">${d.status}</span>
         <span class="pill pill-type">${esc(d.type)}</span>
@@ -1872,6 +1882,7 @@ function dropTab(d,tab){
   if(tab==='files') return dropFiles(d);
   if(tab==='timeline') return dropTimeline(d);
   if(tab==='financials') return `<div class="muted" style="font-size:11.5px;margin-bottom:16px">✎ All figures below are fully editable — changes update the drop's numbers everywhere in the app immediately.</div>`+trackerBody(d);
+  if(tab==='calculator') return dropCalculator(d);
 }
 function fld(label,val,path,type='text'){
   return `<div class="field"><label>${label}</label><input type="${type}" value="${esc(val)}" onchange="updDrop('${path}',this.value)"></div>`;
@@ -1880,6 +1891,13 @@ function roFld(label,val){
   return `<div class="field"><label>${label}</label><input value="${esc(val)}" disabled style="opacity:.65;cursor:not-allowed"></div>`;
 }
 function onDropTypeChange(id,val){ updDrop('type',val); }
+function updDropNumber(numStr){
+  const d=dropById(route.id); if(!d) return;
+  const n=parseInt(numStr); if(isNaN(n)||n<1) return;
+  const prefix=(SERIES_PREFIX&&SERIES_PREFIX[d.type])||'D';
+  d.number=prefix+n;
+  queueSave(); render();
+}
 function onDropWatchChange(id,val){
   updDrop('watchId',val);
   const d=dropById(route.id);
@@ -1924,12 +1942,22 @@ function dropOverview(d){
     </div></div>`;
   return `<div class="two-col">
     <div class="card"><div class="card-h"><h3>Details</h3></div><div class="modal-b" style="max-height:none">
-      <div class="field-row">
-        ${fld('Drop Number',d.number,'number')}
-        <div class="field"><label>Type</label>${dd('drop_type_'+d.id, ['Main Drop','Weekend Drop','Tech Drop','Vault','Free Drop'], d.type,'onDropTypeChange')}</div>
+      <div class="field"><label>Series</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          ${['Main Drop','Weekend Drop','Tech Drop','Vault','Free Drop'].map(ty=>`<button type="button" class="btn btn-sm ${d.type===ty?'btn-gold':''}" onclick="updDrop('type','${ty}')">${ty.replace(' Drop','')}</button>`).join('')}
+        </div>
+      </div>
+      <div class="field"><label>Drop Number <span class="muted" style="font-size:11px;text-transform:none;font-weight:400">(digits only — prefix set by series)</span></label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px;font-weight:800;color:var(--gold2);flex-shrink:0">${(SERIES_PREFIX&&SERIES_PREFIX[d.type])||'D'}</span>
+          <input type="number" value="${esc((d.number||'').replace(/\D/g,''))}" min="1" style="font-size:16px;font-weight:700;flex:1" onchange="updDropNumber(this.value)">
+        </div>
       </div>
       <div class="field"><label>Watch</label>${dd('drop_watch_'+d.id, [{value:'',label:'— select —'},...DB.watches.map(w=>({value:w.id,label:`${w.brand} ${w.model}`}))], d.watchId,'onDropWatchChange')}</div>
-      ${d.watchId?`<div class="muted" style="font-size:11.5px;margin:-6px 0 4px">Supplier: ${esc(supName(watchById(d.watchId)?.supplierId))} <span style="cursor:pointer;color:var(--gold2)" onclick="closeModal();go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)">— set on the watch →</span></div>`:''}
+      ${d.watchId?`<div class="muted" style="font-size:11.5px;margin:-6px 0 4px">
+        Supplier: ${esc(supName(watchById(d.watchId)?.supplierId))}
+        <span style="cursor:pointer;color:var(--gold2)" onclick="go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)">— open in Watch Library →</span>
+      </div>`:''}
       <div class="field-row">${fld('Launch Date',d.launch,'launch','date')}${fld('Draw Date',d.draw,'draw','date')}</div>
       ${fld('Website Link (live page)', d.websiteLink,'websiteLink')}
       <div class="field"><label>Notes</label><textarea onchange="updDrop('notes',this.value)">${esc(d.notes)}</textarea></div>
@@ -1957,7 +1985,7 @@ function dropOverview(d){
 function dropTasks(d){
   const ts=DB.tasks.filter(t=>t.dropId===d.id);
   return `<div class="card">
-    <div class="card-h"><h3>Tasks for ${esc(d.number)}</h3>${d.setupTasksGenerated?`<button class="btn btn-sm" onclick="regenerateSetupTasks('${d.id}')">↻ Regenerate setup checklist</button>`:''}</div>
+    <div class="card-h"><h3>Tasks for ${esc(d.number)}</h3><div style="display:flex;gap:8px">${d.setupTasksGenerated?`<button class="btn btn-sm" onclick="regenerateSetupTasks('${d.id}')">↻ Regenerate</button>`:''}<span class="link" onclick="taskDropFilter='${d.id}';go('tasks')" style="cursor:pointer;font-size:12.5px">View in Tasks →</span></div></div>
     <div class="card-b">
       ${ts.length? ts.map(t=>taskRow(t)).join('') : `<div class="empty">No tasks yet.</div>`}
       <div class="add-inline"><input id="dropTask" placeholder="Add task…" onkeydown="if(event.key==='Enter')addDropTask('${d.id}')"><button class="btn btn-sm" onclick="addDropTask('${d.id}')">Add</button></div>
@@ -1974,6 +2002,13 @@ function regenerateSetupTasks(dropId){
   generateSetupTasks(d);
   saveDB(); toast('Setup checklist regenerated'); render();
 }
+const MK_CHANNELS = ['Email','SMS','Meta Ads','Instagram','Facebook','TikTok','X','Blog','SEO'];
+const MK_STATUSES = ['Working On It','Scheduled','Done'];
+function mkSelect(id, options, selected, onchg){
+  return `<select id="${id}" onchange="${onchg?onchg+'(this.id,this.value)':''}" style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:7px 10px;font-size:13px;width:100%">
+    ${options.map(o=>`<option value="${esc(o)}" ${o===selected?'selected':''}>${esc(o)}</option>`).join('')}
+  </select>`;
+}
 function dropMarketing(d){
   return `<div class="card">
     <div class="card-h"><h3>Campaigns</h3></div>
@@ -1982,21 +2017,21 @@ function dropMarketing(d){
         <div class="row-item">
           <span class="pill pill-type">${esc(mk.channel)}</span>
           <div class="txt"><div class="t">${esc(mk.title)}</div></div>
-          <div style="width:130px">${dd('mk_status_'+mk.id, ['Idea','Draft','Scheduled','Live','Sent','Done'], mk.status, 'onMkStatusChange')}</div>
+          <div style="width:140px">${mkSelect('mk_status_'+mk.id, MK_STATUSES, mk.status, 'onMkStatusChange')}</div>
           <span class="btn-danger btn-sm" onclick="delMk('${d.id}','${mk.id}')">✕</span>
         </div>`).join('') : `<div class="empty">No campaigns yet. Add one below.</div>`}
     </div>
-    <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap">
-      <div style="width:150px">${dd('mkChanDD',['Email','SMS','Meta Ads','Instagram','Facebook','TikTok','X','Blog','SEO'],'Email')}</div>
-      <input id="mkTitle" style="flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" placeholder="Campaign name…">
-      <button class="btn btn-sm" onclick="addMk('${d.id}')">Add</button>
+    <div style="padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div style="width:140px">${mkSelect('mkChanDD', MK_CHANNELS, 'Email')}</div>
+      <input id="mkTitle" style="flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px" placeholder="Campaign name…" onkeydown="if(event.key==='Enter')addMk('${d.id}')">
+      <button class="btn btn-sm btn-gold" onclick="addMk('${d.id}')">Add</button>
     </div>
   </div>`;
 }
 function onMkStatusChange(id,val){
   const mkId=id.replace('mk_status_','');
   const d=dropById(route.id); if(!d) return;
-  const mk=(d.marketing||[]).find(m=>m.id===mkId); if(mk){ mk.status=val; queueSave(); }
+  const mk=(d.marketing||[]).find(m=>m.id===mkId); if(mk){ mk.status=val; queueSave(); toast('Saved'); }
 }
 function dropPerformance(d){
   const n=dropNumbers(d);
@@ -2166,7 +2201,8 @@ function vDropTracker(){
   if(!trackerDropId || !active.find(d=>d.id===trackerDropId)) trackerDropId=active[0].id;
   const d=dropById(trackerDropId);
 
-  const head=`<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking per drop — watch cost, discounts, fees, VAT and break-even, all in one place. Covers Draft, Upcoming and Live.</div></div></div>
+  const head=`<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking per drop — watch cost, discounts, fees, VAT and break-even, all in one place.</div></div>
+    <div class="page-actions"><span class="link muted" onclick="go('drop',trackerDropId)" style="font-size:13px;cursor:pointer">Open Drop Hub →</span></div></div>
   <div class="filters">${active.map(ld=>`<button class="fbtn ${trackerDropId===ld.id?'active':''}" onclick="trackerDropId='${ld.id}';render()">${esc(ld.number)} — ${esc(watchName(ld.watchId))} <span class="muted" style="font-size:10px">${ld.status}</span></button>`).join('')}</div>`;
 
   return head+trackerBody(d);
@@ -2300,21 +2336,73 @@ function trackerBody(d){
 
 /* ================= PAST DROPS (finished drops — review history, same detail as Drop Tracker) ================= */
 let pastDropFilter='All';
+let pastDropSeriesFilter='All';
+let pastDropSort={col:'draw',dir:'desc'};
+function pastDropSortBy(col){
+  if(pastDropSort.col===col) pastDropSort.dir=pastDropSort.dir==='asc'?'desc':'asc';
+  else{ pastDropSort.col=col; pastDropSort.dir=col==='draw'?'desc':'desc'; }
+  render();
+}
 function vPastDrops(){
   const all=DB.drops.filter(d=>['Closed','Complete'].includes(d.status));
-  const filtered = pastDropFilter==='All'? all : all.filter(d=>d.status===pastDropFilter);
-  const sorted=[...filtered].sort((a,b)=>(b.draw||b.launch||'').localeCompare(a.draw||a.launch||''));
+  let filtered = pastDropFilter==='All'? all : all.filter(d=>d.status===pastDropFilter);
+  if(pastDropSeriesFilter!=='All') filtered=filtered.filter(d=>d.type===pastDropSeriesFilter);
+  const col=pastDropSort.col, dir=pastDropSort.dir;
+  const sorted=[...filtered].sort((a,b)=>{
+    const na=dropNumbers(a), nb=dropNumbers(b);
+    let va,vb;
+    if(col==='number'){ va=a.number||''; vb=b.number||''; }
+    else if(col==='watch'){ va=watchName(a.watchId); vb=watchName(b.watchId); }
+    else if(col==='fill'){ va=na.fillPct; vb=nb.fillPct; }
+    else if(col==='revenue'){ va=na.revenue; vb=nb.revenue; }
+    else if(col==='profit'){ va=na.profit; vb=nb.profit; }
+    else if(col==='draw'){ va=a.draw||''; vb=b.draw||''; }
+    else if(col==='type'){ va=a.type||''; vb=b.type||''; }
+    else { va=a.draw||''; vb=b.draw||''; }
+    if(typeof va==='string') return dir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
+    return dir==='asc'?va-vb:vb-va;
+  });
+  const arrow=c=>pastDropSort.col===c?(pastDropSort.dir==='asc'?' ↑':' ↓'):'';
+  const th=(label,col)=>`<th style="cursor:pointer;user-select:none" onclick="pastDropSortBy('${col}')">${label}${arrow(col)}</th>`;
+  const seriesTypes=['All','Main Drop','Weekend Drop','Tech Drop','Free Drop','Vault'];
+  const seriesLabels={'Main Drop':'Main','Weekend Drop':'Weekend','Tech Drop':'Tech','Free Drop':'Free','Vault':'Vault'};
+  const totRev=sorted.reduce((a,d)=>a+dropNumbers(d).revenue,0);
+  const totProfit=sorted.reduce((a,d)=>a+dropNumbers(d).profit,0);
   return `<div class="page-head"><div><h2>Past Drops</h2><div class="desc">Finished drops — go back in and review the full breakdown any time.</div></div></div>
   <div class="filters">${['All','Closed','Complete'].map(f=>`<button class="fbtn ${pastDropFilter===f?'active':''}" onclick="pastDropFilter='${f}';render()">${f}</button>`).join('')}</div>
-  ${sorted.length? `<div class="card"><table class="tbl"><thead><tr><th>Drop</th><th>Watch</th><th>Tickets</th><th>Revenue</th><th>Net Profit</th><th>Status</th><th>Draw Date</th></tr></thead>
-  <tbody>${sorted.map(d=>{
-    const n=dropNumbers(d);
-    return `<tr onclick="openPastDrop('${d.id}')"><td class="strong">${esc(d.number)}</td><td>${esc(watchName(d.watchId))}</td>
-      <td>${n.entries}/${n.pool}</td><td>${gbp(n.revenue)}</td>
-      <td style="color:${n.isProfitable?'var(--live)':'var(--danger)'}">${gbp(n.profit)}</td>
-      <td><span class="pill ${n.isProfitable?'pill-done':'pill-closed'}">${n.isProfitable?'PROFITABLE':'UNPROFITABLE'}</span></td>
-      <td class="muted">${fmtDate(d.draw)}</td></tr>`;
-  }).join('')}</tbody></table></div>`
+  <div class="filters">${seriesTypes.map(f=>`<button class="fbtn ${pastDropSeriesFilter===f?'active':''}" onclick="pastDropSeriesFilter='${f}';render()">${f==='All'?'All Series':seriesLabels[f]||f}</button>`).join('')}</div>
+  ${sorted.length? `<div class="card"><table class="tbl">
+    <thead><tr>
+      ${th('Drop','number')}
+      ${th('Type','type')}
+      ${th('Watch','watch')}
+      <th>Tickets</th>
+      ${th('Fill','fill')}
+      ${th('Revenue','revenue')}
+      ${th('Net Profit','profit')}
+      <th>Status</th>
+      ${th('Draw Date','draw')}
+    </tr></thead>
+    <tfoot><tr style="font-weight:700;background:var(--bg2)">
+      <td colspan="5" style="padding:10px 16px;font-size:12px;color:var(--ink3)">${sorted.length} drops</td>
+      <td class="mono" style="padding:10px 16px">${gbp(totRev)}</td>
+      <td class="mono" style="padding:10px 16px;color:${totProfit>=0?'var(--live)':'var(--danger)'}">${gbp(totProfit)}</td>
+      <td colspan="2"></td>
+    </tr></tfoot>
+    <tbody>${sorted.map(d=>{
+      const n=dropNumbers(d);
+      return `<tr onclick="openPastDrop('${d.id}')">
+        <td class="strong">${esc(d.number)}</td>
+        <td><span class="pill pill-type" style="font-size:10px">${esc(d.type)}</span></td>
+        <td>${esc(watchName(d.watchId))}</td>
+        <td class="mono">${n.entries}/${n.pool}</td>
+        <td class="mono">${n.fillPct}%</td>
+        <td class="mono">${gbp(n.revenue)}</td>
+        <td class="mono" style="color:${n.isProfitable?'var(--live)':'var(--danger)'}">${gbp(n.profit)}</td>
+        <td><span class="pill ${n.isProfitable?'pill-done':'pill-closed'}" style="font-size:10px">${n.isProfitable?'PROFIT':'LOSS'}</span></td>
+        <td class="mono muted">${fmtDate(d.draw)}</td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`
   : `<div class="card"><div class="empty">No finished drops yet — they'll show up here once a drop's status is set to Closed or Complete.</div></div>`}`;
 }
 let pastDropId=null;
@@ -2324,7 +2412,10 @@ function vPastDropDetail(){
   if(!d) return `<div class="empty">Drop not found. <span class="link" onclick="go('pastdrops')">Back to Past Drops</span></div>`;
   const head=`<div class="page-actions" style="margin-bottom:14px"><span class="link muted" onclick="go('pastdrops')" style="cursor:pointer;font-size:13px">← All past drops</span></div>
   <div class="page-head"><div><h2>${esc(d.number)} — ${esc(watchName(d.watchId))}</h2>
-    <div class="desc">Archived drop · ${d.status} · Drew ${fmtDate(d.draw)} <span class="link" onclick="go('drop','${d.id}')" style="margin-left:8px">Open full Drop Hub →</span></div></div>
+    <div class="desc">Archived drop · ${d.status} · Drew ${fmtDate(d.draw)}
+    <span class="link" onclick="go('drop','${d.id}')" style="margin-left:8px">Open full Drop Hub →</span>
+    ${d.watchId?`<span class="link" onclick="go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)" style="margin-left:8px">Watch Library →</span>`:''}
+  </div></div>
     ${d.status!=='Complete'?`<div class="page-actions"><button class="btn btn-sm btn-gold" onclick="openCloseOut('${d.id}')">🏁 Close Out Drop</button></div>`:''}
   </div>
   <div class="muted" style="font-size:11.5px;margin:-6px 0 16px">✎ Everything below is still fully editable — if you spot an error in any figure, correct it here and it updates the drop's numbers everywhere in the app immediately.</div>`;
@@ -2349,15 +2440,16 @@ function vTasks(){
   });
   const cats=['Today','Tomorrow','This Week','Overdue','Completed'];
   const list=groups[taskFilter]||[];
-  const dropsWithTasks=DB.drops.filter(d=>DB.tasks.some(t=>t.dropId===d.id));
+  // Only show active drops (Draft, Upcoming, Live) in task drop filter
+  const activeDropsWithTasks=DB.drops.filter(d=>['Draft','Upcoming','Live'].includes(d.status) && DB.tasks.some(t=>t.dropId===d.id));
   return `<div class="page-head"><div><h2>Tasks</h2><div class="desc">Everything you need to do, typed and assigned.</div></div>
     <div class="page-actions"><button class="btn btn-gold" onclick="newTask()">＋ New Task</button></div></div>
   <div class="filters">${cats.map(c=>`<button class="fbtn ${taskFilter===c?'active':''}" onclick="taskFilter='${c}';render()">${c} · ${groups[c].length}</button>`).join('')}</div>
   <div class="filters">${['All',...teamList()].map(p=>`<button class="fbtn ${taskPerson===p?'active':''}" onclick="taskPerson='${p}';render()">${p}</button>`).join('')}
     <button class="fbtn ${taskUrgentOnly?'active':''}" onclick="taskUrgentOnly=!taskUrgentOnly;render()">⚡ Urgent only</button></div>
-  ${dropsWithTasks.length?`<div class="filters">
+  ${activeDropsWithTasks.length?`<div class="filters">
     <button class="fbtn ${taskDropFilter==='All'?'active':''}" onclick="taskDropFilter='All';render()">All Drops</button>
-    ${dropsWithTasks.map(d=>`<button class="fbtn ${taskDropFilter===d.id?'active':''}" onclick="taskDropFilter='${d.id}';render()">${esc(d.number)}</button>`).join('')}
+    ${activeDropsWithTasks.map(d=>`<button class="fbtn ${taskDropFilter===d.id?'active':''}" onclick="taskDropFilter='${d.id}';render()">${esc(d.number)}</button>`).join('')}
   </div>`:''}
   <div class="card"><div class="card-b">
     ${list.length? list.map(t=>taskRow(t)).join('') : `<div class="empty">Nothing in ${taskFilter}.</div>`}
@@ -2684,7 +2776,10 @@ function watchCard(w){
   return `<div class="gcard" onclick="openWatch('${w.id}')" style="${w.retired?'opacity:.55':''}">
     <div class="thumb">${w.img?`<img data-mediaref="${esc(w.img)}">`:'⌚'}</div>
     <div class="gbody"><div class="gtitle">${title}${w.retired?' <span class="pill pill-closed" style="font-size:9px">RETIRED</span>':''}</div><div class="gsub">Ref ${esc(w.ref||'—')}${w.serial?' · SN '+esc(w.serial):''}</div>
-    <div class="gmeta"><span class="pill pill-type">${gbp(w.retail)} RRP</span>${drops.length?`<span class="pill pill-done">${drops.length} drop${drops.length>1?'s':''}</span>`:''}</div></div></div>`;
+    <div class="gmeta">
+      <span class="pill pill-type">${gbp(w.retail)} RRP</span>
+      ${drops.length?`<span class="pill pill-done" style="cursor:pointer" onclick="event.stopPropagation();go('drops')" title="View drops using this watch">${drops.length} drop${drops.length>1?'s':''}</span>`:''}
+    </div></div></div>`;
 }
 
 /* ================= WINNERS ================= */
@@ -2694,7 +2789,9 @@ function vWinners(){
   ${DB.winners.length?`<div class="card"><table class="tbl">
     <thead><tr><th>Name</th><th>Drop</th><th>Watch</th><th>Contact</th><th>Instagram</th><th>Status</th></tr></thead>
     <tbody>${DB.winners.map(w=>{const d=w.dropId?dropById(w.dropId):null;return `<tr onclick="openWinner('${w.id}')">
-      <td class="strong">${esc(w.name)}</td><td>${d?esc(d.number):'—'}</td><td>${d?esc(watchName(d.watchId)):'—'}</td>
+      <td class="strong">${esc(w.name)}</td>
+      <td>${d?`<span class="link" onclick="event.stopPropagation();go('drop','${d.id}')" style="color:var(--gold2);cursor:pointer">${esc(d.number)}</span>`:'—'}</td>
+      <td>${d&&d.watchId?`<span class="link" onclick="event.stopPropagation();go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)" style="color:var(--ink2);cursor:pointer">${esc(watchName(d.watchId))}</span>`:'—'}</td>
       <td class="muted">${esc(w.phone||w.email||'—')}</td><td class="muted">${esc(w.instagram||'—')}</td>
       <td><span class="pill ${w.dispatched?'pill-done':'pill-upcoming'}">${w.dispatched?'Dispatched':'Awaiting'}</span></td></tr>`;}).join('')}</tbody>
   </table></div>`:`<div class="card"><div class="empty">No winners recorded yet.</div></div>`}`;
@@ -2708,7 +2805,10 @@ function vWinnerResults(){
   ${rows.length?`<div class="card"><table class="tbl">
     <thead><tr><th>Date</th><th>Drop</th><th>Total Entries</th><th>Unique Orders</th><th>Unique Customers</th><th>New</th><th>Returning</th></tr></thead>
     <tbody>${rows.map(r=>{const d=r.dropId?dropById(r.dropId):null;return `<tr onclick="openWinnerResult('${r.id}')">
-      <td class="muted">${fmtDate(r.date)}</td><td class="strong">${d?esc(d.number)+' — '+esc(watchName(d.watchId)):esc(r.dropLabel||'—')}</td>
+      <td class="muted">${fmtDate(r.date)}</td>
+      <td class="strong" style="cursor:pointer" onclick="event.stopPropagation();${d?`openPastDrop('${d.id}')`:''}">
+        ${d?`<span style="color:var(--gold2)">${esc(d.number)}</span> — ${esc(watchName(d.watchId))}`:esc(r.dropLabel||'—')}
+      </td>
       <td class="mono">${r.totalEntries||0}</td><td class="mono">${r.uniqueOrders||0}</td><td class="mono">${r.uniqueCustomers||0}</td>
       <td class="mono">${r.newCustomers||0}</td><td class="mono">${r.returningCustomers||0}</td></tr>`;}).join('')}</tbody>
   </table></div>`:`<div class="card"><div class="empty">Nothing logged yet — after each drop closes, ask Claude to summarise the entrants CSV, then log the numbers here.</div></div>`}`;
@@ -2807,9 +2907,9 @@ function vFinance(){
     <tbody>${Object.keys(byType).map(ty=>{const b=byType[ty];const m=b.revenue?(b.profit/b.revenue*100):0;return `<tr><td class="strong">${esc(ty)}</td><td>${b.count}</td><td>${gbp(b.revenue)}</td>
       <td style="color:${b.profit>=0?'var(--live)':'var(--danger)'}">${gbp(b.profit)}</td><td>${m.toFixed(1)}%</td></tr>`;}).join('')||'<tr><td colspan=5 class="empty">No data yet.</td></tr>'}</tbody></table>
   </div></div>
-  <div class="card"><div class="card-h"><h3>Recent Drops</h3></div><div class="modal-b" style="max-height:none">
+  <div class="card"><div class="card-h"><h3>Recent Drops</h3><span class="link" onclick="go('pastdrops')" style="font-size:12.5px;cursor:pointer">All past drops →</span></div><div class="modal-b" style="max-height:none">
     <table class="tbl"><thead><tr><th>Drop</th><th>Type</th><th>Revenue</th><th>Profit</th><th>Margin</th><th>Status</th></tr></thead>
-    <tbody>${recent.map(d=>{const n=nums.get(d.id);const m=n.revenue?(n.profit/n.revenue*100):0;return `<tr onclick="go('drop','${d.id}')"><td class="strong">${esc(d.number)}</td><td>${esc(d.type)}</td>
+    <tbody>${recent.map(d=>{const n=nums.get(d.id);const m=n.revenue?(n.profit/n.revenue*100):0;const done=['Complete','Closed'].includes(d.status);return `<tr onclick="${done?`openPastDrop('${d.id}')`:`go('drop','${d.id}')`}" style="cursor:pointer"><td class="strong">${esc(d.number)}</td><td>${esc(d.type)}</td>
       <td>${gbp(n.revenue)}</td><td style="color:${n.profit>=0?'var(--live)':'var(--danger)'}">${gbp(n.profit)}</td><td>${m.toFixed(1)}%</td>
       <td><span class="pill ${STATUS_PILL[d.status]}">${d.status}</span></td></tr>`;}).join('')||'<tr><td colspan=6 class="empty">No drops yet.</td></tr>'}</tbody></table>
   </div></div>`;
@@ -3040,10 +3140,10 @@ function vSourcing(){
     const items=DB.sourcing.filter(s=>s.status===st);
     return `<div class="kcol"><div class="kcol-h"><span>${st}</span><span>${items.length}</span></div>
       ${items.map(s=>`<div class="kcard" onclick="openSourcing('${s.id}')"><div class="kt">${esc(s.brand)} ${esc(s.model)}</div>
-        <div class="km">${s.supplierId?esc(supName(s.supplierId)):'No supplier yet'}${s.quotedPrice?' · '+gbp(s.quotedPrice)+' quoted':''}</div></div>`).join('')}
+        <div class="km">${s.supplierId?`<span onclick="event.stopPropagation();go('suppliers');setTimeout(()=>openSupplier('${s.supplierId}'),50)" style="cursor:pointer;color:var(--gold2)">${esc(supName(s.supplierId))} ↗</span>`:'No supplier yet'}${s.quotedPrice?' · '+gbp(s.quotedPrice)+' quoted':''}</div></div>`).join('')}
     </div>`;}).join('')}</div>
   ${DB.sourcing.filter(s=>s.status==='Purchased').length?`<div class="card" style="margin-top:16px"><div class="card-h"><h3>Purchased — converted to Watch Library</h3></div>
-    <div class="card-b">${DB.sourcing.filter(s=>s.status==='Purchased').map(s=>`<div class="row-item"><div class="txt"><div class="t">${esc(s.brand)} ${esc(s.model)}</div></div></div>`).join('')}</div>
+    <div class="card-b">${DB.sourcing.filter(s=>s.status==='Purchased').map(s=>`<div class="row-item" onclick="go('watches')" style="cursor:pointer"><div class="txt"><div class="t">${esc(s.brand)} ${esc(s.model)}</div><div class="meta">In Watch Library</div></div><span style="color:var(--gold2);font-size:12px">→</span></div>`).join('')}</div>
   </div>`:''}`;
 }
 function openSourcing(id){
@@ -3090,20 +3190,195 @@ function vSuppliers(){
     const totalSpend=bought.reduce((a,w)=>a+(Number(w.cost)||0),0);
     return `<div class="gcard" onclick="openSupplier('${s.id}')"><div class="gbody">
       <div class="gtitle">${esc(s.name)}</div><div class="gsub">${esc(s.contact||'')} ${s.phone?'· '+esc(s.phone):''}</div>
-      <div class="gmeta"><span class="pill pill-type">${bought.length} watch${bought.length===1?'':'es'}</span><span class="pill pill-done">${gbp(totalSpend)} total</span></div>
+      <div class="gmeta"><span class="pill pill-type" style="cursor:pointer" onclick="event.stopPropagation();go('watches')" title="View in Watch Library">${bought.length} watch${bought.length===1?'':'es'} ↗</span><span class="pill pill-done">${gbp(totalSpend)} total</span></div>
     </div></div>`;}).join('')}</div>`:`<div class="card"><div class="empty">No suppliers yet.</div></div>`}`;
 }
 
 /* ================= CUSTOMERS ================= */
+let custSort={col:'spend',dir:'desc'}, custSearch='';
+function custSortBy(col){
+  if(custSort.col===col) custSort.dir=custSort.dir==='asc'?'desc':'asc';
+  else{ custSort.col=col; custSort.dir='desc'; }
+  render();
+}
 function vCustomers(){
-  return `<div class="page-head"><div><h2>Customers</h2><div class="desc">Buyers and their lifetime value. Wire up WooCommerce to auto-populate.</div></div>
-    <div class="page-actions"><button class="btn btn-gold" onclick="openCustomer()">＋ Add Customer</button></div></div>
-  ${DB.customers.length?`<div class="card"><table class="tbl">
-    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Lifetime Spend</th><th>Notes</th></tr></thead>
-    <tbody>${DB.customers.map(c=>`<tr onclick="openCustomer('${c.id}')"><td class="strong">${esc(c.name)}</td>
-      <td class="muted">${esc(c.email||'—')}</td><td class="muted">${esc(c.phone||'—')}</td>
-      <td class="mono">${gbp(c.spend||0)}</td><td class="muted">${esc((c.notes||'').slice(0,40))}</td></tr>`).join('')}</tbody>
-  </table></div>`:`<div class="card"><div class="empty">No customers yet. This fills automatically once WooCommerce is connected.</div></div>`}`;
+  const imports = DB.customerImports||[];
+  const lastImport = imports.length? imports[imports.length-1] : null;
+
+  const CLAUDE_PROMPT = `Please analyse this WooCommerce customers CSV and give me a summary covering:
+
+1. Total customers — how many unique buyers
+2. Top 10 spenders — name, email, total spend, number of orders
+3. Top 10 by order count — name, email, orders, total spend
+4. Average order value breakdown — overall AOV, and AOV for customers with 1 order vs 2+ orders
+5. New vs returning — how many customers placed their first order in the last 30 days
+6. Location breakdown — top 5 cities/regions by customer count
+7. High-value at-risk — customers who spent over £500 but haven't ordered in the last 60 days (flag by name + last active date)
+8. Any obvious multi-account patterns — duplicate names, same postcodes with different emails, or unusually high order counts
+
+Keep it concise — bullet points per section, numbers only, no filler.`;
+
+  // Sort and filter customers
+  let custs = [...DB.customers];
+  const q = custSearch.trim().toLowerCase();
+  if(q) custs = custs.filter(c=>(c.name+' '+c.email+' '+(c.city||'')).toLowerCase().includes(q));
+  custs.sort((a,b)=>{
+    let va,vb;
+    if(custSort.col==='name'){ va=a.name||''; vb=b.name||''; return custSort.dir==='asc'?va.localeCompare(vb):vb.localeCompare(va); }
+    if(custSort.col==='orders'){ va=Number(a.orders)||0; vb=Number(b.orders)||0; }
+    else if(custSort.col==='aov'){ va=Number(a.aov)||0; vb=Number(b.aov)||0; }
+    else if(custSort.col==='lastActive'){ va=a.lastActive||''; vb=b.lastActive||''; return custSort.dir==='asc'?va.localeCompare(vb):vb.localeCompare(va); }
+    else { va=Number(a.spend)||0; vb=Number(b.spend)||0; }
+    return custSort.dir==='asc'?va-vb:vb-va;
+  });
+  const arrow=c=>custSort.col===c?(custSort.dir==='asc'?' ↑':' ↓'):'';
+  const th=(label,col)=>`<th style="cursor:pointer;user-select:none" onclick="custSortBy('${col}')">${label}${arrow(col)}</th>`;
+
+  const totalSpend = DB.customers.reduce((a,c)=>a+(Number(c.spend)||0),0);
+  const totalOrders = DB.customers.reduce((a,c)=>a+(Number(c.orders)||0),0);
+  const avgAov = DB.customers.length? Math.round(totalSpend/DB.customers.length) : 0;
+
+  return `<div class="page-head"><div><h2>Customers</h2><div class="desc">${DB.customers.length} customers · ${gbp(totalSpend)} lifetime value</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="openCustomerImport()">⬆ Import CSV</button><button class="btn" onclick="openCustomer()">＋ Add</button></div></div>
+
+  <div class="kpi-row" style="margin-bottom:18px">
+    <div class="kpi"><div class="label">Total Customers</div><div class="val">${DB.customers.length}</div></div>
+    <div class="kpi"><div class="label">Lifetime Value</div><div class="val gold">${gbp(totalSpend)}</div></div>
+    <div class="kpi"><div class="label">Total Orders</div><div class="val">${totalOrders}</div></div>
+    <div class="kpi"><div class="label">Avg Spend / Customer</div><div class="val">${gbp(avgAov)}</div></div>
+    ${lastImport?`<div class="kpi"><div class="label">Last Import</div><div class="val" style="font-size:14px">${fmtDate(lastImport.date)}</div><div class="sub">${lastImport.count} customers</div></div>`:''}
+  </div>
+
+  <!-- Import history -->
+  ${imports.length?`<div class="card" style="margin-bottom:16px"><div class="card-h"><h3>Import History</h3></div><div class="card-b">
+    ${imports.slice().reverse().slice(0,5).map(im=>`<div class="row-item">
+      <div class="txt"><div class="t">${esc(im.filename)}</div><div class="meta">${fmtDate(im.date)} · ${im.count} customers · ${im.added} new · ${im.updated} updated${im.dropId?' · '+esc((dropById(im.dropId)||{}).number||''):''}</div></div>
+      <button class="btn btn-sm btn-danger" onclick="deleteCustomerImport('${im.id}')">✕</button>
+    </div>`).join('')}
+  </div></div>`:''}
+
+  <!-- Claude analysis prompt -->
+  <div class="card" style="margin-bottom:16px;border-color:var(--gold)">
+    <div class="card-h"><h3>✦ Claude Analysis Prompt</h3><span class="muted" style="font-size:11.5px">Upload your CSV to Claude alongside this prompt for deep analysis</span></div>
+    <div style="padding:14px 18px">
+      <textarea readonly style="width:100%;min-height:130px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink2);border-radius:8px;padding:10px 12px;font-size:12px;resize:vertical;font-family:inherit" id="custClaudePrompt">${esc(CLAUDE_PROMPT)}</textarea>
+      <button class="btn btn-sm btn-gold" style="margin-top:8px" onclick="(()=>{const el=document.getElementById('custClaudePrompt');el.select();navigator.clipboard&&navigator.clipboard.writeText(el.value).then(()=>toast('Prompt copied'));})()">📋 Copy Prompt</button>
+    </div>
+  </div>
+
+  <!-- Search + table -->
+  <div class="field" style="max-width:360px;margin-bottom:12px">
+    <input type="text" placeholder="Search by name, email or city…" value="${esc(custSearch)}" oninput="custSearch=this.value;render()">
+  </div>
+
+  ${custs.length?`<div class="card"><table class="tbl">
+    <thead><tr>
+      ${th('Name','name')}
+      <th>Email</th>
+      ${th('Orders','orders')}
+      ${th('Total Spend','spend')}
+      ${th('AOV','aov')}
+      <th>City</th>
+      ${th('Last Active','lastActive')}
+    </tr></thead>
+    <tbody>${custs.map(c=>`<tr onclick="openCustomer('${c.id}')">
+      <td class="strong">${esc(c.name)}</td>
+      <td class="muted" style="font-size:12px">${esc(c.email||'—')}</td>
+      <td class="mono">${c.orders||0}</td>
+      <td class="mono">${gbp(c.spend||0)}</td>
+      <td class="mono">${gbp(c.aov||0)}</td>
+      <td class="muted">${esc(c.city||'—')}</td>
+      <td class="muted" style="font-size:12px">${c.lastActive?fmtDate(c.lastActive.slice(0,10)):'—'}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`:`<div class="card"><div class="empty">No customers yet — import a WooCommerce CSV to get started.</div></div>`}`;
+}
+
+function openCustomerImport(){
+  openModal(`<div class="modal"><div class="modal-h"><h3>Import WooCommerce Customers</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="muted" style="font-size:12.5px;margin-bottom:14px">Export from WooCommerce → Analytics → Customers → Download. The CSV should have columns: Name, Email, Orders, Total Spend, AOV, Last Active, City.</div>
+      <div class="field"><label>Linked Drop <span class="muted" style="text-transform:none;font-weight:400">(which drop is this customer export from?)</span></label>
+        <select id="custImportDrop" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px">
+          <option value="">— Link to a drop (recommended) —</option>
+          ${[...DB.drops].sort((a,b)=>(b.draw||'').localeCompare(a.draw||'')).map(d=>`<option value="${d.id}">${esc(d.number)} — ${esc(watchName(d.watchId))}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Customer CSV file</label><input type="file" accept=".csv" id="custImportFile"></div>
+      <div id="custImportPreview" class="muted" style="font-size:12px;margin-top:8px"></div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="runCustomerImport()">Import →</button></div>
+  </div>`);
+}
+
+function runCustomerImport(){
+  const file = document.getElementById('custImportFile').files[0];
+  if(!file){ alert('Select a CSV file first'); return; }
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const parsed = parseCSV(reader.result);
+    if(!parsed.rows.length){ alert('No rows found in file'); return; }
+    const headers = parsed.headers.map(h=>h.toLowerCase().trim());
+    const col = (patterns)=>{
+      for(const p of patterns){
+        const h = parsed.headers.find(h=>p.test(h.toLowerCase()));
+        if(h) return h;
+      }
+      return null;
+    };
+    const nameCol   = col([/^name$/,/customer.*name/,/full.*name/]);
+    const emailCol  = col([/^email$/,/customer.*email/,/billing.*email/]);
+    const ordersCol = col([/^orders$/,/order.*count/,/total.*orders/]);
+    const spendCol  = col([/total.*spend/,/^spend$/,/lifetime.*spend/]);
+    const aovCol    = col([/^aov$/,/avg.*order/,/average.*order/]);
+    const lastCol   = col([/last.*active/,/last.*order/,/last.*seen/]);
+    const cityCol   = col([/^city$/,/town/,/city.*region/]);
+    const postcodeCol = col([/postal/,/postcode/,/zip/]);
+    const signupCol = col([/sign.*up/,/registered/,/created/]);
+    const usernameCol = col([/username/,/user.*name/]);
+
+    let added=0, updated=0;
+    DB.customerImports = DB.customerImports||[];
+
+    parsed.rows.forEach(row=>{
+      const email = emailCol? (row[emailCol]||'').trim().toLowerCase() : '';
+      const name  = nameCol? (row[nameCol]||'').trim() : '';
+      if(!email && !name) return;
+
+      const spend   = parseFloat((row[spendCol]||'').replace(/[^0-9.]/g,''))||0;
+      const orders  = parseInt(row[ordersCol])||0;
+      const aov     = parseFloat((row[aovCol]||'').replace(/[^0-9.]/g,''))||0;
+      const city    = cityCol? (row[cityCol]||'').trim() : '';
+      const postcode= postcodeCol? (row[postcodeCol]||'').trim() : '';
+      const lastActive = lastCol? (row[lastCol]||'').trim() : '';
+      const signUp  = signupCol? (row[signupCol]||'').trim() : '';
+      const username= usernameCol? (row[usernameCol]||'').trim() : '';
+
+      const existing = email? DB.customers.find(c=>c.email===email) : null;
+      if(existing){
+        existing.name=name||existing.name; existing.spend=spend||existing.spend;
+        existing.orders=orders||existing.orders; existing.aov=aov||existing.aov;
+        existing.city=city||existing.city; existing.postcode=postcode||existing.postcode;
+        existing.lastActive=lastActive||existing.lastActive;
+        existing.signUp=signUp||existing.signUp;
+        existing.username=username||existing.username;
+        updated++;
+      } else {
+        DB.customers.push({id:uid('cust'),name,email,phone:'',spend,orders,aov,city,postcode,lastActive,signUp,username,notes:'',dropIds:linkedDropId?[linkedDropId]:[],created:now()});
+        added++;
+      }
+    });
+
+    const linkedDropId = (document.getElementById('custImportDrop')||{}).value||'';
+    DB.customerImports.push({id:uid('ci'),filename:file.name,date:today(),count:parsed.rows.length,added,updated,dropId:linkedDropId});
+    saveDB(); closeModal(); toast(`Imported ${parsed.rows.length} customers — ${added} new, ${updated} updated`); render();
+  };
+  reader.readAsText(file);
+}
+
+function deleteCustomerImport(id){
+  if(!confirm('Remove this import record? (Customers already imported will remain.)')) return;
+  DB.customerImports=(DB.customerImports||[]).filter(x=>x.id!==id);
+  saveDB(); render();
 }
 
 /* ================= NEW CONTENT (creation pipeline) ================= */
@@ -3196,14 +3471,21 @@ function stageVal(id){
 function libraryItems(){
   const items=[];
   DB.content.forEach(c=>{
+    const wid=c.watchId||(c.dropId?(dropById(c.dropId)||{}).watchId:'')||'';
+    const w=wid?watchById(wid):null;
     if(c.video){
-      const wid=c.watchId||(c.dropId?(dropById(c.dropId)||{}).watchId:'')||'';
-      const w=wid?watchById(wid):null;
       items.push({id:'cn_'+c.id, name:c.title, type:'Video', url:c.video, dropId:c.dropId||'',
         tags:c.tags||[], creator:c.creator||teamList()[0], useCases:c.useCases||['Organic Post'], mediaStage:c.mediaStage||'Finished',
         watchId:wid, brand:w?w.brand:'', model:w?w.model:'', category:c.category||'', created:c.created||'',
         sourceType:'content', sourceId:c.id});
     }
+    (c.images||[]).forEach((imgRef,i)=>{
+      if(!imgRef) return;
+      items.push({id:'cn_img_'+c.id+'_'+i, name:c.title+(c.images.length>1?` (${i+1})`:''), type:'Photo', url:imgRef, dropId:c.dropId||'',
+        tags:c.tags||[], creator:c.creator||teamList()[0], useCases:c.useCases||['Organic Post'], mediaStage:c.mediaStage||'Finished',
+        watchId:wid, brand:w?w.brand:'', model:w?w.model:'', category:c.category||'', created:c.created||'',
+        sourceType:'content', sourceId:c.id});
+    });
   });
   DB.drops.forEach(d=>{
     const imgs=d.images||{};
@@ -3352,19 +3634,82 @@ function setDropStatus(id,s){const d=dropById(id);const old=d.status;d.status=s;
   if(s==='Complete')logTL(id,`${d.number} completed`);
   queueSave();render();}
 
+const SERIES_PREFIX = {'Main Drop':'D','Weekend Drop':'W','Tech Drop':'T','Vault':'V','Free Drop':'F'};
+const SERIES_DEFAULTS = {
+  'Main Drop':{price:19.99,pool:499,draw:7},
+  'Weekend Drop':{price:5.99,pool:399,draw:2},
+  'Tech Drop':{price:9.99,pool:249,draw:3},
+  'Vault':{price:2.49,pool:99999,draw:90},
+  'Free Drop':{price:0,pool:1999,draw:30}
+};
 function newDrop(){
-  const nums=DB.drops.map(d=>parseInt((d.number||'').replace(/\D/g,''))).filter(n=>!isNaN(n));
-  const next=(nums.length?Math.max(...nums):33)+1;
-  const d={id:uid('drop'),number:'D'+next,type:'Main Drop',status:'Draft',watchId:'',supplierId:'',
-    launch:today(),draw:addDays(today(),4),price:19.99,discountPrice:0,pool:500,entriesSold:0,discountEntriesSold:0,revenue:0,
-    costWatch:0,costFixed:0,variableCosts:[],
+  // Suggest next number per series
+  const suggestions = {};
+  ['Main Drop','Weekend Drop','Tech Drop','Vault','Free Drop'].forEach(type=>{
+    const prefix=SERIES_PREFIX[type];
+    const existing=DB.drops.filter(d=>d.type===type).map(d=>parseInt((d.number||'').replace(/\D/g,''))).filter(n=>!isNaN(n));
+    suggestions[type] = existing.length? Math.max(...existing)+1 : (type==='Main Drop'?34:1);
+  });
+  openModal(`<div class="modal"><div class="modal-h"><h3>New Drop</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Series</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px" id="nd_series_btns">
+          <button type="button" class="btn btn-sm btn-gold" data-type="Main Drop" data-prefix="D" onclick="selectNewDropSeries(this)">D — Main</button>
+          <button type="button" class="btn btn-sm" data-type="Weekend Drop" data-prefix="W" onclick="selectNewDropSeries(this)">W — Weekend</button>
+          <button type="button" class="btn btn-sm" data-type="Tech Drop" data-prefix="T" onclick="selectNewDropSeries(this)">T — Tech</button>
+          <button type="button" class="btn btn-sm" data-type="Vault" data-prefix="V" onclick="selectNewDropSeries(this)">V — Vault</button>
+          <button type="button" class="btn btn-sm" data-type="Free Drop" data-prefix="F" onclick="selectNewDropSeries(this)">F — Free</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Number <span id="nd_preview" style="color:var(--gold2);font-weight:800;font-size:15px;margin-left:8px">D${suggestions['Main Drop']}</span></label>
+        <input id="nd_num" type="number" value="${suggestions['Main Drop']}" min="1" oninput="updateNewDropPreview()" style="font-size:18px;font-weight:700">
+      </div>
+      <div class="field"><label>Watch (optional — set it now or later)</label>${dd('nd_watch',[{value:'',label:'— select later —'},...DB.watches.map(w=>({value:w.id,label:`${w.brand} ${w.model}`}))], '')}</div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="createNewDrop()">Create Drop →</button></div>
+  </div>`);
+  // Store suggestions for use in updateNewDropPreview
+  window._ndSuggestions = suggestions;
+}
+function selectNewDropSeries(btn){
+  document.querySelectorAll('#nd_series_btns button').forEach(b=>{ b.classList.remove('btn-gold'); });
+  btn.classList.add('btn-gold');
+  const type=btn.dataset.type;
+  const s=window._ndSuggestions||{};
+  document.getElementById('nd_num').value = s[type]||1;
+  updateNewDropPreview();
+}
+function updateNewDropPreview(){
+  const btn=document.querySelector('#nd_series_btns button.btn-gold');
+  if(!btn) return;
+  const prefix=btn.dataset.prefix||'D';
+  const num=document.getElementById('nd_num').value||'';
+  document.getElementById('nd_preview').textContent = num ? prefix+num : prefix+'?';
+}
+function createNewDrop(){
+  const btn=document.querySelector('#nd_series_btns button.btn-gold');
+  const type=btn?btn.dataset.type:'Main Drop';
+  const prefix=SERIES_PREFIX[type]||'D';
+  const num=document.getElementById('nd_num').value;
+  if(!num||isNaN(parseInt(num))){ alert('Enter a number'); return; }
+  const dropNum=prefix+parseInt(num);
+  if(DB.drops.find(d=>d.number===dropNum)){ alert(`${dropNum} already exists — pick a different number`); return; }
+  const def=SERIES_DEFAULTS[type]||{price:19.99,pool:499,draw:7};
+  const watchId=ddVal('nd_watch')||'';
+  const w=watchId?watchById(watchId):null;
+  const d={id:uid('drop'),number:dropNum,type,status:'Draft',watchId,supplierId:w?w.supplierId:'',
+    launch:today(),draw:addDays(today(),def.draw),price:def.price,discountPrice:0,pool:def.pool,
+    entriesSold:0,discountEntriesSold:0,revenue:0,
+    costWatch:w?Number(w.cost)||0:0,costFixed:0,variableCosts:[],
     notes:'',websiteLink:'',copy:{headline:'',body:'',seoKeyphrase:'',seoTitle:'',slug:'',metaDescription:''},
     images:{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''},
     entrants:{filename:'',headers:[],rows:[]},marketing:[],perf:{},links:{drive:'',canva:''},winnerId:'',created:now()};
+  if(w){ d.tracker={}; d.tracker.watchCost=Number(w.cost)||0; d.tracker.statedValue=Number(w.retail)||0; }
   migrateDrop(d);
   DB.drops.unshift(d);
-  logTL(d.id,`${d.number} created`);
-  saveDB();toast(`${d.number} created — full hub ready`);go('drop',d.id,'overview');
+  logTL(d.id,`${dropNum} created`);
+  saveDB();closeModal();toast(`${dropNum} created`);go('drop',d.id,'overview');
 }
 function delDrop(id){const d=dropById(id);if(!confirm(`Delete ${d.number}? This can't be undone.`))return;
   DB.drops=DB.drops.filter(x=>x.id!==id);
@@ -3719,7 +4064,7 @@ function addNamedTask(id,title){
   DB.tasks.push({id:uid('t'),title,dropId:id,due:today(),done:false,type:typeMap[title]||'Admin',assignedTo:teamList()[0],time:'',urgent:false,created:now()});saveDB();toast(`Added: ${title}`);render();}
 
 /* Marketing */
-function addMk(id){const d=dropById(id);const chan=ddVal('mkChanDD')||'Email';const title=document.getElementById('mkTitle').value.trim();
+function addMk(id){const d=dropById(id);const sel=document.getElementById('mkChanDD');const chan=(sel?sel.value:'')||'Email';const title=document.getElementById('mkTitle').value.trim();
   if(!title)return;d.marketing=d.marketing||[];d.marketing.push({id:uid('mk'),channel:chan,title,status:'Idea'});saveDB();render();}
 function delMk(id,mid){const d=dropById(id);d.marketing=d.marketing.filter(m=>m.id!==mid);saveDB();render();}
 
@@ -3908,13 +4253,17 @@ function delSupplier(id){if(!confirm('Delete supplier?'))return;DB.suppliers=DB.
 /* Customer modal */
 function openCustomer(id){const c=id?DB.customers.find(x=>x.id===id):{};
   openModal(`<div class="modal"><div class="modal-h"><h3>${id?'Customer':'Add Customer'}</h3><span class="x" onclick="closeModal()">×</span></div>
-    <div class="modal-b">${mInput('c_name','Name',c.name)}<div class="field-row">${mInput('c_email','Email',c.email)}${mInput('c_phone','Phone',c.phone)}</div>
-      ${mInput('c_spend','Lifetime Spend (£)',c.spend,'number')}${mArea('c_notes','Notes',c.notes)}</div>
+    <div class="modal-b">
+      <div class="field-row">${mInput('c_name','Name',c.name)}${mInput('c_email','Email',c.email)}</div>
+      <div class="field-row">${mInput('c_phone','Phone',c.phone)}${mInput('c_city','City',c.city)}</div>
+      <div class="field-row">${mInput('c_spend','Total Spend (£)',c.spend,'number')}${mInput('c_orders','Orders',c.orders,'number')}</div>
+      ${mArea('c_notes','Notes',c.notes)}
+    </div>
     <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delCustomer('${id}')">Delete</button>`:''}
       <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveCustomer('${id||''}')">Save</button></div></div>`);
 }
 function saveCustomer(id){const g=k=>document.getElementById(k).value;
-  const data={name:g('c_name'),email:g('c_email'),phone:g('c_phone'),spend:Number(g('c_spend'))||0,notes:g('c_notes')};
+  const data={name:g('c_name'),email:g('c_email'),phone:g('c_phone'),city:g('c_city'),spend:Number(g('c_spend'))||0,orders:Number(g('c_orders'))||0,notes:g('c_notes')};
   if(!data.name){alert('Name required');return;}
   if(id)Object.assign(DB.customers.find(x=>x.id===id),data);else DB.customers.unshift({id:uid('cust'),...data,created:now()});
   saveDB();closeModal();toast('Customer saved');render();}
@@ -3933,7 +4282,7 @@ function openContent(id, prefillTitle){const c=id?DB.content.find(x=>x.id===id):
       <div class="field-row-3">
         <div class="field"><label>Category</label>${dd('cn_cat',CONTENT_CATS,c.category||CONTENT_CATS[0])}</div>
         <div class="field"><label>Status</label>${dd('cn_status',CONTENT_STATUSES,c.status||CONTENT_STATUSES[0])}</div>
-        <div class="field"><label>Filming Date</label><input id="cn_filmdate" type="date" value="${esc(c.filmDate||'')}"></div>
+        <div class="field"><label>Filming Date</label><input id="cn_filmdate" type="date" value="${esc(c.filmDate||today())}"></div>
       </div>
       <div class="field-row">
         <div class="field"><label>Creator</label>${dd('cn_creator',teamList(),c.creator||teamList()[0])}</div>
@@ -3944,8 +4293,27 @@ function openContent(id, prefillTitle){const c=id?DB.content.find(x=>x.id===id):
       ${mArea('cn_body','Script / Body',c.body)}
       <div class="field"><label>Content Type</label>${stageToggle('cn_stage',['Raw','Finished'],c.mediaStage||'Finished')}
         <div class="muted" style="font-size:11.5px;margin-top:4px">Raw = unedited footage/photos just dumped for editing. Finished = ready to post.</div></div>
-      ${videoField('cn_video','Finished Video',c.video)}
-      <div class="muted" style="font-size:11.5px">Attach the finished video and it appears automatically in the Asset Library — no separate upload needed.</div>
+      <div class="field"><label>Finished Media (video or photos)</label>
+        <div style="background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:10px">
+          <!-- Existing media thumbnails -->
+          <div id="cn_media_preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${(c.images||[]).length||c.video?'10px':'0'}">
+            ${c.video?`<div style="position:relative;width:64px;height:64px;border-radius:6px;overflow:hidden;border:1px solid var(--line2);flex-shrink:0">
+              <video src="${esc(c.video)}" style="width:100%;height:100%;object-fit:cover"></video>
+              <span onclick="updContentMedia('video','')" style="position:absolute;top:2px;right:2px;background:rgba(11,18,32,.85);color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer">×</span>
+            </div>`:''}
+            ${(c.images||[]).map((img,i)=>`<div style="position:relative;width:64px;height:64px;border-radius:6px;overflow:hidden;border:1px solid var(--line2);flex-shrink:0">
+              <img data-mediaref="${esc(img)}" style="width:100%;height:100%;object-fit:cover">
+              <span onclick="removeContentImage(${i})" style="position:absolute;top:2px;right:2px;background:rgba(11,18,32,.85);color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer">×</span>
+            </div>`).join('')}
+          </div>
+          <!-- Add media row -->
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="cn_video_url" placeholder="Paste video or image link…" value="${esc(c.video&&!c.video.startsWith('r2:')&&!c.video.startsWith('m_')?c.video:'')}" style="flex:1;min-width:160px;background:var(--panel);border:1px solid var(--line2);color:var(--ink);border-radius:7px;padding:7px 10px;font-size:13px" oninput="updContentMedia('url',this.value)">
+            <label class="btn btn-sm btn-ghost" style="cursor:pointer">Upload<input type="file" accept="image/*,video/*" multiple style="display:none" onchange="onContentMediaUpload(event)"></label>
+          </div>
+          <div class="muted" style="font-size:11px;margin-top:6px">Add a finished video or photos — they appear automatically in the Asset Library. Multiple photos allowed.</div>
+        </div>
+      </div>
     </div>
     <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delContent('${id}')">Delete</button>`:''}
       <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveContent('${id||''}')">Save</button></div></div>`);
@@ -3967,10 +4335,18 @@ function saveContent(id){
     tags:document.getElementById('cn_tags').value.split(',').map(t=>t.trim()).filter(Boolean),
     body:document.getElementById('cn_body').value};
   if(!data.title){alert('Title required');return;}
-  data.video=mediaVal('cn_video');
+  const urlInput=document.getElementById('cn_video_url');
+  if(urlInput&&urlInput.value.trim()) data.video=urlInput.value.trim();
+  else data.video=(c&&c.video)||'';
+  // Collect images from preview thumbnails + hidden inputs
+  const imgEls=[...document.querySelectorAll('#cn_media_preview img[data-mediaref]')];
+  const hiddenImgs=[...document.querySelectorAll('#cn_images_list input[name="cn_img"]')];
+  const existingImgs=(c&&c.images)||[];
+  const newImgRefs=hiddenImgs.map(i=>i.value).filter(Boolean);
+  data.images=[...existingImgs.filter(ref=>imgEls.some(el=>el.dataset.mediaref===ref)),...newImgRefs];
   const fromIdea=pendingIdeaId;
   if(id){ Object.assign(DB.content.find(x=>x.id===id),data); }
-  else { DB.content.unshift({id:uid('cn'),...data,assetId:'',created:now()}); }
+  else { DB.content.unshift({id:uid('cn'),...data,images:data.images||[],assetId:'',created:now()}); }
   if(fromIdea){ DB.ideas=DB.ideas.filter(x=>x.id!==fromIdea); }
   saveDB();closeModal();toast('Content saved');
   if(fromIdea) go('content'); else render();
@@ -4527,6 +4903,305 @@ function linkDropToProject(dropId){
   if(isNaN(idx)||idx<0||idx>=projects.length) return;
   projects[idx].linkedDropId = dropId;
   saveDB(); render();
+}
+
+/* ================= DROP CALCULATOR ================= */
+let calcState = {};
+function initCalcState(d){
+  const t = d.tracker||{};
+  return {
+    price: Number(t.fullTicketPrice)||19.99,
+    pool: Number(t.maxTickets)||499,
+    watchCost: Number(t.watchCost)||0,
+    fixed: Number(t.fixed)||850,
+    adsBudget: Number(t.adsBudget)||0,
+    launchDiscPct: Number(t.launchDiscountPct)||0,
+    launchDiscTickets: 0,
+    compLifeDiscPct: Number(t.compLifeDiscountPct)||0,
+    compLifeDiscTickets: 0,
+    variableCosts: 0,
+    paymentFeePct: Number(t.paymentFeePct)||0.035,
+    vatRate: 0.2,
+  };
+}
+function calcP(state, sellPct){
+  const tickets = Math.round(state.pool * sellPct / 100);
+  const launchT = Math.min(state.launchDiscTickets||0, tickets);
+  const compT = Math.min(state.compLifeDiscTickets||0, tickets - launchT);
+  const fullT = tickets - launchT - compT;
+  const launchPrice = state.price * (1 - (state.launchDiscPct||0));
+  const compPrice = state.price * (1 - (state.compLifeDiscPct||0));
+  const grossRev = fullT * state.price + launchT * launchPrice + compT * compPrice;
+  const vatAmt = grossRev * (state.vatRate / (1 + state.vatRate));
+  const netRev = grossRev - vatAmt;
+  const fees = grossRev * state.paymentFeePct;
+  const varCosts = Number(state.variableCosts)||0;
+  const totalCost = state.watchCost + state.fixed + state.adsBudget + fees + varCosts;
+  const netProfit = grossRev - totalCost - vatAmt;
+  const fillPct = sellPct;
+  return { tickets, grossRev, netRev, vatAmt, fees, totalCost, netProfit, fillPct };
+}
+function dropCalculator(d){
+  const sid = 'calc_'+d.id;
+  if(!calcState[sid]) calcState[sid] = initCalcState(d);
+  const s = calcState[sid];
+
+  const scenarios = [30,50,70,90,100];
+  const results = scenarios.map(pct=>({pct, ...calcP(s, pct)}));
+
+  // Get last 3 drops of same type for benchmark
+  const peers = DB.drops.filter(x=>x.type===d.type && x.id!==d.id && ['Complete','Closed'].includes(x.status))
+    .sort((a,b)=>(b.draw||'').localeCompare(a.draw||'')).slice(0,3);
+
+  const color = d.status==='Live'?'var(--live)':d.status==='Complete'?'var(--gold)':'var(--blue)';
+
+  // Watch pricing reference
+  const w = d.watchId ? watchById(d.watchId) : null;
+  const watchCostPaid = w ? (Number(w.cost)||0) : (Number(s.watchCost)||0);
+  const watchRetail = w ? (Number(w.retail)||0) : 0;
+  const revenueTarget = watchRetail * 2;
+
+  return `<div style="margin-top:4px">
+  <!-- CSS animation -->
+  <style>
+    @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes flashGold{0%{box-shadow:0 0 0 0 rgba(201,162,75,0)}50%{box-shadow:0 0 0 8px rgba(201,162,75,.35)}100%{box-shadow:0 0 0 0 rgba(201,162,75,0)}}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    .calc-result-card{animation:countUp .35s ease both}
+    .calc-flash{animation:flashGold .6s ease}
+    .calc-spinning{animation:spin .7s linear infinite;display:inline-block}
+  </style>
+
+  <!-- Watch pricing reference -->
+  ${w ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+    <div class="kpi" style="flex:1;min-width:160px;border-color:var(--line2);padding:12px 16px">
+      <div class="label">Watch Cost Paid</div>
+      <div class="val" style="font-size:22px;color:var(--ink)">${gbp(watchCostPaid)}</div>
+      <div class="sub">${esc(w.brand)} ${esc(w.model)}</div>
+    </div>
+    <div class="kpi" style="flex:1;min-width:160px;border-color:var(--line2);padding:12px 16px">
+      <div class="label">Stated Retail (RRP)</div>
+      <div class="val" style="font-size:22px;color:var(--ink)">${gbp(watchRetail)}</div>
+      <div class="sub">value multiple: ${watchCostPaid>0?(watchRetail/watchCostPaid).toFixed(2)+'×':'—'}</div>
+    </div>
+    <div class="kpi" style="flex:1;min-width:160px;border-color:var(--gold);background:var(--goldsoft);padding:12px 16px">
+      <div class="label" style="color:var(--gold2)">Revenue Target (RRP ×2)</div>
+      <div class="val" style="font-size:22px;color:var(--gold2)">${gbp(revenueTarget)}</div>
+      <div class="sub" style="color:var(--gold2)">
+        ${s.pool>0 ? `needs ${Math.ceil(revenueTarget/s.price)} tickets of ${s.pool} (${Math.round(Math.ceil(revenueTarget/s.price)/s.pool*100)}% fill)` : '—'}
+      </div>
+    </div>
+  </div>` : '<div class="muted" style="margin-bottom:14px;font-size:12.5px">No watch linked — go to Overview to select one and unlock pricing reference.</div>'}
+
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+    <!-- Inputs -->
+    <div class="card" style="flex:1;min-width:280px">
+      <div class="card-h"><h3>Variables</h3><span class="muted" style="font-size:11px">Edit and see live results</span></div>
+      <div class="modal-b" style="max-height:none">
+        <div class="field-row">
+          <div class="field"><label>Ticket Price (£)</label><input type="number" step="0.01" value="${s.price}" onchange="updCalc('${sid}','price',this.value)"></div>
+          <div class="field"><label>Pool Size</label><input type="number" value="${s.pool}" onchange="updCalc('${sid}','pool',this.value)"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Watch Cost (£)</label><input type="number" value="${s.watchCost}" onchange="updCalc('${sid}','watchCost',this.value)"></div>
+          <div class="field"><label>Fixed Costs (£)</label><input type="number" value="${s.fixed}" onchange="updCalc('${sid}','fixed',this.value)"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Ad Budget (£)</label><input type="number" value="${s.adsBudget}" onchange="updCalc('${sid}','adsBudget',this.value)"></div>
+          <div class="field"><label>Payment Fee (%)</label><input type="number" step="0.1" value="${(s.paymentFeePct*100).toFixed(1)}" onchange="updCalc('${sid}','paymentFeePctPct',this.value)"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Launch Disc. (%)</label><input type="number" step="1" value="${(s.launchDiscPct*100).toFixed(0)}" onchange="updCalc('${sid}','launchDiscPctPct',this.value)"></div>
+          <div class="field"><label>Launch Disc. Tickets</label><input type="number" value="${s.launchDiscTickets}" onchange="updCalc('${sid}','launchDiscTickets',this.value)"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Comp/Life Disc. (%)</label><input type="number" step="1" value="${(s.compLifeDiscPct*100).toFixed(0)}" onchange="updCalc('${sid}','compLifeDiscPctPct',this.value)"></div>
+          <div class="field"><label>Comp/Life Disc. Tickets</label><input type="number" value="${s.compLifeDiscTickets}" onchange="updCalc('${sid}','compLifeDiscTickets',this.value)"></div>
+        </div>
+        <div class="field">
+          <label>Variable Costs Estimate (£)</label>
+          <input type="number" value="${s.variableCosts}" onchange="updCalc('${sid}','variableCosts',this.value)" placeholder="SMS, courier, other…">
+        </div>
+        <button class="btn btn-sm btn-ghost" onclick="calcState['${sid}']=initCalcState(dropById('${d.id}'));go('drop','${d.id}','calculator')" style="margin-top:4px">↺ Reset to drop values</button>
+      </div>
+    </div>
+
+    <!-- Key metrics at 100% -->
+    <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);font-weight:600">Full sell-out</div>
+      ${['grossRev','netProfit','totalCost','fees'].map((k,i)=>{
+        const labels={grossRev:'Gross Revenue',netProfit:'Net Profit',totalCost:'Total Costs',fees:'Payment Fees'};
+        const val=results[4][k];
+        const isProfit=k==='netProfit';
+        return `<div class="kpi calc-result-card" style="animation-delay:${i*0.06}s;padding:12px 16px">
+          <div class="label">${labels[k]}</div>
+          <div class="val" style="font-size:22px;${isProfit?(val>=0?'color:var(--live)':'color:var(--danger)'):''}">
+            ${k==='fees'?'':''}${gbp(val)}
+          </div>
+          <div class="sub">at ${results[4].tickets} tickets (100%)</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+
+  <!-- Sell-through scenarios table -->
+  <div class="card" style="margin-bottom:20px" id="calc_scenarios_${d.id}">
+    <div class="card-h"><h3>Scenarios</h3><span class="muted" style="font-size:11px">P&L at different sell-through levels</span></div>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr>
+          <th>Sell-through</th><th>Tickets</th><th>Gross Rev</th><th>Net Rev (ex VAT)</th><th>Total Costs</th><th>Net Profit</th><th>Margin</th>
+        </tr></thead>
+        <tbody id="calc_tbody_${d.id}">
+          ${results.map((r,i)=>`<tr class="calc-result-card" style="animation-delay:${i*0.07}s;${r.netProfit<0?'opacity:.75':''}">
+            <td><span class="pill ${r.netProfit>=0?'pill-done':'pill-closed'}" style="font-size:11px">${r.pct}%</span></td>
+            <td class="mono">${r.tickets}</td>
+            <td class="mono">${gbp(r.grossRev)}</td>
+            <td class="mono">${gbp(r.netRev)}</td>
+            <td class="mono">${gbp(r.totalCost)}</td>
+            <td class="mono" style="font-weight:700;color:${r.netProfit>=0?'var(--live)':'var(--danger)'}">${gbp(r.netProfit)}</td>
+            <td class="mono">${r.grossRev>0?(r.netProfit/r.grossRev*100).toFixed(1)+'%':'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Peer benchmark scenarios -->
+  <div class="card">
+    <div class="card-h">
+      <h3>Run Benchmarks</h3>
+      <span class="muted" style="font-size:11.5px">Compare against last 3 ${esc(d.type)}s</span>
+      <button class="btn btn-gold" onclick="runCalcBenchmarks('${d.id}','${sid}')" id="bench_btn_${d.id}">▶ Run Scenarios</button>
+    </div>
+    <div id="calc_bench_${d.id}">
+      ${peers.length?`<div class="muted" style="font-size:12.5px;padding:14px 18px">Hit Run Scenarios to see how this drop compares against ${esc(peers.map(p=>p.number).join(', '))} using your current variables.</div>`
+      :`<div class="empty">No previous ${esc(d.type)}s to benchmark against yet.</div>`}
+    </div>
+  </div>
+  </div>`;
+}
+
+function updCalc(sid, field, val){
+  if(!calcState[sid]) return;
+  const s = calcState[sid];
+  if(field==='paymentFeePctPct') s.paymentFeePct = (Number(val)||0)/100;
+  else if(field==='launchDiscPctPct') s.launchDiscPct = (Number(val)||0)/100;
+  else if(field==='compLifeDiscPctPct') s.compLifeDiscPct = (Number(val)||0)/100;
+  else s[field] = Number(val)||0;
+  // Re-render just the calculator tab without full render (keep focus)
+  const d = DB.drops.find(x=>'calc_'+x.id===sid);
+  if(d) document.getElementById('hubtab').innerHTML = dropCalculator(d);
+}
+
+function runCalcBenchmarks(dropId, sid){
+  const d = dropById(dropId); if(!d) return;
+  const s = calcState[sid]||initCalcState(d);
+  const btn = document.getElementById('bench_btn_'+dropId);
+  const box = document.getElementById('calc_bench_'+dropId);
+  if(!btn||!box) return;
+
+  // Spinning animation
+  btn.innerHTML = '<span class="calc-spinning">⟳</span> Running…';
+  btn.disabled = true;
+
+  const peers = DB.drops.filter(x=>x.type===d.type && x.id!==dropId && ['Complete','Closed'].includes(x.status))
+    .sort((a,b)=>(b.draw||'').localeCompare(a.draw||'')).slice(0,3);
+
+  setTimeout(()=>{
+    // Flash the whole card
+    const card = btn.closest('.card');
+    if(card) card.classList.add('calc-flash');
+    setTimeout(()=>card&&card.classList.remove('calc-flash'), 700);
+
+    if(!peers.length){
+      box.innerHTML = '<div class="empty">No previous drops to compare against.</div>';
+      btn.innerHTML = '▶ Run Scenarios'; btn.disabled=false; return;
+    }
+
+    const scenarios = [30,50,70,90,100];
+    let html = `<div style="overflow-x:auto;padding:0 4px 4px">
+      <table class="tbl">
+        <thead><tr>
+          <th>Sell-through</th>
+          <th style="color:var(--gold2)">This Drop</th>
+          ${peers.map(p=>`<th class="muted">${esc(p.number)} actual</th>`).join('')}
+        </tr></thead>
+        <tbody>`;
+
+    scenarios.forEach((pct,i)=>{
+      const r = calcP(s, pct);
+      html += `<tr class="calc-result-card" style="animation-delay:${i*0.08}s">
+        <td><span class="pill ${r.netProfit>=0?'pill-done':'pill-closed'}" style="font-size:11px">${pct}%</span></td>
+        <td style="font-weight:700;color:${r.netProfit>=0?'var(--live)':'var(--danger)'};">${gbp(r.netProfit)}</td>`;
+      peers.forEach(p=>{
+        const n = dropNumbers(p);
+        const peerFill = n.pool? Math.round(n.entries/n.pool*100) : 0;
+        const close = Math.abs(peerFill-pct)<=15;
+        html += `<td class="muted" style="${close?'color:var(--ink);font-weight:600':''}">
+          ${close?`${gbp(n.profit)} <span style="font-size:10px">(${peerFill}% fill)</span>`:`<span style="opacity:.45">${peerFill}% fill</span>`}
+        </td>`;
+      });
+      html += `</tr>`;
+    });
+
+    html += `</tbody></table></div>
+    <div class="muted" style="font-size:11px;padding:10px 18px">Peer profits shown where their actual fill rate is within 15% of the scenario. Your current variables: ${gbp(s.price)}/ticket · ${s.pool} pool · ${gbp(s.watchCost)} watch · ${gbp(s.fixed)} fixed · ${gbp(s.adsBudget)} ads.</div>`;
+
+    box.innerHTML = html;
+    btn.innerHTML = '▶ Run Again'; btn.disabled=false;
+  }, 900);
+}
+
+/* Content modal media helpers */
+let _contentModalDropId = '';
+let _contentModalId = '';
+function updContentMedia(type, val){
+  if(type==='url'){
+    const el=document.getElementById('cn_video_url'); if(el) el.value=val;
+  }
+}
+function removeContentImage(idx){
+  const cid=document.getElementById('cn_media_preview')&&document.querySelector('[data-cn-id]');
+  // Re-open modal approach: update in-memory and re-render thumbnails
+  const modal=document.getElementById('overlay');
+  if(!modal) return;
+  // Find current images from preview
+  const thumbs=[...document.getElementById('cn_media_preview').querySelectorAll('img[data-mediaref]')];
+  const imgs=thumbs.map(i=>i.dataset.mediaref).filter((_,i2)=>i2!==idx);
+  // Remove from preview
+  const wrapper=document.getElementById('cn_media_preview');
+  const items=[...wrapper.children].filter(el=>el.querySelector('img'));
+  if(items[idx]) items[idx].remove();
+}
+async function onContentMediaUpload(evt){
+  const files=[...evt.target.files]; if(!files.length) return;
+  const preview=document.getElementById('cn_media_preview'); if(!preview) return;
+  for(const file of files){
+    const isVideo = file.type.startsWith('video/');
+    const tempDiv=document.createElement('div');
+    tempDiv.style.cssText='position:relative;width:64px;height:64px;border-radius:6px;overflow:hidden;border:1px solid var(--line2);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--panel2)';
+    tempDiv.innerHTML='<span style="font-size:10px;color:var(--ink3)">…</span>';
+    preview.insertBefore(tempDiv, preview.lastElementChild||null);
+    try{
+      const ref = await storeMedia(file);
+      const idx=[...preview.children].indexOf(tempDiv);
+      if(isVideo){
+        const urlInput=document.getElementById('cn_video_url');
+        if(urlInput) urlInput.value=ref;
+        tempDiv.innerHTML=`<video src="${mediaUrl(ref)}" style="width:100%;height:100%;object-fit:cover"></video><span onclick="this.parentNode.remove()" style="position:absolute;top:2px;right:2px;background:rgba(11,18,32,.85);color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer">×</span>`;
+      } else {
+        tempDiv.innerHTML=`<img src="${mediaUrl(ref)}" style="width:100%;height:100%;object-fit:cover" data-mediaref="${ref}"><span onclick="this.parentNode.remove()" style="position:absolute;top:2px;right:2px;background:rgba(11,18,32,.85);color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer">×</span>`;
+        // Store ref in a hidden input list for saving
+        const list=document.getElementById('cn_images_list')||(()=>{const i=document.createElement('div');i.id='cn_images_list';i.style.display='none';preview.parentNode.appendChild(i);return i;})();
+        const inp=document.createElement('input'); inp.type='hidden'; inp.name='cn_img'; inp.value=ref;
+        list.appendChild(inp);
+      }
+      toast('Uploaded');
+    }catch(e){ tempDiv.remove(); alert('Upload failed: '+e.message); }
+  }
+  evt.target.value='';
+  hydrateMedia();
 }
 
 checkSessionAndBoot();
