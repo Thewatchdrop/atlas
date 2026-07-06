@@ -658,7 +658,16 @@ function migrate(){
   DB.sourcing=DB.sourcing||[];
   DB.projects=DB.projects||[];
   DB.customerImports=DB.customerImports||[];
-  (DB.drops||[]).forEach(d=>{ if(d.type==='Vault') d.vaultPrizes=d.vaultPrizes||[]; });
+  (DB.drops||[]).forEach(d=>{
+    if(d.type==='Vault'){
+      d.vaultPrizes=d.vaultPrizes||[];
+      if(!d.vaultPriceHistory||!d.vaultPriceHistory.length){
+        const price=Number((d.tracker||{}).fullTicketPrice)||2.49;
+        const sold=Number((d.tracker||{}).ticketsSoldTotal)||0;
+        d.vaultPriceHistory=[{id:uid('vph'),price,tickets:sold,from:(d.launch||today()),locked:false}];
+      }
+    }
+  });
   DB.fixedCosts=DB.fixedCosts||[];
   DB.dailyTakings=DB.dailyTakings||[];
   DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
@@ -2351,6 +2360,18 @@ function trackerBody(d){
 function vaultTrackerBody(d){
   const t=d.tracker||{};
   d.vaultPrizes=d.vaultPrizes||[];
+  // Price history: [{id, price, tickets, from, locked}]
+  // Current segment = last entry with locked:false
+  if(!d.vaultPriceHistory||!d.vaultPriceHistory.length){
+    d.vaultPriceHistory=[{id:uid('vph'),price:Number(t.fullTicketPrice)||2.49,tickets:Number(t.ticketsSoldTotal)||0,from:today(),locked:false}];
+  }
+  const history = d.vaultPriceHistory;
+  const current = history[history.length-1]; // always the active segment
+
+  // Revenue calculated from locked segments + current segment
+  const lockedTickets = history.filter(h=>h.locked).reduce((a,h)=>a+(Number(h.tickets)||0),0);
+  const totalSold = history.reduce((a,h)=>a+(Number(h.tickets)||0),0);
+  const grossRev = history.reduce((a,h)=>a+(Number(h.tickets)||0)*(Number(h.price)||0),0);
 
   // Tally won prizes
   const watchesWon   = d.vaultPrizes.filter(p=>p.type==='watch');
@@ -2360,9 +2381,8 @@ function vaultTrackerBody(d){
   const cashCostTotal  = cashWon.reduce((a,p)=>a+(Number(p.amount)||0),0);
   const totalPrizeCost = watchCostTotal + cashCostTotal;
 
-  const entriesSold  = Number(t.ticketsSoldTotal)||0;
-  const entryPrice   = Number(t.fullTicketPrice)||2.49;
-  const grossRev     = entriesSold * entryPrice;
+  const entriesSold  = totalSold;
+  const entryPrice   = Number(current.price)||2.49;
   const vatAmt       = grossRev * (0.2/1.2);
   const netRev       = grossRev - vatAmt;
   const fees         = grossRev * (Number(t.paymentFeePct)||0.01);
@@ -2384,9 +2404,41 @@ function vaultTrackerBody(d){
       <span class="btn-danger btn-sm" onclick="delVaultPrize('${d.id}','${p.id}')">✕</span>
     </div>`).join('');
 
+  const priceHistoryRows = history.map((h,i)=>`
+    <div class="row-item" style="${!h.locked?'background:var(--goldsoft)':''}">
+      <div class="txt">
+        <div class="t">${gbp(h.price)}/ticket ${!h.locked?'<span class="pill pill-live" style="font-size:9px">ACTIVE</span>':''}</div>
+        <div class="meta">from ${fmtDate(h.from)} · ${Number(h.tickets)||0} tickets · ${gbp((Number(h.tickets)||0)*(Number(h.price)||0))} revenue</div>
+      </div>
+      ${h.locked?`<span class="pill pill-done" style="font-size:10px">Locked</span>`:''}
+    </div>`).join('');
+
   return `
+  <!-- Tickets sold + current price bar -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin:18px 0 0;padding:14px 18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius)">
+    <div style="flex:1;min-width:160px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">Tickets Sold (this price period)</div>
+      <input type="number" value="${Number(current.tickets)||0}" min="0"
+        onchange="updVaultTickets('${d.id}',this.value)"
+        style="font-size:20px;font-weight:800;background:transparent;border:none;border-bottom:2px solid var(--gold);color:var(--ink);width:120px;padding:2px 0;outline:none">
+      <div class="muted" style="font-size:11px;margin-top:3px">Total across all periods: ${totalSold.toLocaleString()} (${fillPct}% of ${maxTickets.toLocaleString()})</div>
+    </div>
+    <div style="flex:1;min-width:160px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">Current Ticket Price (£)</div>
+      <input type="number" step="0.01" value="${entryPrice.toFixed(2)}"
+        onchange="changeVaultPrice('${d.id}',this.value)"
+        style="font-size:20px;font-weight:800;background:transparent;border:none;border-bottom:2px solid var(--gold);color:var(--gold2);width:120px;padding:2px 0;outline:none">
+      <div class="muted" style="font-size:11px;margin-top:3px">Change = locks current tickets, starts new period</div>
+    </div>
+    <div style="flex:0 0 auto;text-align:right">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:4px">Gross Revenue</div>
+      <div style="font-size:22px;font-weight:800;color:var(--gold2)">${gbp(grossRev)}</div>
+      <div class="muted" style="font-size:11px">net ex-VAT: ${gbp(netRev)}</div>
+    </div>
+  </div>
+
   <!-- KPI row -->
-  <div class="kpi-row" style="margin:18px 0">
+  <div class="kpi-row" style="margin:12px 0">
     <div class="kpi"><div class="label">Entries Sold</div><div class="val">${entriesSold.toLocaleString()}</div><div class="sub">${fillPct}% of ${maxTickets.toLocaleString()} pool</div></div>
     <div class="kpi"><div class="label">Gross Revenue</div><div class="val gold">${gbp(grossRev)}</div><div class="sub">net ex-VAT: ${gbp(netRev)}</div></div>
     <div class="kpi"><div class="label">Prize Cost to Date</div><div class="val">${gbp(totalPrizeCost)}</div>
@@ -2432,6 +2484,12 @@ function vaultTrackerBody(d){
     <div style="padding:0 18px 14px;display:flex;justify-content:flex-end">
       <button class="btn btn-gold" onclick="addVaultPrize('${d.id}')">＋ Log Prize</button>
     </div>
+  </div>
+
+  <!-- Price history -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-h"><h3>Price History</h3><span class="muted" style="font-size:11.5px">Past periods locked — active period updates as you sell</span></div>
+    <div class="card-b">${priceHistoryRows}</div>
   </div>
 
   <!-- Prize log -->
@@ -5358,6 +5416,29 @@ async function onContentMediaUpload(evt){
   }
   evt.target.value='';
   hydrateMedia();
+}
+
+function updVaultTickets(dropId, val){
+  const d=dropById(dropId); if(!d||!d.vaultPriceHistory) return;
+  const current=d.vaultPriceHistory[d.vaultPriceHistory.length-1];
+  current.tickets=Math.max(0,Number(val)||0);
+  // Also sync total to tracker
+  const total=d.vaultPriceHistory.reduce((a,h)=>a+(Number(h.tickets)||0),0);
+  d.tracker=d.tracker||{}; d.tracker.ticketsSoldTotal=total;
+  queueSave(); render();
+}
+function changeVaultPrice(dropId, newPrice){
+  const d=dropById(dropId); if(!d||!d.vaultPriceHistory) return;
+  const price=Math.round(Number(newPrice)*100)/100;
+  if(!price||price<=0){ render(); return; }
+  const current=d.vaultPriceHistory[d.vaultPriceHistory.length-1];
+  if(price===Number(current.price)){ render(); return; }
+  // Lock current segment
+  current.locked=true;
+  // Start new segment at new price with 0 tickets
+  d.vaultPriceHistory.push({id:uid('vph'),price,tickets:0,from:today(),locked:false});
+  d.tracker=d.tracker||{}; d.tracker.fullTicketPrice=price;
+  saveDB(); render();
 }
 
 checkSessionAndBoot();
