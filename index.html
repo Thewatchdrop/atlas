@@ -351,6 +351,152 @@
   .signout-row{padding:10px 14px;border-top:1px solid var(--line)}
   .signout-row button{width:100%;justify-content:center;font-size:12px;color:var(--ink3)}
   .signout-row button:hover{color:var(--danger)}
+
+  /* ---------- Mobile optimisation ---------- */
+  .menu-toggle{display:none}
+  .sidebar-backdrop{display:none}
+
+  @media(max-width:860px){
+    body{overflow:hidden}
+    #app{height:100dvh;min-height:100dvh}
+
+    .sidebar{
+      position:fixed;
+      top:0;
+      left:0;
+      height:100dvh;
+      width:min(82vw,310px);
+      z-index:150;
+      transform:translateX(-105%);
+      transition:transform .22s ease;
+      box-shadow:var(--shadow);
+      border-right:1px solid var(--line2);
+    }
+    .sidebar.open{transform:translateX(0)}
+
+    .sidebar-backdrop{
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(4,8,16,.58);
+      backdrop-filter:blur(2px);
+      z-index:140;
+    }
+    .sidebar-backdrop.open{display:block}
+
+    .main{width:100%;min-width:0}
+    .topbar{
+      height:auto;
+      min-height:58px;
+      padding:9px 12px;
+      gap:8px;
+      position:sticky;
+      top:0;
+      z-index:80;
+    }
+
+    .menu-toggle{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:40px;
+      height:40px;
+      border-radius:10px;
+      background:var(--panel);
+      border:1px solid var(--line2);
+      color:var(--ink);
+      font-size:21px;
+      flex-shrink:0;
+    }
+
+    .search-wrap{max-width:none;flex:1;min-width:0}
+    .search-wrap input{
+      height:40px;
+      padding:9px 12px 9px 34px;
+      font-size:16px; /* prevents iPhone zoom */
+    }
+
+    #themeToggleBtn{
+      width:40px;
+      height:40px;
+      padding:0;
+      justify-content:center;
+      overflow:hidden;
+      white-space:nowrap;
+    }
+    .topbar > .btn-gold{
+      height:40px;
+      padding:0 11px;
+      font-size:0;
+      flex-shrink:0;
+    }
+    .topbar > .btn-gold::before{
+      content:'+';
+      font-size:22px;
+      line-height:1;
+    }
+
+    .content{
+      padding:16px 12px 84px;
+      overflow-x:hidden;
+    }
+    .page-head{
+      align-items:flex-start;
+      margin-bottom:16px;
+      gap:12px;
+    }
+    .page-head h2,.hub-head .htitle h2{
+      font-size:21px;
+      line-height:1.15;
+    }
+    .page-actions{width:100%;gap:8px}
+    .page-actions .btn{flex:1;justify-content:center}
+
+    .kpi-row{
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+    }
+    .kpi{padding:12px}
+    .kpi .val{font-size:21px}
+
+    .dash-grid,.two-col,.field-row,.field-row-3{
+      grid-template-columns:1fr!important;
+    }
+    .grid{grid-template-columns:1fr}
+    .card-h{padding:12px}
+    .card-b{overflow-x:auto}
+    .row-item{padding:10px 12px}
+
+    .tabs{
+      margin:0 -12px 16px;
+      padding:0 12px;
+      scrollbar-width:none;
+    }
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{padding:10px 12px}
+
+    .tbl{min-width:680px}
+    .modal{max-width:none;border-radius:14px}
+    .overlay{
+      align-items:flex-end;
+      padding:12px;
+    }
+    .modal-b{max-height:70dvh;padding:16px}
+    .modal-h,.modal-f{padding:14px 16px}
+
+    .cal-grid,.cal-grid-head{gap:4px}
+    .cal-cell{min-height:64px;padding:5px;border-radius:7px}
+    .cal-ev{font-size:10px}
+  }
+
+  @media(max-width:420px){
+    .kpi-row{grid-template-columns:1fr}
+    .brand{padding:16px}
+    .nav{padding:4px 8px 16px}
+    .nav-item{padding:10px}
+    .content{padding-left:10px;padding-right:10px}
+  }
+
 </style>
 
 <div id="app" style="display:none">
@@ -365,8 +511,10 @@
     <nav class="nav" id="nav"></nav>
     <div class="signout-row"><button class="btn btn-sm btn-ghost" onclick="doSignOut()" id="signoutBtn">Sign out</button></div>
   </aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
   <div class="main">
     <div class="topbar">
+      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Open menu">☰</button>
       <div class="search-wrap">
         <span class="si">⌕</span>
         <input id="search" placeholder="Search everything — drops, watches, winners, content…" autocomplete="off">
@@ -1524,6 +1672,24 @@ const NAV=[
   ]},
 ];
 
+
+function toggleSidebar(){
+  const side=document.querySelector('.sidebar');
+  const back=document.getElementById('sidebarBackdrop');
+  if(side) side.classList.toggle('open');
+  if(back) back.classList.toggle('open');
+}
+function closeSidebar(){
+  const side=document.querySelector('.sidebar');
+  const back=document.getElementById('sidebarBackdrop');
+  if(side) side.classList.remove('open');
+  if(back) back.classList.remove('open');
+}
+function closeSidebarIfMobile(){
+  if(window.innerWidth<=860) closeSidebar();
+}
+window.addEventListener('resize',()=>{ if(window.innerWidth>860) closeSidebar(); });
+
 function renderNav(){
   const nav=document.getElementById('nav');
   nav.innerHTML = NAV.map(g=>`
@@ -1531,7 +1697,7 @@ function renderNav(){
     ${g.items.map(it=>{
       const active = route.view===it.k;
       const c = it.count? it.count():null;
-      return `<div class="nav-item ${active?'active':''}" onclick="go('${it.k}')">
+      return `<div class="nav-item ${active?'active':''}" onclick="go('${it.k}');closeSidebarIfMobile()">
         <span class="ico">${it.ico}</span><span>${it.label}</span>
         ${c!=null?`<span class="badge">${c}</span>`:''}
       </div>`;
