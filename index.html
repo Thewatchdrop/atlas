@@ -477,9 +477,19 @@ async function bootApp(){
   await loadDB(); migrate(); applyTheme(); render();
 }
 async function checkSessionAndBoot(){
-  await bootApp();
+  if(!sb){ showLoginErr(supabaseLoadError); return; }
+  const { data } = await sb.auth.getSession();
+  if(data && data.session){ await bootApp(); return; }
+  document.getElementById('loginScreen').style.display='flex';
 }
-// Auth disabled — re-enable before going public
+if(sb){
+  sb.auth.onAuthStateChange((event)=>{
+    if(event==='SIGNED_OUT'){
+      document.getElementById('app').style.display='none';
+      document.getElementById('loginScreen').style.display='flex';
+    }
+  });
+}
 
 const K = 'atlas:db:v1';
 let DB = null;
