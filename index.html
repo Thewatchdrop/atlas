@@ -873,7 +873,7 @@ function trkRemainingTickets(t){ return (Number(t.maxTickets)||0)-(Number(t.tick
 function trkBreakEvenPct(t){ const max=Number(t.maxTickets)||0; return max? trkBreakEvenTickets(t)/max : 0; }
 function trkRevenueToSellout(t){ return trkRemainingTickets(t)*trkFullPrice(t); }
 function trkCurrentPct(t){ const max=Number(t.maxTickets)||0; return max? (Number(t.ticketsSoldTotal)||0)/max : 0; }
-function trkStatus(t){ return trkGrossProfit(t)>=0 ? 'PROFITABLE' : 'UNPROFITABLE'; }
+function trkStatus(t){ return trkNetProfit(t)>=0 ? 'PROFITABLE' : 'UNPROFITABLE'; }
 function trkCheckpointTotal(t){ return (t.checkpoints||[]).reduce((a,c)=>a+(Number(c.ticketsSold)||0),0); }
 function toggleContentItem(dropId,itemId){
   const d=dropById(dropId); if(!d) return;
@@ -1192,7 +1192,7 @@ function dropNumbers(d){
     return {
       entries, pool, fillPct: pool? Math.round((entries/pool)*100):0,
       revenue: trkGrossRevenue(t), profit: trkNetProfit(t),
-      isProfitable: trkStatus(t)==='PROFITABLE'
+      isProfitable: trkNetProfit(t)>=0
     };
   }
   const entries=Number(d.entriesSold)||0, pool=Number(d.pool)||0;
