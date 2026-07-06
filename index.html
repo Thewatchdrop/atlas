@@ -373,6 +373,7 @@
         <div id="sresults" class="sresults"></div>
       </div>
       <button class="btn btn-sm btn-ghost" id="themeToggleBtn" onclick="toggleTheme()" title="Switch appearance">🌙 Dark</button>
+      <button class="btn btn-sm btn-ghost" onclick="reloadDataScreen()" title="Load Supabase data" style="font-size:12px">📥 Load Data</button>
       <button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button>
     </div>
     <div class="content" id="content"><div class="loading">Loading Atlas…</div></div>
@@ -466,19 +467,11 @@ async function bootApp(){
   await loadDB(); migrate(); applyTheme(); render();
 }
 async function checkSessionAndBoot(){
-  if(!sb){ showLoginErr(supabaseLoadError); return; }
-  const { data:{ session } } = await sb.auth.getSession();
-  if(session){ await bootApp(); }
-  else { document.getElementById('loginScreen').style.display='flex'; }
+  // PREVIEW MODE - bypass login for local design review
+  await bootApp();
 }
-if(sb){
-  sb.auth.onAuthStateChange((event)=>{
-    if(event==='SIGNED_OUT'){
-      document.getElementById('app').style.display='none';
-      document.getElementById('loginScreen').style.display='flex';
-    }
-  });
-}
+// PREVIEW MODE - auth state change disabled
+// if(sb){ sb.auth.onAuthStateChange(...) }
 
 const K = 'atlas:db:v1';
 let DB = null;
@@ -524,33 +517,51 @@ function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 const STATUS_PILL = {Live:'pill-live',Draft:'pill-draft',Upcoming:'pill-upcoming',Complete:'pill-done',Closed:'pill-closed'};
 const CAL_TYPE_PILL = {Launch:'pill-live',Draw:'pill-done',Task:'pill-draft',Delivery:'pill-upcoming',Content:'pill-type',Checkpoint:'pill-closed'};
 const TASK_TYPES = {
-  Payment:{ico:'💰',color:'var(--gold)'},
+  // Task category
+  Drops:{ico:'⌚',color:'var(--gold)'},
+  Vault:{ico:'🔐',color:'var(--purple)'},
   'Prize Delivery':{ico:'📦',color:'var(--blue)'},
-  Content:{ico:'🎬',color:'var(--purple)'},
-  Purchasing:{ico:'🛒',color:'var(--warn)'},
-  Meeting:{ico:'🤝',color:'var(--ink2)'},
-  Photography:{ico:'📸',color:'var(--live)'},
-  Marketing:{ico:'✉️',color:'var(--blue)'},
   Website:{ico:'🌐',color:'var(--blue)'},
-  'Winner Call':{ico:'☎️',color:'var(--gold)'},
-  Admin:{ico:'📝',color:'var(--ink3)'}
+  Idea:{ico:'💡',color:'var(--warn)'},
+  Other:{ico:'📌',color:'var(--ink3)'},
+  // Admin category
+  'Finance & Reconciliation':{ico:'💰',color:'var(--gold)'},
+  'Supplier & Purchasing':{ico:'🛒',color:'var(--warn)'},
+  'Winner & Dispatch':{ico:'📦',color:'var(--blue)'},
+  'Reporting & Data':{ico:'📊',color:'var(--live)'},
+  'Banking & Payments':{ico:'🏦',color:'var(--gold)'},
+  'Legal & Terms':{ico:'📋',color:'var(--ink2)'},
+  // Content category
+  'Leila Content':{ico:'🎬',color:'var(--purple)'},
+  'Watch Content':{ico:'⌚',color:'var(--gold)'},
+  'Content Creation':{ico:'✏️',color:'var(--live)'},
+  'Content Editing':{ico:'✂️',color:'var(--blue)'},
 };
+const TASK_TYPES_CONTENT = ['Leila Content','Watch Content','Content Creation','Content Editing','Other'];
+const TASK_TYPES_TASK = ['Drops','Vault','Prize Delivery','Website','Idea','Other'];
+const TASK_TYPES_ADMIN = ['Finance & Reconciliation','Supplier & Purchasing','Winner & Dispatch','Reporting & Data','Banking & Payments','Legal & Terms'];
 const CONTENT_CATS=['Watch Photos','Watch Video','Delivery Video','Evergreen Video','Person Only'];
 function watchGalleryKeyForCategory(cat){ return slug(cat); }
 const CONTENT_STATUSES=['Idea','In Motion','Done'];
 
 /* ---------- Storage ---------- */
 async function loadDB(){
+  // PREVIEW MODE - use localStorage, fall back to seed data
   try{
-    const r = await dbStorage.get(K);
-    if(r && r.value){ DB = JSON.parse(r.value); return; }
-  }catch(e){ /* not found -> seed */ }
+    const stored = localStorage.getItem(K);
+    if(stored){ DB = JSON.parse(stored); return; }
+  }catch(e){ /* not found */ }
   DB = seed();
   await saveDB();
 }
+
+
+
+
 let saveTimer=null;
 async function saveDB(){
-  try{ await dbStorage.set(K, JSON.stringify(DB)); }
+  // PREVIEW MODE - save to localStorage
+  try{ localStorage.setItem(K, JSON.stringify(DB)); }
   catch(e){ console.error('save failed',e); }
 }
 function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveDB,300); }
@@ -627,6 +638,7 @@ function migrate(){
   DB.settings.paymentFeePct=DB.settings.paymentFeePct!==undefined?DB.settings.paymentFeePct:0.035;
   DB.winnerResults=DB.winnerResults||[];
   DB.sourcing=DB.sourcing||[];
+  DB.projects=DB.projects||[];
   DB.fixedCosts=DB.fixedCosts||[];
   DB.dailyTakings=DB.dailyTakings||[];
   DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
@@ -684,6 +696,14 @@ function migrate(){
   (DB.tasks||[]).forEach(t=>{
     if(t.type==='Delivery') t.type='Prize Delivery';
     t.type=t.type&&TASK_TYPES[t.type]?t.type:'Admin';
+    t.projectId=t.projectId||'';
+    if(!t.category){
+      const adminTypes=['Finance & Reconciliation','Supplier & Purchasing','Winner & Dispatch','Reporting & Data','Banking & Payments','Legal & Terms'];
+      const contentTypes=['Leila Content','Watch Content','Content Creation','Content Editing','Content'];
+      if(contentTypes.includes(t.type)) t.category='Content';
+      else if(adminTypes.includes(t.type)) t.category='Admin';
+      else t.category='Task';
+    }
     t.assignedTo=t.assignedTo||DB.settings.team[0];
     t.time=t.time||'';
     t.urgent=!!t.urgent;
@@ -924,6 +944,13 @@ function vContentSchedule(){
       if(item.date===today()) dueToday.push({d,item});
       else if(item.date===tmr) dueTomorrow.push({d,item});
     });
+  });
+  // Also show Content-category tasks from DB.tasks
+  DB.tasks.filter(t=>t.category==='Content'&&!t.done).forEach(t=>{
+    const fakeItem={id:t.id,title:t.title,time:t.time||'',channel:'Task',assignee:t.assignedTo,done:t.done,isTask:true,taskId:t.id};
+    const fakeD={id:'',number:'Task',watchId:''};
+    if(t.due===today()) dueToday.push({d:fakeD,item:fakeItem});
+    else if(t.due===tmr) dueTomorrow.push({d:fakeD,item:fakeItem});
   });
   const summaryRow=(label,list)=> list.length? `<div class="card" style="margin-bottom:12px"><div class="card-h"><h3>${label} — ${list.length}</h3></div><div class="card-b">
     ${list.map(({d,item})=>`<div class="row-item">
@@ -1435,33 +1462,36 @@ const NAV=[
   {group:null,items:[{k:'dashboard',label:'Dashboard',ico:'◆'}]},
   {group:'Operations',items:[
     {k:'drops',label:'Drops',ico:'⬡',count:()=>DB.drops.length},
-    {k:'tracker',label:'Drop Tracker',ico:'📊',count:()=>DB.drops.filter(d=>!['Closed','Complete'].includes(d.status)).length},
-    {k:'pastdrops',label:'Past Drops',ico:'🗄',count:()=>DB.drops.filter(d=>['Closed','Complete'].includes(d.status)).length},
+    {k:'tracker',label:'Drop Tracker',ico:'▤',count:()=>DB.drops.filter(d=>!['Closed','Complete'].includes(d.status)).length},
+    {k:'pastdrops',label:'Past Drops',ico:'▨',count:()=>DB.drops.filter(d=>['Closed','Complete'].includes(d.status)).length},
     {k:'tasks',label:'Tasks',ico:'☑',count:()=>DB.tasks.filter(t=>!t.done).length},
-    {k:'calendar',label:'Calendar',ico:'▦'},
+    {k:'calendar',label:'Calendar',ico:'▩'},
+  ]},
+  {group:'Projects',items:[
+    {k:'projects',label:'All Projects',ico:'◈',count:()=>(DB.projects||[]).filter(p=>p.status==='Active'||p.status==='Planning').length},
   ]},
   {group:'Databases',items:[
-    {k:'watches',label:'Watch Library',ico:'⌚',count:()=>DB.watches.length},
-    {k:'sourcing',label:'Watch Sourcing',ico:'🔍',count:()=>DB.sourcing.filter(s=>!['Rejected','Purchased'].includes(s.status)).length},
-    {k:'winners',label:'Winners',ico:'★',count:()=>DB.winners.length},
-    {k:'winnerResults',label:'Winners Results',ico:'📊',count:()=>DB.winnerResults.length},
-    {k:'suppliers',label:'Suppliers',ico:'▤',count:()=>DB.suppliers.length},
-    {k:'customers',label:'Customers',ico:'◎',count:()=>DB.customers.length},
+    {k:'watches',label:'Watch Library',ico:'◷',count:()=>DB.watches.length},
+    {k:'sourcing',label:'Watch Sourcing',ico:'◌',count:()=>DB.sourcing.filter(s=>!['Rejected','Purchased'].includes(s.status)).length},
+    {k:'winners',label:'Winners',ico:'✦',count:()=>DB.winners.length},
+    {k:'winnerResults',label:'Winners Results',ico:'▦',count:()=>DB.winnerResults.length},
+    {k:'suppliers',label:'Suppliers',ico:'▦',count:()=>DB.suppliers.length},
+    {k:'customers',label:'Customers',ico:'◉',count:()=>DB.customers.length},
   ]},
   {group:'Finance',items:[
-    {k:'finance',label:'Finance Overview',ico:'💷'},
-    {k:'fixedCosts',label:'Fixed Costs',ico:'📌',count:()=>DB.fixedCosts.length},
-    {k:'marketing',label:'Marketing & Ads',ico:'📣'},
+    {k:'finance',label:'Finance Overview',ico:'₤'},
+    {k:'fixedCosts',label:'Fixed Costs',ico:'◇',count:()=>DB.fixedCosts.length},
+    {k:'marketing',label:'Marketing & Ads',ico:'◈'},
   ]},
   {group:'Content',items:[
     {k:'content',label:'New Content',ico:'✎',count:()=>DB.content.length},
-    {k:'contentSchedule',label:'Content Schedule',ico:'📅',count:()=>dueContentToday().length},
+    {k:'contentSchedule',label:'Content Schedule',ico:'▦',count:()=>dueContentToday().length},
     {k:'assets',label:'Asset Library',ico:'▣',count:()=>DB.assets.length},
-    {k:'ideas',label:'Idea Inbox',ico:'✦',count:()=>DB.ideas.length},
+    {k:'ideas',label:'Idea Inbox',ico:'✧',count:()=>DB.ideas.length},
   ]},
   {group:'Knowledge',items:[
     {k:'sops',label:'SOP Library',ico:'❐',count:()=>DB.sops.length},
-    {k:'kb',label:'Knowledge Base',ico:'◈',count:()=>DB.kb.length},
+    {k:'kb',label:'Knowledge Base',ico:'◫',count:()=>DB.kb.length},
   ]},
 ];
 
@@ -1485,7 +1515,8 @@ function render(){
   const c=document.getElementById('content');
   const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
-    content:vContent,assets:vAssets,ideas:vIdeas,sops:vSops,kb:vKB};
+    content:vContent,assets:vAssets,ideas:vIdeas,sops:vSops,kb:vKB,
+    projects:vProjects,project:vProject};
   c.innerHTML = (V[route.view]||vDashboard)();
   hydrateMedia();
 }
@@ -1499,10 +1530,13 @@ const DASH_TASK_COLUMNS=[
 ];
 function tbRow(t){
   const d=t.dropId?dropById(t.dropId):null;
+  const proj=t.projectId?projById(t.projectId):null;
   return `<div class="tb-row" onclick="openTask('${t.id}')">
     <div class="tick tb-tick ${t.done?'done':''}" onclick="event.stopPropagation();toggleTask('${t.id}')">${t.done?'✓':''}</div>
     ${t.urgent?'<span class="tb-flag" title="Urgent">⚡</span>':''}
-    <span class="tb-label" style="${t.due<today()?'color:var(--danger)':''}">${esc(t.title)}${d?' · '+esc(d.number):''}</span>
+    <span class="tb-label" style="${t.due<today()?'color:var(--danger)':''}">
+      ${esc(t.title)}${d?' · '+esc(d.number):''}${proj?` · <span style="color:var(--gold2);font-size:10.5px">◈ ${esc(proj.name)}</span>`:''}
+    </span>
   </div>`;
 }
 function winnersDispatchMini(){
@@ -1778,7 +1812,7 @@ function vDrops(){
   }).join('')}</div>
   ${ds.length? `<div class="card"><table class="tbl">
     <thead><tr><th>Drop</th><th>Type</th><th>Watch</th><th>Status</th><th>Entries</th><th>Fill</th><th>Revenue</th><th>Profit</th><th>Draw</th><th></th></tr></thead>
-    <tbody>${ds.map(d=>{const n=dropNumbers(d);return `<tr onclick="go('drop','${d.id}')">
+    <tbody>${ds.map(d=>{const n=dropNumbers(d);const linkedProj=(DB.projects||[]).find(p=>p.linkedDropId===d.id);return `<tr onclick="go('drop','${d.id}')">
       <td class="strong">${esc(d.number)}</td>
       <td><span class="pill pill-type">${esc(d.type)}</span></td>
       <td>${esc(watchName(d.watchId))}</td>
@@ -1788,13 +1822,16 @@ function vDrops(){
       <td class="mono">${gbp(n.revenue)}</td>
       <td class="mono" style="color:${n.isProfitable?'var(--live)':'var(--danger)'}">${gbp(n.profit)}</td>
       <td class="mono muted">${fmtDate(d.draw)}</td>
-      <td>${d.status!=='Complete'?`<button class="btn btn-sm btn-gold" onclick="event.stopPropagation();openCloseOut('${d.id}')" title="Close out this drop">🏁</button>`:''}</td>
+      <td style="white-space:nowrap;display:flex;gap:6px;align-items:center">
+        ${d.status!=='Complete'?`<button class="btn btn-sm btn-gold" onclick="event.stopPropagation();openCloseOut('${d.id}')" title="Close out this drop">🏁</button>`:''}
+        ${linkedProj?`<button class="btn btn-sm" onclick="event.stopPropagation();go('project','${linkedProj.id}')" title="Go to project" style="color:var(--gold2);border-color:var(--gold)">◈ ${esc(linkedProj.name)}</button>`:`<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();linkDropToProject('${d.id}')" title="Link to a project" style="font-size:11px;opacity:.5">+ Project</button>`}
+      </td>
     </tr>`;}).join('')}</tbody></table></div>`
   : `<div class="card"><div class="empty">No ${dropFilter==='All'?'':dropFilter} drops yet.<br><button onclick="newDrop()">Create your first drop →</button></div></div>`}`;
 }
 
 /* ================= DROP HUB ================= */
-const DROP_TABS=['overview','tasks','marketing','performance','winner','content','files','timeline'];
+const DROP_TABS=['overview','tasks','marketing','performance','winner','content','files','timeline','financials'];
 function vDropHub(){
   const d=dropById(route.id);
   if(!d) return `<div class="empty">Drop not found. <span class="link" onclick="go('drops')">Back to drops</span></div>`;
@@ -1829,6 +1866,7 @@ function dropTab(d,tab){
   if(tab==='content') return dropContent(d);
   if(tab==='files') return dropFiles(d);
   if(tab==='timeline') return dropTimeline(d);
+  if(tab==='financials') return `<div class="muted" style="font-size:11.5px;margin-bottom:16px">✎ All figures below are fully editable — changes update the drop's numbers everywhere in the app immediately.</div>`+trackerBody(d);
 }
 function fld(label,val,path,type='text'){
   return `<div class="field"><label>${label}</label><input type="${type}" value="${esc(val)}" onchange="updDrop('${path}',this.value)"></div>`;
@@ -1903,7 +1941,7 @@ function dropOverview(d){
             ${trkFld(d,'Total Tickets (Pool)','maxTickets')}
             ${roFld('Full Sell-Out Value (£)', trkSellOutRevenue(t).toFixed(2))}
           </div>
-          <div class="muted" style="font-size:11px">This is the plan, not performance — tickets sold, costs, ads and profit all live in the <span class="link" onclick="closeModal();openTrackerFor('${d.id}')" style="cursor:pointer">Drop Tracker →</span></div>
+          <div class="muted" style="font-size:11px">This is the plan, not performance — tickets sold, costs, ads and profit all live in the <span class="link" onclick="go('drop','${d.id}','financials')" style="cursor:pointer">Financials tab →</span></div>
         </div>
       </div>
     </div>
@@ -2132,7 +2170,7 @@ function trackerBody(d){
   const t=d.tracker;
   const w=d.watchId?watchById(d.watchId):null;
 
-  const watchDetails=`<div class="card"><div class="card-h"><h3>Watch Details</h3></div><div class="modal-b" style="max-height:none">
+  const watchDetails=`<div class="card"><div class="card-h"><h3>Watch Details</h3>${w?`<span class="link" style="font-size:12.5px;cursor:pointer" onclick="go('watches');setTimeout(()=>openWatch('${w.id}'),50)">Edit in Watch Library →</span>`:''}</div><div class="modal-b" style="max-height:none">
     <div class="field-row-3">
       <div class="field"><label>Drop</label><input value="${esc(d.number)}" disabled style="opacity:.65"></div>
       <div class="field"><label>Brand</label><input value="${esc(w?w.brand:'—')}" disabled style="opacity:.65"></div>
@@ -2343,17 +2381,33 @@ function toggleUrgentBtn(){
   b.textContent = (!on? '⚡ Urgent':'⚡ Mark urgent');
 }
 function newTask(){
-  const t={id:uid('t'),title:'New task',dropId:'',due:today(),done:false,type:'Admin',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()};
+  const t={id:uid('t'),title:'New task',dropId:'',due:today(),done:false,category:'Task',type:'Admin',projectId:'',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()};
   DB.tasks.unshift(t); saveDB(); openTask(t.id);
+}
+function taskTypeOptions(cat){
+  if(cat==='Content') return TASK_TYPES_CONTENT;
+  if(cat==='Admin') return TASK_TYPES_ADMIN;
+  return TASK_TYPES_TASK;
 }
 function openTask(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t)return;
+  const cat = t.category||'Task';
+  const typeOpts = taskTypeOptions(cat);
+  const currentType = typeOpts.includes(t.type) ? t.type : typeOpts[0];
   openModal(`<div class="modal"><div class="modal-h"><h3>Task</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
       ${mInput('tk_title','Title',t.title)}
       ${mArea('tk_notes','Notes (optional)',t.notes)}
+      <div class="field" style="margin-bottom:14px">
+        <label>Category</label>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button type="button" id="tk_cat_task" class="btn btn-sm ${cat==='Task'?'btn-gold':''}" onclick="switchTaskCategory('Task')">📋 Task</button>
+          <button type="button" id="tk_cat_admin" class="btn btn-sm ${cat==='Admin'?'btn-gold':''}" onclick="switchTaskCategory('Admin')">🗂 Admin</button>
+          <button type="button" id="tk_cat_content" class="btn btn-sm ${cat==='Content'?'btn-gold':''}" onclick="switchTaskCategory('Content')">🎬 Content</button>
+        </div>
+      </div>
       <div class="field-row">
-        <div class="field"><label>Type</label>${dd('tk_type',Object.keys(TASK_TYPES),t.type||'Admin','onTaskTypeChange')}</div>
+        <div class="field"><label>Type</label><div id="tk_type_wrap">${dd('tk_type',typeOpts,currentType,'onTaskTypeChange')}</div></div>
         <div class="field"><label>Assigned to</label>${dd('tk_assignee',teamList(),t.assignedTo||teamList()[0])}</div>
       </div>
       <div class="field-row">
@@ -2362,7 +2416,8 @@ function openTask(id){
       </div>
       <div class="field"><label>Repeat</label>${dd('tk_repeat',['None','Weekly'], t.repeat||'None')}</div>
       <div class="field"><label>Linked drop</label>${dd('tk_drop',[{value:'',label:'—'},...DB.drops.map(d=>({value:d.id,label:d.number}))], t.dropId||'')}</div>
-      <div class="field" id="tk_person_field" style="${t.type==='Prize Delivery'?'':'display:none'}"><label>Linked customer/winner</label>${dd('tk_person',[{value:'',label:'— none —'},
+      <div class="field"><label>Linked project</label>${dd('tk_project',[{value:'',label:'— None —'},...(DB.projects||[]).map(p=>({value:p.id,label:p.name}))], t.projectId||'')}</div>
+      <div class="field" id="tk_person_field" style="${currentType==='Prize Delivery'?'':'display:none'}"><label>Linked customer/winner</label>${dd('tk_person',[{value:'',label:'— none —'},
         ...DB.winners.map(w=>({value:'win_'+w.id,label:`🏆 ${w.name||'Unnamed winner'}`})),
         ...DB.customers.map(c=>({value:'cust_'+c.id,label:`${c.name||'Unnamed customer'}`}))], t.personRef||'')}</div>
       ${fileField('tk_file','Attachment (optional)',t.file)}
@@ -2373,16 +2428,42 @@ function openTask(id){
     <div class="modal-f"><button class="btn btn-danger" onclick="delTask('${id}');closeModal()">Delete</button>
       <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveTask('${id}')">Save</button></div></div>`);
 }
+function switchTaskCategory(cat){
+  // Update all category buttons
+  ['task','admin','content'].forEach(c=>{
+    const b=document.getElementById('tk_cat_'+c);
+    if(b){ b.classList.toggle('btn-gold', c===cat.toLowerCase()); }
+  });
+  // Rebuild type dropdown
+  const wrap=document.getElementById('tk_type_wrap');
+  if(wrap){
+    const opts=taskTypeOptions(cat);
+    let sel='<select id="tk_type" onchange="onTaskTypeChange(this.id,this.value)">';
+    opts.forEach(o=>{ sel+=`<option value="${o}">${o}</option>`; });
+    sel+='</select>';
+    wrap.innerHTML=sel;
+  }
+  // Hide person field
+  const pf=document.getElementById('tk_person_field'); if(pf) pf.style.display='none';
+}
 function onTaskTypeChange(id,val){
   const wrap=document.getElementById('tk_person_field');
   if(wrap) wrap.style.display = (val==='Prize Delivery') ? '' : 'none';
 }
+// category stored on save via hidden state
 function saveTask(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t)return;
   t.title=document.getElementById('tk_title').value||t.title;
+  // Detect category from which button is active
+  const catContent=document.getElementById('tk_cat_content');
+  const catAdmin=document.getElementById('tk_cat_admin');
+  if(catContent&&catAdmin){
+    t.category = catContent.classList.contains('btn-gold') ? 'Content' : catAdmin.classList.contains('btn-gold') ? 'Admin' : 'Task';
+  }
   t.type=ddVal('tk_type'); t.assignedTo=ddVal('tk_assignee');
   t.due=document.getElementById('tk_due').value; t.time=document.getElementById('tk_time').value;
   t.dropId=ddVal('tk_drop');
+  t.projectId=ddVal('tk_project')||'';
   t.personRef = (t.type==='Prize Delivery') ? ddVal('tk_person') : '';
   t.notes=document.getElementById('tk_notes').value;
   t.file=mediaVal('tk_file');
@@ -3980,5 +4061,468 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
   document.body.appendChild(t);setTimeout(()=>t.remove(),2200);}
 
 /* ---------- Boot ---------- */
+/* ================= PROJECTS ================= */
+const PROJECT_STATUSES = ['Planning','Active','On Hold','Complete'];
+const PROJECT_TYPES = ['D-Series','W-Series','T-Series','V-Series','Marketing','Website','Other'];
+const PROJECT_COLORS = {
+  'D-Series':'#C9A24B','W-Series':'#6AA9FF','T-Series':'#4ADE80',
+  'V-Series':'#C86DD7','Marketing':'#F5A524','Website':'#F26D6D','Other':'#7688A8'
+};
+
+function projById(id){ return (DB.projects||[]).find(p=>p.id===id); }
+
+function projectProgress(p){
+  const ms = p.milestones||[];
+  const tasks = (DB.tasks||[]).filter(t=>t.projectId===p.id);
+  const msDone = ms.filter(m=>m.done).length;
+  const tDone = tasks.filter(t=>t.done).length;
+  const msTotal = ms.length, tTotal = tasks.length;
+  if(!msTotal && !tTotal) return 0;
+  if(!msTotal) return Math.round(tDone/tTotal*100);
+  if(!tTotal) return Math.round(msDone/msTotal*100);
+  return Math.round((msDone/msTotal*0.6 + tDone/tTotal*0.4)*100);
+}
+
+function vProjects(){
+  const projects = DB.projects||[];
+  const active = projects.filter(p=>p.status==='Active'||p.status==='Planning');
+  const done = projects.filter(p=>p.status==='Complete'||p.status==='On Hold');
+
+  function projectCard(p){
+    const pct = projectProgress(p);
+    const tasks = (DB.tasks||[]).filter(t=>t.projectId===p.id);
+    const openTasks = tasks.filter(t=>!t.done).length;
+    const ms = p.milestones||[];
+    const msDone = ms.filter(m=>m.done).length;
+    const color = PROJECT_COLORS[p.type]||'var(--gold)';
+    const statusColor = p.status==='Active'?'var(--live)':p.status==='Planning'?'var(--warn)':p.status==='On Hold'?'var(--danger)':'var(--ink3)';
+    return `<div class="gcard" onclick="go('project','${p.id}')" style="cursor:pointer;border-top:3px solid ${color}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-weight:800;font-size:15px;margin-bottom:3px">${esc(p.name)}</div>
+          <div class="muted" style="font-size:11.5px">${esc(p.type)} · ${esc(p.owner||'')}</div>
+        </div>
+        <span class="pill" style="background:${statusColor}1a;color:${statusColor};border:1px solid ${statusColor}40;font-size:10px;white-space:nowrap">${p.status}</span>
+      </div>
+      ${p.description?`<div class="muted" style="font-size:12px;margin-bottom:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(p.description)}</div>`:''}
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:5px">
+          <span class="muted">Progress</span>
+          <span style="font-weight:700;color:${color}">${pct}%</span>
+        </div>
+        <div style="height:6px;background:var(--line);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:3px;transition:width .4s ease"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;font-size:11px;color:var(--ink3);margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
+        <span>✓ ${msDone}/${ms.length} milestones</span>
+        <span>☑ ${tasks.length-openTasks}/${tasks.length} tasks</span>
+        ${p.targetDate?`<span style="margin-left:auto">🎯 ${fmtDate(p.targetDate)}</span>`:''}
+      </div>
+    </div>`;
+  }
+
+  return `<div class="page-head"><div><h2>Projects</h2><div class="desc">Bigger initiatives — Vault launches, campaigns, builds.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="newProject()">＋ New Project</button></div></div>
+  ${active.length?`<div style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);font-weight:600">Active & Planning — ${active.length}</div>
+  <div class="g-grid" style="margin-bottom:28px">${active.map(projectCard).join('')}</div>`:'<div class="card"><div class="empty">No active projects yet. <button onclick="newProject()">＋ Create your first project</button></div></div>'}
+  ${done.length?`<div style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);font-weight:600">Completed & On Hold — ${done.length}</div>
+  <div class="g-grid">${done.map(projectCard).join('')}</div>`:''}`
+}
+
+let projectTab='overview';
+function vProject(){
+  const p=projById(route.id);
+  if(!p) return `<div class="empty">Project not found. <span class="link" onclick="go('projects')">Back to Projects</span></div>`;
+  const pct=projectProgress(p);
+  const color=PROJECT_COLORS[p.type]||'var(--gold)';
+  const tasks=(DB.tasks||[]).filter(t=>t.projectId===p.id);
+  const tab=route.tab||'overview';
+
+  const statusColor = p.status==='Active'?'var(--live)':p.status==='Planning'?'var(--warn)':p.status==='On Hold'?'var(--danger)':'var(--ink3)';
+  return `<div class="page-actions" style="margin-bottom:14px"><span class="link muted" onclick="go('projects')" style="cursor:pointer;font-size:13px">← All projects</span></div>
+  <div style="border-bottom:3px solid ${color};padding-bottom:16px;margin-bottom:0">
+    <!-- Full width: name + progress + meta horizontal -->
+    <div style="flex:1;min-width:280px">
+      <input value="${esc(p.name)}" onchange="updProj('${p.id}','name',this.value)"
+        style="font-size:28px;font-weight:800;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--ink);width:100%;padding:2px 0;outline:none;letter-spacing:-.3px;margin-bottom:14px"
+        onfocus="this.style.borderBottomColor='${color}'"
+        onblur="this.style.borderBottomColor='transparent'">
+      <!-- Horizontal meta row -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:flex-end">
+        <div><div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Status</div>${dd('proj_status_'+p.id,PROJECT_STATUSES,p.status,'onProjStatusChange')}</div>
+        <div><div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Type</div>${dd('pj_type_${p.id}',PROJECT_TYPES,p.type,'onProjTypeChange')}</div>
+        <div><div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Owner</div>${dd('pj_owner_${p.id}',teamList(),p.owner||teamList()[0],'onProjOwnerChange')}</div>
+        <div><div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Start</div><input type="date" value="${esc(p.startDate||'')}" onchange="updProj('${p.id}','startDate',this.value)" style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:7px 10px;font-size:13px"></div>
+        <div><div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Target</div><input type="date" value="${esc(p.targetDate||'')}" onchange="updProj('${p.id}','targetDate',this.value)" style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:7px 10px;font-size:13px"></div>
+        <div style="margin-left:auto;text-align:right"><div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Progress</div><span style="font-weight:800;font-size:22px;color:${color}">${pct}%</span></div>
+      </div>
+      <div style="height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin-bottom:10px">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:5px;transition:width .4s ease"></div>
+      </div>
+      <div style="display:flex;gap:16px;font-size:12px;color:var(--ink3)">
+        <span>✓ ${(p.milestones||[]).filter(m=>m.done).length}/${(p.milestones||[]).length} milestones</span>
+        <span>☑ ${tasks.filter(t=>t.done).length}/${tasks.length} tasks</span>
+      </div>
+    </div>
+  </div>
+  <div class="tabs" style="margin-top:0">${['overview','tasks','milestones','notes','content'].map(t=>`<div class="tab ${t===tab?'active':''}" onclick="projectTab='${t}';go('project','${p.id}','${t}')">${t.charAt(0).toUpperCase()+t.slice(1)}${t==='tasks'?` · ${tasks.length}`:t==='milestones'?` · ${(p.milestones||[]).length}`:''}</div>`).join('')}</div>
+  <div>${projTab(p,tab)}</div>`;
+}
+
+function onProjStatusChange(id,val){
+  const pid=id.replace('proj_status_','');
+  const p=projById(pid); if(p){p.status=val;queueSave();render();}
+}
+
+function projTab(p,tab){
+  if(tab==='overview') return projOverview(p);
+  if(tab==='tasks') return projTasks(p);
+  if(tab==='milestones') return projMilestones(p);
+  if(tab==='notes') return projNotes(p);
+  if(tab==='content') return projContent(p);
+  return projOverview(p);
+}
+
+function projOverview(p){
+  return `<div class="two-col" style="margin-top:18px">
+    <div class="card"><div class="card-h"><h3>Project Details</h3></div><div class="modal-b" style="max-height:none">
+      <div class="field"><label>Name</label><input value="${esc(p.name)}" onchange="updProj('${p.id}','name',this.value)"></div>
+      <div class="field-row">
+        <div class="field"><label>Type</label>${dd('pj_type_'+p.id,PROJECT_TYPES,p.type,'onProjTypeChange')}</div>
+        <div class="field"><label>Owner</label>${dd('pj_owner_'+p.id,teamList(),p.owner||teamList()[0],'onProjOwnerChange')}</div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Start Date</label><input type="date" value="${esc(p.startDate||'')}" onchange="updProj('${p.id}','startDate',this.value)"></div>
+        <div class="field"><label>Target Date</label><input type="date" value="${esc(p.targetDate||'')}" onchange="updProj('${p.id}','targetDate',this.value)"></div>
+      </div>
+      <div class="field"><label>Description</label><textarea onchange="updProj('${p.id}','description',this.value)" style="min-height:100px">${esc(p.description||'')}</textarea></div>
+    </div></div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card"><div class="card-h"><h3>Progress Summary</h3></div><div class="modal-b" style="max-height:none">
+        ${projProgressBreakdown(p)}
+      </div></div>
+      <div class="card"><div class="card-h"><h3>Linked Drops</h3></div><div class="modal-b" style="max-height:none">
+        <div class="field"><label>Link a drop</label>${dd('pj_drop_'+p.id,[{value:'',label:'— None —'},...DB.drops.map(d=>({value:d.id,label:d.number+' — '+watchName(d.watchId)}))],p.linkedDropId||'','onProjDropChange')}</div>
+      </div></div>
+    </div>
+  </div>
+  <div style="margin-top:12px;display:flex;justify-content:flex-end">
+    <button class="btn btn-danger" onclick="delProject('${p.id}')">Delete project</button>
+  </div>`;
+}
+
+function projProgressBreakdown(p){
+  const ms=p.milestones||[];
+  const tasks=(DB.tasks||[]).filter(t=>t.projectId===p.id);
+  const msDone=ms.filter(m=>m.done).length;
+  const tDone=tasks.filter(t=>t.done).length;
+  const color=PROJECT_COLORS[p.type]||'var(--gold)';
+  const rows=[
+    ['Milestones',msDone,ms.length],
+    ['Tasks',tDone,tasks.length],
+  ];
+  return rows.map(([label,done,total])=>{
+    const pct=total?Math.round(done/total*100):0;
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px">
+        <span class="muted">${label}</span>
+        <span style="font-weight:700">${done} / ${total}</span>
+      </div>
+      <div style="height:5px;background:var(--line);border-radius:3px">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:3px"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function onProjTypeChange(id,val){ const pid=id.replace('pj_type_',''); updProj(pid,'type',val); }
+function onProjOwnerChange(id,val){ const pid=id.replace('pj_owner_',''); updProj(pid,'owner',val); }
+function onProjDropChange(id,val){ const pid=id.replace('pj_drop_',''); updProj(pid,'linkedDropId',val); }
+
+function projTasks(p){
+  const tasks=(DB.tasks||[]).filter(t=>t.projectId===p.id);
+  const open=tasks.filter(t=>!t.done);
+  const done=tasks.filter(t=>t.done);
+  return `<div style="margin-top:18px">
+    <div class="card">
+      <div class="card-h"><h3>Tasks — ${open.length} open</h3>
+        <button class="btn btn-sm btn-gold" onclick="newProjectTask('${p.id}')">＋ Add Task</button>
+      </div>
+      <div class="card-b">
+        ${open.length?open.map(t=>projTaskRow(t)).join(''):'<div class="empty">No open tasks.</div>'}
+        ${done.length?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+          <div class="muted" style="font-size:11px;margin-bottom:8px">Completed — ${done.length}</div>
+          ${done.map(t=>projTaskRow(t)).join('')}
+        </div>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function projTaskRow(t){
+  return `<div class="row-item" onclick="openTask('${t.id}')">
+    <div class="tick ${t.done?'done':''}" onclick="event.stopPropagation();toggleTask('${t.id}')">${t.done?'✓':''}</div>
+    ${t.urgent?'<span style="color:var(--warn);font-size:12px">⚡</span>':''}
+    <div class="txt">
+      <div class="t" style="${t.done?'text-decoration:line-through;color:var(--ink3)':''}">${esc(t.title)}</div>
+      <div class="meta">${esc(t.type)}${t.assignedTo?' · '+esc(t.assignedTo):''}${t.due?' · '+fmtDate(t.due):''}</div>
+    </div>
+    <span class="pill pill-type" style="font-size:10px">${esc(t.category||'Task')}</span>
+  </div>`;
+}
+
+function projMilestones(p){
+  const ms=p.milestones||[];
+  const done=ms.filter(m=>m.done).length;
+  const color=PROJECT_COLORS[p.type]||'var(--gold)';
+  return `<div style="margin-top:18px">
+    <div class="card">
+      <div class="card-h"><h3>Milestones — ${done}/${ms.length} done</h3>
+        <button class="btn btn-sm btn-gold" onclick="addMilestone('${p.id}')">＋ Add Milestone</button>
+      </div>
+      <div class="card-b">
+        ${ms.length?ms.map((m,i)=>`
+          <div class="row-item" style="${m.done?'opacity:.6':''}">
+            <div class="tick ${m.done?'done':''}" onclick="toggleMilestone('${p.id}','${m.id}')">${m.done?'✓':''}</div>
+            <div class="txt">
+              <div class="t" style="${m.done?'text-decoration:line-through':''}">${esc(m.title)}</div>
+              ${m.date?`<div class="meta">${fmtDate(m.date)}</div>`:''}
+            </div>
+            <input type="date" value="${esc(m.date||'')}" style="font-size:11px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:6px;padding:3px 6px" onchange="updMilestone('${p.id}','${m.id}','date',this.value)">
+            <button class="btn btn-sm btn-danger" onclick="delMilestone('${p.id}','${m.id}')">✕</button>
+          </div>`).join(''):'<div class="empty">No milestones yet.</div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
+function projNotes(p){
+  const notes=(p.notes||[]).slice().reverse();
+  return `<div style="margin-top:18px">
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h"><h3>Add Note</h3></div>
+      <div style="padding:14px 18px">
+        <textarea id="proj_note_input_${p.id}" placeholder="Type a note, update or decision..." style="width:100%;min-height:80px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 12px;resize:vertical;outline:none;font-family:inherit;font-size:14px"></textarea>
+        <div style="margin-top:8px;display:flex;justify-content:flex-end">
+          <button class="btn btn-gold btn-sm" onclick="addProjNote('${p.id}')">Save Note</button>
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="card-h"><h3>Notes Log</h3></div>
+      <div class="card-b">
+        ${notes.length?notes.map(n=>`
+          <div style="padding:12px 0;border-bottom:1px solid var(--line)">
+            <div style="font-size:11px;color:var(--ink3);margin-bottom:5px">${esc(n.author||'Felix')} · ${n.created?new Date(n.created).toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</div>
+            <div style="font-size:13.5px;white-space:pre-wrap;line-height:1.5">${esc(n.text)}</div>
+          </div>`).join(''):'<div class="empty">No notes yet.</div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
+
+// Track selected drop per project for content tab
+const projContentDrop = {};
+
+function projContent(p){
+  const color = PROJECT_COLORS[p.type]||'var(--gold)';
+  const CS_COLORS = {'Email':'var(--gold2)','Post':'var(--blue)','Story':'var(--purple)','Text':'var(--live)','SMS':'var(--live)','Task':'var(--ink3)'};
+
+  const DROP_SERIES = [
+    {label:'Main Drop',   type:'Main Drop'},
+    {label:'Weekend Drop',type:'Weekend Drop'},
+    {label:'Tech Drop',   type:'Tech Drop'},
+    {label:'Vault',       type:'Vault'},
+  ];
+
+  // Determine active series — default to linked drop's type, or first series
+  const linkedDrop = p.linkedDropId ? dropById(p.linkedDropId) : null;
+  const defaultSeries = linkedDrop ? linkedDrop.type : 'Main Drop';
+  const activeSeries = projContentDrop[p.id+'_series'] || defaultSeries;
+
+  // All drops of selected series type, sorted most recent first
+  const seriesDrops = DB.drops
+    .filter(d=>d.type===activeSeries)
+    .sort((a,b)=>(b.draw||'').localeCompare(a.draw||''));
+
+  // Selected drop within that series — default to linked drop if it matches, else first
+  const defaultDropId = (linkedDrop&&linkedDrop.type===activeSeries) ? linkedDrop.id : (seriesDrops[0]?seriesDrops[0].id:'');
+  const activeDropId = projContentDrop[p.id+'_drop'] && seriesDrops.find(d=>d.id===projContentDrop[p.id+'_drop']) 
+    ? projContentDrop[p.id+'_drop'] : defaultDropId;
+
+  const d = activeDropId ? dropById(activeDropId) : null;
+
+  // Content schedule for selected drop
+  const checklist = d ? (d.contentChecklist||[]) : [];
+  const byDate = {};
+  checklist.forEach(item=>{ (byDate[item.date]=byDate[item.date]||[]).push(item); });
+  const dates = Object.keys(byDate).sort();
+  const done = checklist.filter(i=>i.done).length;
+  const total = checklist.length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  const contentItems = d ? (DB.content||[]).filter(c=>c.dropId===d.id) : [];
+
+  return `<div style="margin-top:18px">
+    <!-- Series selector -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="modal-b" style="max-height:none;padding:14px 18px">
+        <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:0 0 auto">
+            <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Series</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${DROP_SERIES.map(s=>`<button class="btn btn-sm ${activeSeries===s.type?'btn-gold':''}" onclick="setProjContentSeries('${p.id}','${s.type}')">${s.label}</button>`).join('')}
+            </div>
+          </div>
+          <div style="flex:1;min-width:160px">
+            <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Drop</div>
+            ${seriesDrops.length
+              ? `<select onchange="setProjContentDrop('${p.id}',this.value)" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px;font-size:13px">
+                  ${seriesDrops.map(dr=>`<option value="${dr.id}" ${dr.id===activeDropId?'selected':''}>${esc(dr.number)} — ${esc(watchName(dr.watchId))} · ${fmtDate(dr.draw)}</option>`).join('')}
+                </select>`
+              : `<div class="muted" style="font-size:13px">No ${activeSeries} drops yet.</div>`}
+          </div>
+          ${d?`<div style="text-align:right;flex:0 0 auto">
+            <div style="font-size:10px;color:var(--ink3);margin-bottom:4px">Content done</div>
+            <div style="font-size:22px;font-weight:800;color:${color}">${pct}%</div>
+            <div class="muted" style="font-size:11px">${done}/${total}</div>
+          </div>`:''}
+        </div>
+        ${d?`<div style="height:5px;background:var(--line);border-radius:3px;margin-top:12px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:3px;transition:width .4s ease"></div>
+        </div>`:''}
+      </div>
+    </div>
+
+    <!-- Content schedule -->
+    ${d ? `
+    <div style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);font-weight:600">Content Schedule — ${esc(d.number)}</div>
+    ${dates.length ? `<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;margin-bottom:20px">
+      ${dates.map(dt=>{
+        const dayName=new Date(dt+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+        const isToday=dt===today();
+        const isPast=dt<today();
+        const dayItems=byDate[dt].sort((a,b)=>a.time.localeCompare(b.time));
+        const dayDone=dayItems.filter(i=>i.done).length;
+        return `<div style="min-width:200px;flex:0 0 auto;background:var(--panel);border:1px solid ${isToday?color:'var(--line)'};border-radius:var(--radius);padding:12px 14px;${isPast&&dayDone<dayItems.length?'opacity:.7':''}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-weight:700;font-size:12.5px">${dayName}${isToday?' <span style="color:'+color+';font-size:10px">TODAY</span>':''}</div>
+            <span style="font-size:10px;color:var(--ink3)">${dayDone}/${dayItems.length}</span>
+          </div>
+          ${dayItems.map(item=>`
+            <div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-top:1px solid var(--line)">
+              <div class="tick ${item.done?'done':''}" style="margin-top:1px;flex-shrink:0" onclick="toggleContentItem('${d.id}','${item.id}')">${item.done?'✓':''}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;${item.done?'text-decoration:line-through;color:var(--ink3)':''}">${esc(item.title)}</div>
+                <div style="font-size:10.5px;color:var(--ink3)">${item.time} · <span style="color:${CS_COLORS[item.channel]||'var(--ink3)'}">${item.channel}</span></div>
+              </div>
+            </div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>` : `<div class="card" style="margin-bottom:20px"><div class="empty">No content schedule for ${esc(d.number)} yet.</div></div>`}
+
+    <!-- Content items -->
+    <div style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);font-weight:600">Content Items</div>
+    <div class="card">
+      <div class="card-h"><h3>Linked to ${esc(d.number)}</h3>
+        <span class="link" onclick="go('drop','${d.id}','content')" style="font-size:12.5px">Open in Drop Hub →</span>
+      </div>
+      <div class="card-b">
+        ${contentItems.length ? contentItems.map(c=>`
+          <div class="row-item" onclick="openContent('${c.id}')">
+            <div class="txt"><div class="t">${esc(c.title)}</div>
+            <div class="meta">${esc(c.category)}${c.filmDate?' · film '+fmtDate(c.filmDate):''}</div></div>
+            <span class="pill pill-draft">${c.status}</span>
+          </div>`).join('')
+        : `<div class="empty">No content items linked to ${esc(d.number)} yet. <span class="link" onclick="go('content')">Add content →</span></div>`}
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
+function setProjContentSeries(projId, seriesType){
+  projContentDrop[projId+'_series'] = seriesType;
+  projContentDrop[projId+'_drop'] = ''; // reset drop selection when series changes
+  render();
+}
+function setProjContentDrop(projId, dropId){
+  projContentDrop[projId+'_drop'] = dropId;
+  render();
+}
+/* Project CRUD */
+function newProject(){
+  const p={id:uid('proj'),name:'New Project',type:'Other',status:'Planning',owner:teamList()[0],startDate:today(),targetDate:'',description:'',milestones:[],notes:[],linkedDropId:'',created:now()};
+  DB.projects=DB.projects||[];
+  DB.projects.unshift(p);
+  saveDB();
+  go('project',p.id,'overview');
+}
+
+function updProj(id,field,val){
+  const p=projById(id); if(!p) return;
+  p[field]=val; queueSave(); render();
+}
+
+function delProject(id){
+  if(!confirm('Delete this project? Tasks will remain but lose the project link.')) return;
+  DB.projects=(DB.projects||[]).filter(p=>p.id!==id);
+  DB.tasks.forEach(t=>{ if(t.projectId===id) t.projectId=''; });
+  saveDB(); go('projects');
+}
+
+function newProjectTask(projId){
+  const t={id:uid('t'),title:'New task',dropId:'',projectId:projId,due:today(),done:false,category:'Task',type:'Drops',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()};
+  DB.tasks.unshift(t); saveDB(); openTask(t.id);
+}
+
+function addMilestone(projId){
+  const title=prompt('Milestone name:'); if(!title||!title.trim()) return;
+  const p=projById(projId); if(!p) return;
+  p.milestones=p.milestones||[];
+  p.milestones.push({id:uid('ms'),title:title.trim(),date:'',done:false,created:now()});
+  saveDB(); render();
+}
+
+function toggleMilestone(projId,msId){
+  const p=projById(projId); if(!p) return;
+  const m=(p.milestones||[]).find(x=>x.id===msId); if(!m) return;
+  m.done=!m.done; queueSave(); render();
+}
+
+function updMilestone(projId,msId,field,val){
+  const p=projById(projId); if(!p) return;
+  const m=(p.milestones||[]).find(x=>x.id===msId); if(!m) return;
+  m[field]=val; queueSave();
+}
+
+function delMilestone(projId,msId){
+  const p=projById(projId); if(!p) return;
+  p.milestones=(p.milestones||[]).filter(x=>x.id!==msId);
+  saveDB(); render();
+}
+
+function addProjNote(projId){
+  const inp=document.getElementById('proj_note_input_'+projId);
+  if(!inp||!inp.value.trim()) return;
+  const p=projById(projId); if(!p) return;
+  p.notes=p.notes||[];
+  p.notes.push({id:uid('note'),text:inp.value.trim(),author:DB.settings&&DB.settings.team?DB.settings.team[0]:'Felix',created:now()});
+  inp.value='';
+  saveDB(); render();
+}
+
+function linkDropToProject(dropId){
+  const projects = DB.projects||[];
+  if(!projects.length){ if(confirm('No projects yet. Create one now?')) newProject(); return; }
+  // Simple select via prompt — list project names
+  const names = projects.map((p,i)=>`${i+1}. ${p.name}`).join('\n');
+  const choice = prompt(`Link to which project?\n\n${names}\n\nEnter number:`);
+  if(!choice) return;
+  const idx = parseInt(choice)-1;
+  if(isNaN(idx)||idx<0||idx>=projects.length) return;
+  projects[idx].linkedDropId = dropId;
+  saveDB(); render();
+}
+
 checkSessionAndBoot();
 </script>
