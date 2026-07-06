@@ -2383,13 +2383,15 @@ function vaultTrackerBody(d){
 
   const entriesSold  = totalSold;
   const entryPrice   = Number(current.price)||2.49;
-  const vatAmt       = grossRev * (0.2/1.2);
-  const netRev       = grossRev - vatAmt;
-  const fees         = grossRev * (Number(t.paymentFeePct)||0.01);
+  const creditPct    = (Number(t.creditRedemptionPct)||0)/100;
+  const cashRev      = grossRev * (1 - creditPct);
+  const vatAmt       = cashRev * (0.2/1.2);
+  const netRev       = cashRev - vatAmt;
+  const fees         = cashRev * (Number(t.paymentFeePct)||0.01);
   const fixed        = Number(t.fixed)||0;
   const adsBudget    = Number(t.adsBudget)||0;
   const totalCost    = totalPrizeCost + fixed + adsBudget + fees;
-  const netProfit    = grossRev - totalCost - vatAmt;
+  const netProfit    = cashRev - totalCost - vatAmt;
   const maxTickets   = Number(t.maxTickets)||99999;
   const fillPct      = maxTickets? (entriesSold/maxTickets*100).toFixed(1) : 0;
 
@@ -2417,11 +2419,11 @@ function vaultTrackerBody(d){
   <!-- Tickets sold + current price bar -->
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin:18px 0 0;padding:14px 18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius)">
     <div style="flex:1;min-width:160px">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">Tickets Sold (this price period)</div>
-      <input type="number" value="${Number(current.tickets)||0}" min="0"
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">Total Tickets Sold (running)</div>
+      <input type="number" value="${totalSold}" min="0"
         onchange="updVaultTickets('${d.id}',this.value)"
         style="font-size:20px;font-weight:800;background:transparent;border:none;border-bottom:2px solid var(--gold);color:var(--ink);width:120px;padding:2px 0;outline:none">
-      <div class="muted" style="font-size:11px;margin-top:3px">Total across all periods: ${totalSold.toLocaleString()} (${fillPct}% of ${maxTickets.toLocaleString()})</div>
+      <div class="muted" style="font-size:11px;margin-top:3px">${lockedTickets} locked · ${Number(current.tickets)||0} at current price · ${fillPct}% of ${maxTickets.toLocaleString()}</div>
     </div>
     <div style="flex:1;min-width:160px">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">Current Ticket Price (£)</div>
@@ -2430,17 +2432,24 @@ function vaultTrackerBody(d){
         style="font-size:20px;font-weight:800;background:transparent;border:none;border-bottom:2px solid var(--gold);color:var(--gold2);width:120px;padding:2px 0;outline:none">
       <div class="muted" style="font-size:11px;margin-top:3px">Change = locks current tickets, starts new period</div>
     </div>
+    <div style="flex:1;min-width:160px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">Credit Redemption %</div>
+      <input type="number" step="1" min="0" max="100" value="${Number(t.creditRedemptionPct)||0}"
+        onchange="updVaultCreditPct('${d.id}',this.value)"
+        style="font-size:20px;font-weight:800;background:transparent;border:none;border-bottom:2px solid var(--purple);color:var(--purple);width:80px;padding:2px 0;outline:none">
+      <div class="muted" style="font-size:11px;margin-top:3px">% of entries paid with credit (no real cash)</div>
+    </div>
     <div style="flex:0 0 auto;text-align:right">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:4px">Gross Revenue</div>
-      <div style="font-size:22px;font-weight:800;color:var(--gold2)">${gbp(grossRev)}</div>
-      <div class="muted" style="font-size:11px">net ex-VAT: ${gbp(netRev)}</div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:4px">Real Cash Revenue</div>
+      <div style="font-size:22px;font-weight:800;color:var(--gold2)">${gbp(cashRev)}</div>
+      <div class="muted" style="font-size:11px">gross: ${gbp(grossRev)} · credit deducted: ${gbp(grossRev-cashRev)}</div>
     </div>
   </div>
 
   <!-- KPI row -->
   <div class="kpi-row" style="margin:12px 0">
     <div class="kpi"><div class="label">Entries Sold</div><div class="val">${entriesSold.toLocaleString()}</div><div class="sub">${fillPct}% of ${maxTickets.toLocaleString()} pool</div></div>
-    <div class="kpi"><div class="label">Gross Revenue</div><div class="val gold">${gbp(grossRev)}</div><div class="sub">net ex-VAT: ${gbp(netRev)}</div></div>
+    <div class="kpi"><div class="label">Real Cash Revenue</div><div class="val gold">${gbp(cashRev)}</div><div class="sub">gross: ${gbp(grossRev)} · net ex-VAT: ${gbp(netRev)}</div></div>
     <div class="kpi"><div class="label">Prize Cost to Date</div><div class="val">${gbp(totalPrizeCost)}</div>
       <div class="cost-breakdown">
         <div class="cb-row"><span>Watches (${watchesWon.length} won)</span><span>${gbp(watchCostTotal)}</span></div>
@@ -5420,11 +5429,17 @@ async function onContentMediaUpload(evt){
 
 function updVaultTickets(dropId, val){
   const d=dropById(dropId); if(!d||!d.vaultPriceHistory) return;
+  const total=Math.max(0,Number(val)||0);
+  const lockedT=d.vaultPriceHistory.filter(h=>h.locked).reduce((a,h)=>a+(Number(h.tickets)||0),0);
   const current=d.vaultPriceHistory[d.vaultPriceHistory.length-1];
-  current.tickets=Math.max(0,Number(val)||0);
-  // Also sync total to tracker
-  const total=d.vaultPriceHistory.reduce((a,h)=>a+(Number(h.tickets)||0),0);
+  // Current period = total minus all locked periods
+  current.tickets=Math.max(0,total-lockedT);
   d.tracker=d.tracker||{}; d.tracker.ticketsSoldTotal=total;
+  queueSave(); render();
+}
+function updVaultCreditPct(dropId, val){
+  const d=dropById(dropId); if(!d) return;
+  d.tracker=d.tracker||{}; d.tracker.creditRedemptionPct=Math.min(100,Math.max(0,Number(val)||0));
   queueSave(); render();
 }
 function changeVaultPrice(dropId, newPrice){
