@@ -817,6 +817,7 @@ function migrate(){
     }
   });
   DB.fixedCosts=DB.fixedCosts||[];
+  DB.notes=DB.notes||[];
   DB.dailyTakings=DB.dailyTakings||[];
   DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
   Object.keys(DEFAULT_CONTENT_SCHEDULE_TEMPLATES).forEach(ty=>{
@@ -995,6 +996,7 @@ function seed(){
     ideas:[
       {id:uid('id'),text:'Compare Monaco to a football boot — "worn by legends" angle',created:now()},
     ],
+    notes:[],
     timeline:[],
     settings:{team:['Felix','Leila']}
   };
@@ -1670,6 +1672,7 @@ const NAV=[
     {k:'ideas',label:'Idea Inbox',ico:'✧',count:()=>DB.ideas.length},
   ]},
   {group:'Knowledge',items:[
+    {k:'notes',label:'Notes',ico:'✍',count:()=>DB.notes.length},
     {k:'sops',label:'SOP Library',ico:'❐',count:()=>DB.sops.length},
     {k:'kb',label:'Knowledge Base',ico:'◫',count:()=>DB.kb.length},
   ]},
@@ -1713,7 +1716,7 @@ function render(){
   const c=document.getElementById('content');
   const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
-    content:vContent,assets:vAssets,ideas:vIdeas,sops:vSops,kb:vKB,
+    content:vContent,assets:vAssets,ideas:vIdeas,sops:vSops,kb:vKB,notes:vNotes,
     projects:vProjects,project:vProject};
   c.innerHTML = (V[route.view]||vDashboard)();
   hydrateMedia();
@@ -4021,6 +4024,79 @@ function vIdeas(){
 /* ================= SOP + KB ================= */
 function vSops(){return docList('sops','SOP Library','Every business process, documented.','openSop');}
 function vKB(){return docList('kb','Knowledge Base','Everything you\'ve learned, searchable.','openKB');}
+
+/* ================= NOTES ================= */
+const NOTE_TYPES=['Meeting','Call','Strategy','Compliance','Supplier','General'];
+let noteSearch='', noteTypeFilter='All';
+function vNotes(){
+  let items=[...DB.notes].sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
+  if(noteTypeFilter!=='All') items=items.filter(n=>n.type===noteTypeFilter);
+  if(noteSearch.trim()) items=items.filter(n=>(n.title+' '+(n.body||'')+' '+(n.attendees||'')).toLowerCase().includes(noteSearch.trim().toLowerCase()));
+  return `<div class="page-head"><div><h2>Notes</h2><div class="desc">Meeting notes, calls, strategy — everything in one place. ${DB.notes.length} total.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="openNote()">＋ New Note</button></div></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+    <div class="search-wrap" style="flex:1;min-width:220px"><span class="si">⌕</span>
+      <input placeholder="Search notes…" value="${esc(noteSearch)}" oninput="noteSearch=this.value;render()"></div>
+  </div>
+  <div class="filters">${['All',...NOTE_TYPES].map(t=>`<button class="fbtn ${noteTypeFilter===t?'active':''}" onclick="noteTypeFilter='${t}';render()">${t}</button>`).join('')}</div>
+  ${items.length?`<div style="display:flex;flex-direction:column;gap:10px">
+    ${items.map(n=>{
+      const d=n.dropId?dropById(n.dropId):null;
+      const w=n.watchId?watchById(n.watchId):null;
+      return `<div class="card" style="cursor:pointer;padding:0" onclick="openNote('${n.id}')">
+        <div style="padding:14px 18px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:6px">
+            <div style="font-weight:700;font-size:15px">${esc(n.title||'Untitled')}</div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <span class="pill pill-type" style="font-size:10.5px">${esc(n.type||'General')}</span>
+              <span class="muted" style="font-size:11.5px;white-space:nowrap">${fmtDate(n.date||n.created)}</span>
+            </div>
+          </div>
+          ${n.attendees?`<div style="font-size:12px;color:var(--ink3);margin-bottom:5px">👥 ${esc(n.attendees)}</div>`:''}
+          ${(d||w)?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+            ${d?`<span class="pill pill-upcoming" style="font-size:10.5px">⬡ ${esc(d.number)} — ${esc(watchName(d.watchId))}</span>`:''}
+            ${w?`<span class="pill pill-type" style="font-size:10.5px">⌚ ${esc(w.brand)} ${esc(w.model)}</span>`:''}
+          </div>`:''}
+          ${n.body?`<div style="font-size:13px;color:var(--ink2);line-height:1.5">${esc((n.body||'').slice(0,160))}${(n.body||'').length>160?'…':''}</div>`:''}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`:`<div class="card"><div class="empty">No notes yet${noteTypeFilter!=='All'||noteSearch?' matching these filters':''}. Hit + New Note to start.</div></div>`}`;
+}
+function openNote(id){
+  const n=id?DB.notes.find(x=>x.id===id):{};
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Edit Note':'New Note'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field-row">
+        ${mInput('nt_title','Title',n.title)}
+        <div class="field"><label>Date</label><input id="nt_date" type="date" value="${esc(n.date||today())}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Type</label>${dd('nt_type',NOTE_TYPES,n.type||'Meeting')}</div>
+        <div class="field"><label>Linked Drop (optional)</label>${dd('nt_drop',[{value:'',label:'— none —'},...DB.drops.map(d=>({value:d.id,label:`${d.number} — ${watchName(d.watchId)}`}))],n.dropId||'')}</div>
+      </div>
+      <div class="field-row">
+        ${mInput('nt_attendees','Attendees / People',n.attendees)}
+        <div class="field"><label>Linked Watch (optional)</label>${dd('nt_watch',[{value:'',label:'— none —'},...DB.watches.map(w=>({value:w.id,label:`${w.brand} ${w.model}`}))],n.watchId||'')}</div>
+      </div>
+      ${mArea('nt_body','Notes',n.body)}
+      ${mInput('nt_actions','Action Points',n.actions)}
+    </div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delNote('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveNote('${id||''}')">Save</button>
+    </div></div>`);
+}
+function saveNote(id){
+  const g=k=>document.getElementById(k).value;
+  const data={title:g('nt_title')||'Untitled',date:g('nt_date')||today(),type:ddVal('nt_type'),
+    attendees:g('nt_attendees'),dropId:ddVal('nt_drop'),watchId:ddVal('nt_watch'),
+    body:g('nt_body'),actions:g('nt_actions')};
+  if(id) Object.assign(DB.notes.find(x=>x.id===id),data);
+  else DB.notes.unshift({id:uid('note'),...data,created:now()});
+  saveDB();closeModal();toast('Note saved');render();
+}
+function delNote(id){if(!confirm('Delete this note?'))return;DB.notes=DB.notes.filter(x=>x.id!==id);saveDB();closeModal();render();}
 function docList(coll,title,desc,opener){
   const items=DB[coll];
   return `<div class="page-head"><div><h2>${title}</h2><div class="desc">${desc}</div></div>
@@ -4864,6 +4940,7 @@ function universalSearch(q){
   DB.ideas.forEach(i=>{if(i.text.toLowerCase().includes(q))push('Idea','✦',i.text,()=>go('ideas'));});
   DB.sops.forEach(s=>{if((s.title+' '+s.body).toLowerCase().includes(q))push('SOP','❐',s.title,()=>{go('sops');setTimeout(()=>openSop(s.id),50);});});
   DB.kb.forEach(k=>{if((k.title+' '+k.body).toLowerCase().includes(q))push('Knowledge','◈',k.title,()=>{go('kb');setTimeout(()=>openKB(k.id),50);});});
+  (DB.notes||[]).forEach(n=>{if((n.title+' '+(n.body||'')+' '+(n.attendees||'')+' '+(n.actions||'')).toLowerCase().includes(q))push('Note','✍',n.title||'Untitled',()=>{go('notes');setTimeout(()=>openNote(n.id),50);});});
   return R;
 }
 let searchIdx=[];
