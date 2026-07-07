@@ -3171,7 +3171,7 @@ function watchCard(w){
   const title = (w.family && w.variant)? `${esc(w.family)} <span class="muted" style="font-weight:600">${esc(w.variant)}</span>` : esc(w.model);
   return `<div class="gcard" onclick="openWatch('${w.id}')" style="${w.retired?'opacity:.55':''}">
     <div class="thumb">${w.img?`<img data-mediaref="${esc(w.img)}">`:'⌚'}</div>
-    <div class="gbody"><div class="gtitle">${title}${w.retired?' <span class="pill pill-closed" style="font-size:9px">RETIRED</span>':''}</div><div class="gsub">Ref ${esc(w.ref||'—')}${w.serial?' · SN '+esc(w.serial):''}</div>
+    <div class="gbody"><div class="gtitle">${title}${w.retired?' <span class="pill pill-closed" style="font-size:9px">RETIRED</span>':''}</div><div class="gsub">Ref ${esc(w.ref||'—')}${w.serial?' · SN '+esc(w.serial):''}${w.year?' · '+esc(String(w.year)):''}</div>
     <div class="gmeta">
       <span class="pill pill-type">${w.cost?gbp(w.cost)+' paid':'No cost logged'}</span>
       ${drops.length?`<span class="pill pill-done" style="cursor:pointer" onclick="event.stopPropagation();go('drops')" title="View drops using this watch">${drops.length} drop${drops.length>1?'s':''}</span>`:''}
@@ -4571,7 +4571,7 @@ function openWatch(id){
       <div>${mInput('w_brand','Brand',w.brand)}${mInput('w_model','Full Model Name',w.model)}
         <div class="field-row">${mInput('w_family','Model Family (e.g. Speedmaster)',w.family)}${mInput('w_variant','Variant / Spec (e.g. Moonwatch)',w.variant)}</div>
         <div class="muted" style="font-size:11px;margin-top:-8px;margin-bottom:12px">Family + Variant power the Brand → Model → Variant drill-down. Leave blank and Atlas will split the full model name for you.</div>
-        <div class="field-row">${mInput('w_ref','Reference',w.ref)}${mInput('w_serial','Serial Number',w.serial)}</div>
+        <div class="field-row-3">${mInput('w_ref','Reference',w.ref)}${mInput('w_serial','Serial Number',w.serial)}${mInput('w_year','Year',w.year,'number')}</div>
         ${mInput('w_move','Movement',w.movement)}
         <div class="field"><label>Supplier</label>${dd('w_supplier',[{value:'',label:'— select —'},...DB.suppliers.map(s=>({value:s.id,label:s.name}))], w.supplierId||'')}</div></div>
       <div><div class="field-row">${mInput('w_retail','Retail (£)',w.retail,'number')}${mInput('w_cost','Cost (£)',w.cost,'number')}</div>
@@ -4596,7 +4596,7 @@ function saveWatch(id){const g=k=>document.getElementById(k).value;
   const retiredBtn=document.getElementById('w_retired_btn');
   let fam=g('w_family').trim(), variant=g('w_variant').trim();
   if(!fam && !variant){ const sp=splitModel(g('w_brand'),g('w_model')); fam=sp.family; variant=sp.variant; }
-  const data={brand:g('w_brand'),model:g('w_model'),family:fam,variant:variant,ref:g('w_ref'),serial:g('w_serial'),movement:g('w_move'),
+  const data={brand:g('w_brand'),model:g('w_model'),family:fam,variant:variant,ref:g('w_ref'),serial:g('w_serial'),year:Number(g('w_year'))||null,movement:g('w_move'),
     retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),mediaLink:g('w_medialink'),desc:g('w_desc'),
     supplierId:ddVal('w_supplier'), retired: retiredBtn? retiredBtn.dataset.val==='1' : false,
     media, img:coverImg};
