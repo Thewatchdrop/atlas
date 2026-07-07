@@ -5367,6 +5367,7 @@ function initCalcState(d){
     launchDiscTickets: 0,
     compLifeDiscPct: Number(t.compLifeDiscountPct)||0,
     compLifeDiscTickets: 0,
+    freeTickets: Number(t.freeTicketsGiven)||0,
     variableCosts: 0,
     paymentFeePct: Number(t.paymentFeePct)||0.035,
     vatRate: 0.2,
@@ -5374,20 +5375,24 @@ function initCalcState(d){
 }
 function calcP(state, sellPct){
   const tickets = Math.round(state.pool * sellPct / 100);
-  const launchT = Math.min(state.launchDiscTickets||0, tickets);
-  const compT = Math.min(state.compLifeDiscTickets||0, tickets - launchT);
-  const fullT = tickets - launchT - compT;
+  const freeT = Math.min(state.freeTickets||0, tickets);
+  const paidT = tickets - freeT;
+  const launchT = Math.min(state.launchDiscTickets||0, paidT);
+  const compT = Math.min(state.compLifeDiscTickets||0, paidT - launchT);
+  const fullT = paidT - launchT - compT;
   const launchPrice = state.price * (1 - (state.launchDiscPct||0));
   const compPrice = state.price * (1 - (state.compLifeDiscPct||0));
   const grossRev = fullT * state.price + launchT * launchPrice + compT * compPrice;
+  // Free tickets generate no revenue so no VAT or fees on them
   const vatAmt = grossRev * (state.vatRate / (1 + state.vatRate));
   const netRev = grossRev - vatAmt;
   const fees = grossRev * state.paymentFeePct;
   const varCosts = Number(state.variableCosts)||0;
   const totalCost = state.watchCost + state.fixed + state.adsBudget + fees + varCosts;
   const netProfit = grossRev - totalCost - vatAmt;
+  const freeRevLost = freeT * state.price;
   const fillPct = sellPct;
-  return { tickets, grossRev, netRev, vatAmt, fees, totalCost, netProfit, fillPct };
+  return { tickets, freeT, grossRev, netRev, vatAmt, fees, totalCost, netProfit, freeRevLost, fillPct };
 }
 function dropCalculator(d){
   const sid = 'calc_'+d.id;
@@ -5406,11 +5411,13 @@ function dropCalculator(d){
 
   // Discount cost at full sell-out
   const r100 = results[4];
-  const launchT100 = Math.min(s.launchDiscTickets||0, r100.tickets);
-  const compT100   = Math.min(s.compLifeDiscTickets||0, r100.tickets - launchT100);
+  const freeT100 = r100.freeT||0;
+  const freeRevLost100 = freeT100 * s.price;
+  const launchT100 = Math.min(s.launchDiscTickets||0, r100.tickets - freeT100);
+  const compT100   = Math.min(s.compLifeDiscTickets||0, r100.tickets - freeT100 - launchT100);
   const launchRevLost = launchT100 * s.price * (s.launchDiscPct||0);
   const compRevLost   = compT100   * s.price * (s.compLifeDiscPct||0);
-  const totalRevLost  = launchRevLost + compRevLost;
+  const totalRevLost  = launchRevLost + compRevLost + freeRevLost100;
 
   // Get last 3 drops of same type for benchmark
   const peers = DB.drops.filter(x=>x.type===d.type && x.id!==d.id && ['Complete','Closed'].includes(x.status))
@@ -5489,6 +5496,10 @@ function dropCalculator(d){
           <div class="field"><label>Comp/Life Disc. Tickets</label><input type="number" value="${s.compLifeDiscTickets}" onchange="updCalc('${sid}','compLifeDiscTickets',this.value)"></div>
         </div>
         <div class="field">
+          <label>Free Tickets 🎟 <span style="font-size:10.5px;color:var(--ink3);font-weight:400">— count toward fill, generate £0 revenue</span></label>
+          <input type="number" value="${s.freeTickets||0}" onchange="updCalc('${sid}','freeTickets',this.value)" placeholder="e.g. competition winners, influencers…">
+        </div>
+        <div class="field">
           <label>Variable Costs Estimate (£)</label>
           <input type="number" value="${s.variableCosts}" onchange="updCalc('${sid}','variableCosts',this.value)" placeholder="SMS, courier, other…">
         </div>
@@ -5541,9 +5552,10 @@ function dropCalculator(d){
 
       <!-- Discount Impact -->
       ${totalRevLost>0?`<div class="kpi calc-result-card" style="animation-delay:0.24s;padding:12px 16px;border-color:var(--warn)">
-        <div class="label" style="color:var(--warn)">Discount Cost (full sell-out)</div>
+        <div class="label" style="color:var(--warn)">Revenue Given Away (full sell-out)</div>
         <div class="val" style="font-size:22px;color:var(--warn)">−${gbp(totalRevLost)}</div>
         <div class="cost-breakdown" style="margin-top:8px">
+          ${freeRevLost100>0?`<div class="cb-row"><span>🎟 Free Tickets (${freeT100} × ${gbp(s.price)})</span><span style="color:var(--danger)">−${gbp(freeRevLost100)}</span></div>`:''}
           ${launchRevLost>0?`<div class="cb-row"><span>🏷 Launch (${launchT100} tickets @ ${((s.launchDiscPct||0)*100).toFixed(0)}% off)</span><span style="color:var(--warn)">−${gbp(launchRevLost)}</span></div>`:''}
           ${compRevLost>0?`<div class="cb-row"><span>👤 Comp/Life (${compT100} tickets @ ${((s.compLifeDiscPct||0)*100).toFixed(0)}% off)</span><span style="color:var(--warn)">−${gbp(compRevLost)}</span></div>`:''}
           <div class="cb-row" style="border-top:1px solid var(--line2);margin-top:4px;padding-top:4px">
