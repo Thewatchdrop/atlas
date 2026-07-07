@@ -1959,7 +1959,7 @@ function taskPersonLabel(personRef){
 }
 function taskRow(t){
   const d=t.dropId?dropById(t.dropId):null;
-  const ty=TASK_TYPES[t.type]||TASK_TYPES.Admin;
+  const ty=TASK_TYPES[t.type]||TASK_TYPES['Other']||{ico:'📌',color:'var(--ink3)'};
   const personLabel=taskPersonLabel(t.personRef);
   return `<div class="row-item">
     <div class="tick ${t.done?'done':''}" onclick="event.stopPropagation();toggleTask('${t.id}')">${t.done?'✓':''}</div>
@@ -2810,7 +2810,26 @@ function vPastDropDetail(){
     ${d.status!=='Complete'?`<div class="page-actions"><button class="btn btn-sm btn-gold" onclick="openCloseOut('${d.id}')">🏁 Close Out Drop</button></div>`:''}
   </div>
   <div class="muted" style="font-size:11.5px;margin:-6px 0 16px">✎ Everything below is still fully editable — if you spot an error in any figure, correct it here and it updates the drop's numbers everywhere in the app immediately.</div>`;
-  return head+trackerBody(d);
+
+  const dropAssets=libraryItems().filter(i=>i.dropId===d.id && (i.useCases||[]).some(u=>['Organic Post','Paid Ad'].includes(u)));
+  const posts=dropAssets.filter(i=>(i.useCases||[]).includes('Organic Post'));
+  const ads=dropAssets.filter(i=>(i.useCases||[]).includes('Paid Ad'));
+  const contentSection=`<div class="card" style="margin-bottom:20px">
+    <div class="card-h"><h3>Posts & Ads</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm btn-ghost" onclick="addDropContent('${d.id}','Organic Post')">＋ Post</button>
+        <button class="btn btn-sm btn-gold" onclick="addDropContent('${d.id}','Paid Ad')">＋ Ad</button>
+      </div>
+    </div>
+    <div class="card-b">
+      ${posts.length||ads.length ? `
+        ${posts.length?`<div class="section-sub">Posts (${posts.length})</div><div class="asset-grid" style="margin-bottom:12px">${posts.map(i=>libTile(i)).join('')}</div>`:''}
+        ${ads.length?`<div class="section-sub">Ads (${ads.length})</div><div class="asset-grid">${ads.map(i=>libTile(i)).join('')}</div>`:''}
+      ` : `<div class="empty">No posts or ads uploaded for this drop yet. Use the buttons above — they'll appear here and in the Asset Library automatically.</div>`}
+    </div>
+  </div>`;
+
+  return head+contentSection+trackerBody(d);
 }
 
 
@@ -3916,15 +3935,18 @@ function openLibItem(id){
   else if(i.sourceType==='drop-image'){ go('drop', i.sourceId, 'files'); }
   else if(i.sourceType==='asset'){ openAsset(i.sourceId); }
 }
-let libFilter='All', libUseCase='All', libCreator='All', libGroupByWatch=false, libSearch='', libBrand='All', libModel='All', libSort='newest';
+let libFilter='All', libUseCase='All', libCreator='All', libGroupByWatch=false, libSearch='', libBrand='All', libModel='All', libSort='newest', libDrop='All';
 function vAssets(){
   const all=libraryItems();
   let filtered=all;
   const q=libSearch.trim().toLowerCase();
   if(q) filtered=filtered.filter(i=>{
     const dropNum=i.dropId?((dropById(i.dropId)||{}).number||''):'';
-    return i.name.toLowerCase().includes(q) || dropNum.toLowerCase().includes(q);
+    return i.name.toLowerCase().includes(q) || dropNum.toLowerCase().includes(q)
+      || (i.brand||'').toLowerCase().includes(q) || (i.model||'').toLowerCase().includes(q)
+      || watchName(i.watchId).toLowerCase().includes(q);
   });
+  if(libDrop!=='All') filtered=filtered.filter(i=>i.dropId===libDrop);
   if(libBrand!=='All') filtered=filtered.filter(i=>i.brand===libBrand);
   if(libBrand!=='All' && libModel!=='All') filtered=filtered.filter(i=>i.model===libModel);
   if(libFilter!=='All') filtered=filtered.filter(i=>i.category===libFilter);
@@ -3937,12 +3959,20 @@ function vAssets(){
   const brands=['All',...new Set(all.map(i=>i.brand).filter(Boolean))].sort((a,b)=>a==='All'?-1:b==='All'?1:a.localeCompare(b));
   const models=libBrand!=='All' ? ['All',...new Set(brandPool.map(i=>i.model).filter(Boolean))] : [];
 
+  // Drops that have assets — sorted by drop number descending
+  const dropsInLib=[...new Set(all.filter(i=>i.dropId).map(i=>i.dropId))];
+  const dropObjs=dropsInLib.map(id=>dropById(id)).filter(Boolean).sort((a,b)=>(b.number||'').localeCompare(a.number||''));
+
   const head=`<div class="page-head"><div><h2>Asset Library</h2><div class="desc">Everything finished, pulled automatically from New Content and Drop Hub — nothing is uploaded here directly. ${all.length} total.</div></div>
   <div class="page-actions"><select onchange="libSort=this.value;render()" style="font-size:12.5px;padding:7px 10px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--ink)">
     <option value="newest" ${libSort==='newest'?'selected':''}>Newest first</option>
     <option value="oldest" ${libSort==='oldest'?'selected':''}>Oldest first</option>
   </select></div></div>
-  <div class="field" style="max-width:360px;margin-bottom:10px"><input type="text" placeholder="Search by name or drop number…" value="${esc(libSearch)}" oninput="libSearch=this.value;render()"></div>
+  <div class="field" style="max-width:360px;margin-bottom:10px"><input type="text" placeholder="Search by name, drop, watch or brand…" value="${esc(libSearch)}" oninput="libSearch=this.value;render()"></div>
+  ${dropObjs.length?`<div class="filters" style="flex-wrap:wrap">
+    <button class="fbtn ${libDrop==='All'?'active':''}" onclick="libDrop='All';render()">All Drops</button>
+    ${dropObjs.map(d=>`<button class="fbtn ${libDrop===d.id?'active':''}" onclick="libDrop='${d.id}';render()">${esc(d.number)}</button>`).join('')}
+  </div>`:''}
   <div class="filters">${brands.map(b=>`<button class="fbtn ${libBrand===b?'active':''}" onclick="libBrand='${esc(b)}';libModel='All';render()">${esc(b)}</button>`).join('')}</div>
   ${models.length>1?`<div class="filters">${models.map(m=>`<button class="fbtn ${libModel===m?'active':''}" onclick="libModel='${esc(m)}';render()">${esc(m)}</button>`).join('')}</div>`:''}
   <div class="filters">${['All',...CONTENT_CATS].map(f=>`<button class="fbtn ${libFilter===f?'active':''}" onclick="libFilter='${esc(f)}';render()">${esc(f)}</button>`).join('')}</div>
@@ -4538,6 +4568,11 @@ function addContentFromWatch(watchId, category){
   go('content');
   setTimeout(()=>openContent(null,'',true), 80);
 }
+function addDropContent(dropId, useCase){
+  contentPrefill = {dropId, useCases:[useCase]};
+  go('content');
+  setTimeout(()=>openContent(null,'',true), 80);
+}
 
 /* Watch modal */
 function openWatch(id){
@@ -4682,7 +4717,7 @@ function delCustomer(id){if(!confirm('Delete customer?'))return;DB.customers=DB.
 
 /* Content modal */
 function openContent(id, prefillTitle, fromWatch){const pf=(!id&&fromWatch&&contentPrefill)?contentPrefill:null; if(pf) contentPrefill=null;
-  const c=id?DB.content.find(x=>x.id===id):{title:prefillTitle||'', watchId:pf?pf.watchId:'', category:pf?pf.category:''};
+  const c=id?DB.content.find(x=>x.id===id):{title:prefillTitle||'', watchId:pf?pf.watchId||'':'', category:pf?pf.category||'':'', dropId:pf?pf.dropId||'':'', useCases:pf?(pf.useCases||['Organic Post']):['Organic Post']};
   openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Content':'New Content'}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
       <div class="field-row">
@@ -5442,18 +5477,45 @@ function dropCalculator(d){
     <!-- Key metrics at 100% -->
     <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:10px">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink3);font-weight:600">Full sell-out</div>
-      ${['grossRev','netProfit','totalCost','fees'].map((k,i)=>{
-        const labels={grossRev:'Gross Revenue',netProfit:'Net Profit',totalCost:'Total Costs',fees:'Payment Fees'};
-        const val=results[4][k];
-        const isProfit=k==='netProfit';
-        return `<div class="kpi calc-result-card" style="animation-delay:${i*0.06}s;padding:12px 16px">
-          <div class="label">${labels[k]}</div>
-          <div class="val" style="font-size:22px;${isProfit?(val>=0?'color:var(--live)':'color:var(--danger)'):''}">
-            ${k==='fees'?'':''}${gbp(val)}
+
+      <!-- Gross Revenue -->
+      <div class="kpi calc-result-card" style="animation-delay:0s;padding:12px 16px">
+        <div class="label">Gross Revenue</div>
+        <div class="val" style="font-size:22px">${gbp(results[4].grossRev)}</div>
+        <div class="sub">at ${results[4].tickets} tickets (100%)</div>
+      </div>
+
+      <!-- Net Revenue (shows VAT deduction) -->
+      <div class="kpi calc-result-card" style="animation-delay:0.06s;padding:12px 16px">
+        <div class="label">Net Revenue <span style="font-size:10px;color:var(--ink3);font-weight:400">(after VAT)</span></div>
+        <div class="val" style="font-size:22px">${gbp(results[4].netRev)}</div>
+        <div class="cost-breakdown">
+          <div class="cb-row"><span>VAT @ 20% (deducted)</span><span style="color:var(--danger)">−${gbp(results[4].vatAmt)}</span></div>
+        </div>
+      </div>
+
+      <!-- Total Costs — full itemised breakdown -->
+      <div class="kpi calc-result-card" style="animation-delay:0.12s;padding:12px 16px">
+        <div class="label">Total Costs <span style="font-size:10px;color:var(--ink3);font-weight:400">(inc. VAT)</span></div>
+        <div class="val" style="font-size:22px">${gbp(results[4].totalCost + results[4].vatAmt)}</div>
+        <div class="cost-breakdown" style="margin-top:8px">
+          ${s.watchCost?`<div class="cb-row"><span>⌚ Watch</span><span>${gbp(s.watchCost)}</span></div>`:''}
+          ${s.fixed?`<div class="cb-row"><span>🏢 Fixed Costs</span><span>${gbp(s.fixed)}</span></div>`:''}
+          ${s.adsBudget?`<div class="cb-row"><span>📣 Ad Budget</span><span>${gbp(s.adsBudget)}</span></div>`:''}
+          ${(Number(s.variableCosts)||0)?`<div class="cb-row"><span>📦 Variable Costs</span><span>${gbp(Number(s.variableCosts))}</span></div>`:''}
+          <div class="cb-row"><span>💳 Payment Fees (${(s.paymentFeePct*100).toFixed(1)}%)</span><span>${gbp(results[4].fees)}</span></div>
+          <div class="cb-row" style="border-top:1px solid var(--line2);margin-top:4px;padding-top:4px">
+            <span style="color:var(--warn)">🧾 VAT @ 20%</span><span style="color:var(--warn)">${gbp(results[4].vatAmt)}</span>
           </div>
-          <div class="sub">at ${results[4].tickets} tickets (100%)</div>
-        </div>`;
-      }).join('')}
+        </div>
+      </div>
+
+      <!-- Net Profit -->
+      <div class="kpi calc-result-card" style="animation-delay:0.18s;padding:12px 16px">
+        <div class="label">Net Profit</div>
+        <div class="val" style="font-size:22px;${results[4].netProfit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(results[4].netProfit)}</div>
+        <div class="sub">${results[4].netProfit>=0?'✓ Profitable at full sell-out':'✗ Loss at full sell-out'}</div>
+      </div>
     </div>
   </div>
 
@@ -5463,7 +5525,7 @@ function dropCalculator(d){
     <div style="overflow-x:auto">
       <table class="tbl">
         <thead><tr>
-          <th>Sell-through</th><th>Tickets</th><th>Gross Rev</th><th>Net Rev (ex VAT)</th><th>Total Costs</th><th>Net Profit</th><th>Margin</th>
+          <th>Sell-through</th><th>Tickets</th><th>Gross Rev</th><th>Net Rev (ex VAT)</th><th>VAT</th><th>Total Costs (inc. VAT)</th><th>Net Profit</th><th>Margin</th>
         </tr></thead>
         <tbody id="calc_tbody_${d.id}">
           ${results.map((r,i)=>`<tr class="calc-result-card" style="animation-delay:${i*0.07}s;${r.netProfit<0?'opacity:.75':''}">
@@ -5471,7 +5533,8 @@ function dropCalculator(d){
             <td class="mono">${r.tickets}</td>
             <td class="mono">${gbp(r.grossRev)}</td>
             <td class="mono">${gbp(r.netRev)}</td>
-            <td class="mono">${gbp(r.totalCost)}</td>
+            <td class="mono" style="color:var(--warn)">${gbp(r.vatAmt)}</td>
+            <td class="mono">${gbp(r.totalCost+r.vatAmt)}</td>
             <td class="mono" style="font-weight:700;color:${r.netProfit>=0?'var(--live)':'var(--danger)'}">${gbp(r.netProfit)}</td>
             <td class="mono">${r.grossRev>0?(r.netProfit/r.grossRev*100).toFixed(1)+'%':'—'}</td>
           </tr>`).join('')}
