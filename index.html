@@ -5397,6 +5397,21 @@ function dropCalculator(d){
   const scenarios = [30,50,70,90,100];
   const results = scenarios.map(pct=>({pct, ...calcP(s, pct)}));
 
+  // Break-even — iterate 1%→100% to find where profit first turns positive
+  let bePct=0, beTickets=0;
+  for(let pct=1;pct<=100;pct++){
+    const r=calcP(s,pct);
+    if(r.netProfit>=0){bePct=pct;beTickets=r.tickets;break;}
+  }
+
+  // Discount cost at full sell-out
+  const r100 = results[4];
+  const launchT100 = Math.min(s.launchDiscTickets||0, r100.tickets);
+  const compT100   = Math.min(s.compLifeDiscTickets||0, r100.tickets - launchT100);
+  const launchRevLost = launchT100 * s.price * (s.launchDiscPct||0);
+  const compRevLost   = compT100   * s.price * (s.compLifeDiscPct||0);
+  const totalRevLost  = launchRevLost + compRevLost;
+
   // Get last 3 drops of same type for benchmark
   const peers = DB.drops.filter(x=>x.type===d.type && x.id!==d.id && ['Complete','Closed'].includes(x.status))
     .sort((a,b)=>(b.draw||'').localeCompare(a.draw||'')).slice(0,3);
@@ -5438,6 +5453,13 @@ function dropCalculator(d){
       <div class="sub" style="color:var(--gold2)">
         ${s.pool>0 ? `needs ${Math.ceil(revenueTarget/s.price)} tickets of ${s.pool} (${Math.round(Math.ceil(revenueTarget/s.price)/s.pool*100)}% fill)` : '—'}
       </div>
+    </div>
+    <div class="kpi" style="flex:1;min-width:160px;border-color:${bePct>0?'var(--line2)':'var(--danger)'};padding:12px 16px">
+      <div class="label">Break-even</div>
+      <div class="val" style="font-size:22px;color:${bePct>0?(bePct<=50?'var(--live)':bePct<=70?'var(--warn)':'var(--danger)'):'var(--danger)'}">
+        ${bePct>0?bePct+'%':'Never'}
+      </div>
+      <div class="sub">${bePct>0?`${beTickets} of ${s.pool} tickets needed`:'Unprofitable at 100% fill'}</div>
     </div>
   </div>` : '<div class="muted" style="margin-bottom:14px;font-size:12.5px">No watch linked — go to Overview to select one and unlock pricing reference.</div>'}
 
@@ -5516,6 +5538,19 @@ function dropCalculator(d){
         <div class="val" style="font-size:22px;${results[4].netProfit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(results[4].netProfit)}</div>
         <div class="sub">${results[4].netProfit>=0?'✓ Profitable at full sell-out':'✗ Loss at full sell-out'}</div>
       </div>
+
+      <!-- Discount Impact -->
+      ${totalRevLost>0?`<div class="kpi calc-result-card" style="animation-delay:0.24s;padding:12px 16px;border-color:var(--warn)">
+        <div class="label" style="color:var(--warn)">Discount Cost (full sell-out)</div>
+        <div class="val" style="font-size:22px;color:var(--warn)">−${gbp(totalRevLost)}</div>
+        <div class="cost-breakdown" style="margin-top:8px">
+          ${launchRevLost>0?`<div class="cb-row"><span>🏷 Launch (${launchT100} tickets @ ${((s.launchDiscPct||0)*100).toFixed(0)}% off)</span><span style="color:var(--warn)">−${gbp(launchRevLost)}</span></div>`:''}
+          ${compRevLost>0?`<div class="cb-row"><span>👤 Comp/Life (${compT100} tickets @ ${((s.compLifeDiscPct||0)*100).toFixed(0)}% off)</span><span style="color:var(--warn)">−${gbp(compRevLost)}</span></div>`:''}
+          <div class="cb-row" style="border-top:1px solid var(--line2);margin-top:4px;padding-top:4px">
+            <span style="color:var(--ink2)">Full-price equivalent revenue</span><span>${gbp(results[4].grossRev+totalRevLost)}</span>
+          </div>
+        </div>
+      </div>`:''}
     </div>
   </div>
 
