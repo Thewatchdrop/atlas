@@ -1501,14 +1501,16 @@ function mediaVal(id){ const el=document.getElementById(id+'_box'); return el? (
 /* ---------- Multi-item media galleries (Watch Images / Videos / Unboxing / Social) ---------- */
 let watchMediaDraft = {images:[],videos:[],unboxing:[],social:[]};
 let watchLinkedGalleryItems = {images:[],videos:[],unboxing:[],social:[]};
-function galleryHTML(key,label,accept){
+function galleryHTML(key,label,accept,watchId){
   const items=watchMediaDraft[key]||[];
   const linked=watchLinkedGalleryItems[key]||[];
   const hasAny = items.length || linked.length;
+  const addBtn = watchId ? `<button class="btn btn-sm btn-ghost" style="margin-top:6px;font-size:12px" onclick="addContentFromWatch('${esc(watchId)}','${esc(label)}')">＋ Add ${esc(label)}</button>` : '';
   return `<div class="field">
     <label>${label}</label>
     <div class="gallery-grid" id="gal_${key}">${items.map((it,i)=>galleryItemHTML(it,i,accept)).join('')}${linked.map(c=>linkedGalleryItemHTML(c,accept)).join('')}</div>
-    <div class="muted" style="font-size:11px;${hasAny?'margin-top:-4px':''}">${hasAny?'Populated automatically from New Content — click a tile to open it. Add or replace media there.':'Nothing yet — add content under New Content and link it to this watch to populate this gallery.'}${items.length?' Older direct uploads can be removed here with ×.':''}</div>
+    <div class="muted" style="font-size:11px;${hasAny?'margin-top:-4px':''}">${hasAny?'Populated automatically from New Content — click a tile to open it. Add or replace media there.':'Nothing yet — use the button below or add content under New Content and link it to this watch.'}${items.length?' Older direct uploads can be removed here with ×.':''}</div>
+    ${addBtn}
   </div>`;
 }
 function linkedGalleryItemHTML(c,accept){
@@ -1579,10 +1581,11 @@ async function onGalleryUpload(evt,key){
 }
 function removeGalleryItem(evt,id){
   if(evt) evt.stopPropagation();
-  ['images','videos','unboxing','social'].forEach(key=>{
+  const keys=CONTENT_CATS.map(cat=>slug(cat));
+  keys.forEach(key=>{
     watchMediaDraft[key]=(watchMediaDraft[key]||[]).filter(it=>it.id!==id);
   });
-  ['images','videos','unboxing','social'].forEach(refreshGallery);
+  keys.forEach(refreshGallery);
 }
 function persistMediaBox(id){
   const box=document.getElementById(id+'_box'); if(!box) return;
@@ -4527,6 +4530,15 @@ function toggleTagChip(el){
   input.value=tags.join(', ');
 }
 
+/* Content prefill — set before navigating from watch modal */
+let contentPrefill = null;
+function addContentFromWatch(watchId, category){
+  contentPrefill = {watchId, category};
+  closeModal();
+  go('content');
+  setTimeout(()=>openContent(null,'',true), 80);
+}
+
 /* Watch modal */
 function openWatch(id){
   const w=id?watchById(id):{};
@@ -4537,9 +4549,13 @@ function openWatch(id){
     watchLinkedGalleryItems[key]=[];
   });
   if(id){
-    DB.content.filter(c=>c.watchId===id && c.video).forEach(c=>{
+    DB.content.filter(c=>c.watchId===id).forEach(c=>{
       const key=watchGalleryKeyForCategory(c.category);
-      if(watchLinkedGalleryItems[key]) watchLinkedGalleryItems[key].push({id:c.id,ref:c.video,title:c.title});
+      if(!watchLinkedGalleryItems[key]) return;
+      if(c.video) watchLinkedGalleryItems[key].push({id:c.id,ref:c.video,title:c.title});
+      (c.images||[]).forEach(imgRef=>{
+        watchLinkedGalleryItems[key].push({id:c.id,ref:imgRef,title:c.title});
+      });
     });
   }
   const drops=id?DB.drops.filter(d=>d.watchId===id):[];
@@ -4564,7 +4580,7 @@ function openWatch(id){
         ${mediaField('w_thumb','Thumbnail Image (shown in Watch Library)',w.img)}
       </div>
     </div>${mArea('w_desc','Description',w.desc)}
-    ${CONTENT_CATS.map(cat=>galleryHTML(slug(cat),cat,'image/*,video/*')).join('')}
+    ${CONTENT_CATS.map(cat=>galleryHTML(slug(cat),cat,'image/*,video/*',id)).join('')}
     ${drops.length?`<div class="section-sub">Used in ${drops.length} drop(s)</div><div style="display:flex;flex-wrap:wrap;gap:6px">${drops.map(d=>`<span class="pill pill-type" style="cursor:pointer" onclick="closeModal();go('drop','${d.id}')">${esc(d.number)}</span>`).join('')}</div>`:''}
     ${linkedContent.length?`<div class="section-sub">In New Content (${linkedContent.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${linkedContent.map(c=>`<span class="pill pill-upcoming" style="cursor:pointer" onclick="closeModal();go('content');setTimeout(()=>openContent('${c.id}'),50)">${esc(c.title)}</span>`).join('')}</div>`:''}
     ${linkedMedia.length?`<div class="section-sub">In Asset Library (${linkedMedia.length})</div><div class="asset-grid">${linkedMedia.map(i=>libTile(i)).join('')}</div>`:''}
@@ -4665,7 +4681,8 @@ function saveCustomer(id){const g=k=>document.getElementById(k).value;
 function delCustomer(id){if(!confirm('Delete customer?'))return;DB.customers=DB.customers.filter(c=>c.id!==id);saveDB();closeModal();render();}
 
 /* Content modal */
-function openContent(id, prefillTitle){const c=id?DB.content.find(x=>x.id===id):{title:prefillTitle||''};
+function openContent(id, prefillTitle, fromWatch){const pf=(!id&&fromWatch&&contentPrefill)?contentPrefill:null; if(pf) contentPrefill=null;
+  const c=id?DB.content.find(x=>x.id===id):{title:prefillTitle||'', watchId:pf?pf.watchId:'', category:pf?pf.category:''};
   openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Content':'New Content'}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
       <div class="field-row">
