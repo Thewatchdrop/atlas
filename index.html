@@ -706,6 +706,18 @@ const TASK_TYPES = {
 const TASK_TYPES_CONTENT = ['Leila Content','Watch Content','Content Creation','Content Editing','Other'];
 const TASK_TYPES_TASK = ['Drops','Vault','Prize Delivery','Website','Idea','Other'];
 const TASK_TYPES_ADMIN = ['Finance & Reconciliation','Supplier & Purchasing','Winner & Dispatch','Reporting & Data','Banking & Payments','Legal & Terms'];
+const DEFAULT_RECURRING_TASKS = [
+  {title:'Purchase Watch', type:'Supplier & Purchasing', category:'Admin'},
+  {title:'Confirm supplier & arrange collection', type:'Supplier & Purchasing', category:'Admin'},
+  {title:'Studio photography', type:'Watch Content', category:'Content'},
+  {title:'Write website copy/listing', type:'Website', category:'Task'},
+  {title:'Build Meta Ads', type:'Content Creation', category:'Content'},
+  {title:'Schedule launch email', type:'Content Creation', category:'Content'},
+  {title:'Schedule SMS', type:'Content Creation', category:'Content'},
+  {title:'Winner call', type:'Winner & Dispatch', category:'Admin'},
+  {title:'Dispatch prize', type:'Prize Delivery', category:'Task'},
+  {title:'Collect review', type:'Winner & Dispatch', category:'Admin'},
+];
 const CONTENT_CATS=['Watch Photos','Watch Video','Delivery Video','Evergreen Video','Person Only'];
 function watchGalleryKeyForCategory(cat){ return slug(cat); }
 const CONTENT_STATUSES=['Idea','In Motion','Done'];
@@ -789,13 +801,6 @@ function migrateDrop(d){
     d.contentChecklistGenerated=true;
   }
   d.contentChecklist=d.contentChecklist||[];
-  if(!d.setupTasksGenerated && ['Draft','Upcoming'].includes(d.status) && d.launch){
-    const daysUntil=Math.round((new Date(d.launch+'T00:00:00')-new Date(today()+'T00:00:00'))/86400000);
-    if(daysUntil<=7){
-      generateSetupTasks(d);
-      d.setupTasksGenerated=true;
-    }
-  }
 }
 function migrate(){
   DB.settings=DB.settings||{};
@@ -805,6 +810,7 @@ function migrate(){
   DB.winnerResults=DB.winnerResults||[];
   DB.sourcing=DB.sourcing||[];
   DB.projects=DB.projects||[];
+  DB.recurringTasks=(DB.recurringTasks&&DB.recurringTasks.length)?DB.recurringTasks:DEFAULT_RECURRING_TASKS.map(t=>({...t,id:uid('rtpl')}));
   DB.customerImports=DB.customerImports||[];
   (DB.drops||[]).forEach(d=>{
     if(d.type==='Vault'){
@@ -888,6 +894,7 @@ function migrate(){
     t.personRef=t.personRef||'';
     t.notes=t.notes||''; t.file=t.file||'';
     t.repeat=t.repeat||'None';
+    t.watchId=t.watchId||'';
   });
   const CAT_MIGRATE={'Ideas':'Social Content','Evergreen':'Evergreen Content','Educational':'Educational Content',
     'Trust':'Social Content','Funny':'Funny Content','Behind the Scenes':'BTS Content',
@@ -1789,20 +1796,18 @@ function weekTakingsTotals(){
   const costs=rows.reduce((a,x)=>a+(Number(x.costs)||0),0);
   return {amount,costs,net:amount-costs};
 }
-function dailyTakingsWidget(monthRev,weekRev){
+function dailyTakingsWidget(){
   const y=addDays(today(),-1);
   const yEntry=takingForDate(y);
   const mt=monthTakingsTotals();
   const wt=weekTakingsTotals();
-  const mDiff=mt.amount-monthRev;
-  const wDiff=wt.amount-weekRev;
-  const days=last7Days(); // yesterday back through 7 days ago
+  const days=last7Days();
   return `<div class="card" style="margin-bottom:18px">
-    <div class="card-h"><h3>💳 Daily Takings — DNA Payments</h3><span class="muted" style="font-size:11px">Actual money landed vs the app's modelled revenue</span></div>
+    <div class="card-h"><h3>💳 Daily Takings — DNA Payments</h3><span class="muted" style="font-size:11px">What actually landed in the bank</span></div>
     <div class="modal-b" style="max-height:none">
       <div class="row-item" style="padding:10px 0">
         <div class="txt"><div class="t">Yesterday — ${new Date(y+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</div>
-          <div class="meta">${yEntry?`Charged: ${gbp(yEntry.amount)} · Costs: ${gbp(yEntry.costs||0)} · Net: ${gbp(yEntry.amount-(yEntry.costs||0))}`:'Not logged yet — enter it once DNA Payments has settled yesterday\'s figure'}</div></div>
+          <div class="meta">${yEntry?`Charged: ${gbp(yEntry.amount)} · Costs: ${gbp(yEntry.costs||0)} · Net: ${gbp(yEntry.amount-(yEntry.costs||0))}`:'Not logged yet'}</div></div>
         <button class="btn btn-sm ${yEntry?'':'btn-gold'}" onclick="openDailyTaking('${y}')">${yEntry?'Edit':'＋ Log yesterday'}</button>
       </div>
 
@@ -1811,7 +1816,6 @@ function dailyTakingsWidget(monthRev,weekRev){
         <div class="kpi"><div class="label">Charged</div><div class="val">${gbp(wt.amount)}</div></div>
         <div class="kpi"><div class="label">Costs</div><div class="val">${gbp(wt.costs)}</div></div>
         <div class="kpi"><div class="label">Net</div><div class="val gold">${gbp(wt.net)}</div></div>
-        <div class="kpi"><div class="label">vs App Modelled</div><div class="val" style="${wDiff<0?'color:var(--danger)':'color:var(--live)'}">${wDiff>=0?'+':''}${gbp(wDiff)}</div><div class="sub">modelled: ${gbp(weekRev)}</div></div>
       </div>
 
       <div class="section-sub" style="margin-bottom:6px">This Month</div>
@@ -1819,7 +1823,6 @@ function dailyTakingsWidget(monthRev,weekRev){
         <div class="kpi"><div class="label">Charged</div><div class="val">${gbp(mt.amount)}</div></div>
         <div class="kpi"><div class="label">Costs</div><div class="val">${gbp(mt.costs)}</div></div>
         <div class="kpi"><div class="label">Net</div><div class="val gold">${gbp(mt.net)}</div></div>
-        <div class="kpi"><div class="label">vs App Modelled</div><div class="val" style="${mDiff<0?'color:var(--danger)':'color:var(--live)'}">${mDiff>=0?'+':''}${gbp(mDiff)}</div><div class="sub">modelled: ${gbp(monthRev)}</div></div>
       </div>
 
       <div class="section-sub" style="margin-bottom:6px">Last 7 days</div>
@@ -1831,7 +1834,6 @@ function dailyTakingsWidget(monthRev,weekRev){
             <div class="muted" style="font-size:9.5px;margin-top:1px">${rec?'net':'not logged'}</div>
           </div>`;}).join('')}
       </div>
-      <div class="muted" style="font-size:11px;margin-top:12px">A running gap between actual and modelled revenue can point to refunds, failed/declined payments not reflected in ticket counts, or payment processor fees — worth checking Fixed Costs and each drop's Variable Costs if the difference grows.</div>
     </div>
   </div>`;
 }
@@ -1847,7 +1849,8 @@ function vDashboard(){
   const dueCp=dueCheckpoints();
   const dueCs=dueContentToday();
   const dueTasks=DB.tasks.filter(t=>!t.done && t.due===today());
-  const todayCount=dueCp.length+dueCs.length+dueTasks.length;
+  const needTakings=takingsPromptNeeded();
+  const todayCount=dueCp.length+dueCs.length+dueTasks.length+(needTakings?1:0);
 
   return `
   <div class="page-head">
@@ -1864,6 +1867,12 @@ function vDashboard(){
         <div class="txt" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}</div>
           <div class="meta">Task${t.assignedTo?' · '+esc(t.assignedTo):''}${t.urgent?' · ⚡ Urgent':''}</div></div>
       </div>`).join('')}
+      ${needTakings?`
+      <div class="row-item">
+        <div class="txt"><div class="t">💳 Yesterday's takings</div>
+          <div class="meta">Log what actually landed from DNA Payments for ${fmtDate(addDays(today(),-1))}</div></div>
+        <button class="btn btn-sm btn-gold" onclick="openDailyTaking('${addDays(today(),-1)}')">＋ Log now</button>
+      </div>`:''}
       ${dueCp.map(item=>`
       <div class="row-item">
         <div class="txt"><div class="t">${esc(item.dropNumber)} — ${esc(item.watch)}</div>
@@ -1962,6 +1971,7 @@ function taskPersonLabel(personRef){
 }
 function taskRow(t){
   const d=t.dropId?dropById(t.dropId):null;
+  const w=(!d && t.watchId)?watchById(t.watchId):null;
   const ty=TASK_TYPES[t.type]||TASK_TYPES['Other']||{ico:'📌',color:'var(--ink3)'};
   const personLabel=taskPersonLabel(t.personRef);
   return `<div class="row-item">
@@ -1969,7 +1979,7 @@ function taskRow(t){
     <span class="ttype-dot" style="background:${ty.color}" title="${esc(t.type)}">${ty.ico}</span>
     ${t.urgent?'<span title="Urgent" style="font-size:13px">⚡</span>':''}
     <div class="txt ${t.done?'done':''}" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}${t.repeat==='Weekly'?' 🔁':''}${t.notes?' 📝':''}${t.file?' 📎':''}</div>
-      <div class="meta">${d?`<span class="link" onclick="event.stopPropagation();go('drop','${d.id}')" style="cursor:pointer;color:var(--gold2)">${esc(d.number)}</span> · `:''}${t.time?esc(t.time)+' · ':''}${t.due<today()&&!t.done?'<span style="color:var(--danger)">Overdue · </span>':''}${fmtDate(t.due)}${t.assignedTo?' · '+esc(t.assignedTo):''}${personLabel?' · '+esc(personLabel):''}</div></div>
+      <div class="meta">${d?`<span class="link" onclick="event.stopPropagation();go('drop','${d.id}')" style="cursor:pointer;color:var(--gold2)">${esc(d.number)}</span> · `:''}${w?`<span style="color:var(--gold2)">⌚ ${esc(w.brand)} ${esc(w.model)}</span> · `:''}${t.time?esc(t.time)+' · ':''}${t.due<today()&&!t.done?'<span style="color:var(--danger)">Overdue · </span>':''}${fmtDate(t.due)}${t.assignedTo?' · '+esc(t.assignedTo):''}${personLabel?' · '+esc(personLabel):''}</div></div>
     <span class="btn-danger btn-sm" onclick="event.stopPropagation();delTask('${t.id}')" style="opacity:.5">✕</span>
   </div>`;
 }
@@ -2838,6 +2848,84 @@ function vPastDropDetail(){
 
 
 let taskFilter='Today', taskPerson='All', taskUrgentOnly=false, taskDropFilter='All';
+function recurringTasksCard(){
+  const list = DB.recurringTasks||[];
+  return `<div class="card" style="margin-bottom:16px">
+    <div class="card-h"><h3>🔁 Recurring Tasks</h3><button class="btn btn-sm btn-gold" onclick="addRecurringTemplate()">＋ New Template</button></div>
+    <div class="card-b">
+      ${list.length? list.map(rt=>`
+        <div class="row-item">
+          <span class="ttype-dot" style="background:${(TASK_TYPES[rt.type]||{}).color||'var(--ink3)'}">${(TASK_TYPES[rt.type]||{}).ico||'📌'}</span>
+          <div class="txt"><div class="t">${esc(rt.title)}</div><div class="meta">${esc(rt.category)} · ${esc(rt.type)}</div></div>
+          <button class="btn btn-sm btn-gold" onclick="openRecurringTaskAdd('${rt.id}')">＋ Add Task</button>
+          <button class="btn btn-sm btn-ghost" onclick="editRecurringTemplate('${rt.id}')">Edit</button>
+        </div>`).join('') : `<div class="empty">No recurring task templates yet.</div>`}
+    </div>
+  </div>`;
+}
+function addRecurringTemplate(){ editRecurringTemplate(null); }
+function editRecurringTemplate(id){
+  const rt = id ? (DB.recurringTasks||[]).find(x=>x.id===id) : {title:'',type:'Finance & Reconciliation',category:'Admin'};
+  const cat = rt.category||'Admin';
+  openModal(`<div class="modal"><div class="modal-h"><h3>${id?'Edit':'New'} Recurring Task</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      ${mInput('rt_title','Title',rt.title)}
+      <div class="field"><label>Category</label>${dd('rt_category',['Task','Admin','Content'],cat,'onRtCategoryChange')}</div>
+      <div class="field"><label>Type</label><div id="rt_type_wrap">${dd('rt_type',taskTypeOptions(cat),taskTypeOptions(cat).includes(rt.type)?rt.type:taskTypeOptions(cat)[0])}</div></div>
+    </div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delRecurringTemplate('${id}')">Delete</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveRecurringTemplate('${id||''}')">Save</button></div></div>`);
+}
+function onRtCategoryChange(id,val){
+  const wrap=document.getElementById('rt_type_wrap'); if(!wrap) return;
+  const opts=taskTypeOptions(val);
+  wrap.innerHTML=dd('rt_type',opts,opts[0]);
+}
+function saveRecurringTemplate(id){
+  const title=document.getElementById('rt_title').value.trim();
+  if(!title){alert('Title required');return;}
+  const category=ddVal('rt_category'), type=ddVal('rt_type');
+  DB.recurringTasks=DB.recurringTasks||[];
+  if(id){ Object.assign(DB.recurringTasks.find(x=>x.id===id),{title,category,type}); }
+  else{ DB.recurringTasks.push({id:uid('rtpl'),title,category,type}); }
+  saveDB();closeModal();toast('Template saved');render();
+}
+function delRecurringTemplate(id){
+  if(!confirm('Delete this recurring task template?')) return;
+  DB.recurringTasks=(DB.recurringTasks||[]).filter(x=>x.id!==id);
+  saveDB();closeModal();render();
+}
+function openRecurringTaskAdd(templateId){
+  const rt=(DB.recurringTasks||[]).find(x=>x.id===templateId); if(!rt) return;
+  openModal(`<div class="modal"><div class="modal-h"><h3>Add: ${esc(rt.title)}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Drop <span class="muted" style="font-weight:400;text-transform:none">(leave blank to pick a watch instead)</span></label>
+        ${dd('rta_drop',[{value:'',label:'— none —'},...DB.drops.filter(d=>['Draft','Upcoming','Live'].includes(d.status)).map(d=>({value:d.id,label:`${d.number} — ${watchName(d.watchId)}`}))],'','onRtaDropChange')}</div>
+      <div class="field" id="rta_watch_field"><label>Watch <span class="muted" style="font-weight:400;text-transform:none">(only used if no drop selected)</span></label>
+        ${dd('rta_watch',[{value:'',label:'— none —'},...DB.watches.map(w=>({value:w.id,label:`${w.brand} ${w.model}`}))],'')}</div>
+      <div class="field-row">
+        <div class="field"><label>Due date</label><input id="rta_due" type="date" value="${today()}"></div>
+        <div class="field"><label>Assigned to</label>${dd('rta_assignee',teamList(),teamList()[0])}</div>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveRecurringTaskAdd('${templateId}')">＋ Add Task</button></div></div>`);
+}
+function onRtaDropChange(id,val){
+  const field=document.getElementById('rta_watch_field'); if(!field) return;
+  field.style.opacity = val? '0.4' : '1';
+  field.style.pointerEvents = val? 'none' : 'auto';
+}
+function saveRecurringTaskAdd(templateId){
+  const rt=(DB.recurringTasks||[]).find(x=>x.id===templateId); if(!rt) return;
+  const dropId=ddVal('rta_drop');
+  const watchId=dropId? '' : ddVal('rta_watch');
+  if(!dropId && !watchId){ alert('Pick a drop or a watch'); return; }
+  DB.tasks.unshift({id:uid('t'),title:rt.title,dropId,watchId,
+    due:document.getElementById('rta_due').value||today(),done:false,
+    category:rt.category||'Task',type:rt.type||'Other',
+    assignedTo:ddVal('rta_assignee'),time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()});
+  saveDB();closeModal();toast('Task added');render();
+}
 function vTasks(){
   const groups={Today:[],Tomorrow:[],'This Week':[],Overdue:[],Completed:[]};
   const tmr=addDays(today(),1), wk=addDays(today(),7);
@@ -2857,6 +2945,7 @@ function vTasks(){
   const activeDropsWithTasks=DB.drops.filter(d=>['Draft','Upcoming','Live'].includes(d.status) && DB.tasks.some(t=>t.dropId===d.id));
   return `<div class="page-head"><div><h2>Tasks</h2><div class="desc">Everything you need to do, typed and assigned.</div></div>
     <div class="page-actions"><button class="btn btn-gold" onclick="newTask()">＋ New Task</button></div></div>
+  ${recurringTasksCard()}
   <div class="filters">${cats.map(c=>`<button class="fbtn ${taskFilter===c?'active':''}" onclick="taskFilter='${c}';render()">${c} · ${groups[c].length}</button>`).join('')}</div>
   <div class="filters">${['All',...teamList()].map(p=>`<button class="fbtn ${taskPerson===p?'active':''}" onclick="taskPerson='${p}';render()">${p}</button>`).join('')}
     <button class="fbtn ${taskUrgentOnly?'active':''}" onclick="taskUrgentOnly=!taskUrgentOnly;render()">⚡ Urgent only</button></div>
@@ -3307,6 +3396,7 @@ function vFinance(){
   const recent=[...drops].reverse().slice(0,10);
 
   return `<div class="page-head"><div><h2>Finance Overview</h2><div class="desc">The whole business, not just one drop — revenue, profit and cost trends over time.</div></div></div>
+  ${dailyTakingsWidget()}
   <div class="kpi-row">
     <div class="kpi"><div class="label">Total Revenue</div><div class="val">${gbp(totalRevenue)}</div><div class="sub">${drops.length} drops</div></div>
     <div class="kpi"><div class="label">Total Profit</div><div class="val" style="${totalProfit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(totalProfit)}</div><div class="sub">${margin.toFixed(1)}% margin</div></div>
@@ -3337,6 +3427,7 @@ function vFinance(){
 
 /* ================= DAILY TAKINGS (actual revenue from DNA Payments) ================= */
 function takingForDate(dt){ return DB.dailyTakings.find(x=>x.date===dt); }
+function takingsPromptNeeded(){ return !takingForDate(addDays(today(),-1)); }
 function last7Days(){
   const out=[]; for(let i=1;i<=7;i++) out.push(addDays(today(),-i)); return out;
 }
