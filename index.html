@@ -497,6 +497,78 @@
     .content{padding-left:10px;padding-right:10px}
   }
 
+  /* ================= Graphics Generator ================= */
+  #ggRoot{display:flex;gap:18px;height:calc(100vh - 190px);min-height:520px}
+  #ggControls{width:344px;flex-shrink:0;overflow-y:auto;padding-right:8px}
+  #ggPreview{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;min-width:0;
+    background:radial-gradient(120% 120% at 50% 0%,#101a2e,#0B1220);border:1px solid var(--line);border-radius:12px}
+  #ggFrame{position:relative;box-shadow:0 24px 70px rgba(0,0,0,.5);border-radius:4px;overflow:hidden}
+  #ggRoot .gg-group{border-bottom:1px solid var(--line);padding:14px 0}
+  #ggRoot .gg-group:first-child{padding-top:2px}
+  #ggRoot .gg-group:last-child{border-bottom:none}
+  #ggRoot .gg-title{font-size:10.5px;text-transform:uppercase;letter-spacing:1.1px;color:var(--gold2);font-weight:700;margin-bottom:11px}
+  #ggRoot .gg-fld{margin-bottom:10px}
+  #ggRoot .gg-fld:last-child{margin-bottom:0}
+  #ggRoot .gg-fld label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);font-weight:600;margin-bottom:5px}
+  #ggRoot .gg-fld input[type=text],#ggRoot .gg-fld textarea{width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px;outline:none}
+  #ggRoot .gg-fld input[type=text]:focus,#ggRoot .gg-fld textarea:focus{border-color:var(--gold)}
+  #ggRoot .gg-fld input[type=range]{width:100%;accent-color:var(--gold)}
+  #ggRoot .gg-row{display:flex;gap:8px}
+  #ggRoot .gg-row .gg-fld{flex:1}
+  #ggRoot .gg-rv{float:right;color:var(--ink2);font-weight:600;font-variant-numeric:tabular-nums}
+  #ggRoot .gg-chips{display:flex;gap:6px;flex-wrap:wrap}
+  #ggRoot .gg-chip{padding:6px 11px;border-radius:8px;background:var(--bg2);border:1px solid var(--line2);font-size:12px;font-weight:600;cursor:pointer;color:var(--ink2)}
+  #ggRoot .gg-chip.active{background:var(--goldsoft);border-color:var(--gold);color:var(--gold2)}
+  #ggRoot .gg-up{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;border:1.5px dashed var(--line2);border-radius:10px;background:var(--bg2);cursor:pointer;font-weight:600;color:var(--ink2)}
+  #ggRoot .gg-up:hover{border-color:var(--gold);color:var(--gold2)}
+  #ggRoot .gg-sw{display:flex;gap:7px}
+  #ggRoot .gg-swatch{width:28px;height:28px;border-radius:7px;cursor:pointer;border:2px solid transparent}
+  #ggRoot .gg-swatch.active{border-color:#fff;box-shadow:0 0 0 2px var(--gold)}
+  #ggRoot .gg-toggle{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
+  #ggRoot .gg-toggle input{display:none}
+  #ggRoot .gg-switch{width:36px;height:21px;border-radius:20px;background:var(--line2);position:relative;transition:.15s;flex-shrink:0}
+  #ggRoot .gg-switch:after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:#fff;transition:.15s}
+  #ggRoot .gg-toggle input:checked + .gg-switch{background:var(--gold)}
+  #ggRoot .gg-toggle input:checked + .gg-switch:after{transform:translateX(15px)}
+  #ggRoot .gg-tl{font-size:12.5px;font-weight:600;color:var(--ink)}
+  #ggRoot .gg-dlrow{display:flex;gap:10px;align-items:center;margin-top:14px}
+  #ggRoot .gg-dl{flex:1;background:linear-gradient(135deg,var(--gold),#a9852f);color:#0B1220;border:none;padding:11px;border-radius:10px;font-weight:700;cursor:pointer}
+  #ggRoot .gg-dl:hover{background:linear-gradient(135deg,var(--gold2),var(--gold))}
+  #ggRoot .gg-dl:disabled{opacity:.6;cursor:wait}
+  #ggRoot .gg-q{width:70px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:9px;padding:10px 6px;outline:none}
+  #ggRoot .gg-hint{font-size:11px;color:var(--ink3);margin-top:8px;line-height:1.4}
+
+  #ggCard{position:absolute;top:0;left:0;transform-origin:top left;overflow:hidden;color:#fff;font-family:'Oswald',sans-serif;
+    background:radial-gradient(120% 62% at 50% 60%, rgba(120,150,205,.20), rgba(120,150,205,0) 60%),linear-gradient(180deg,#091529 0%,#12274f 44%,#1b3a6b 62%,#0d1c37 100%)}
+  #ggCard .photoLayer{position:absolute;inset:0;overflow:hidden}
+  #ggCard .photoLayer img{position:absolute;display:block;filter:drop-shadow(0 30px 40px rgba(0,0,0,.35))}
+  #ggCard .ground{position:absolute;background:radial-gradient(closest-side,rgba(0,0,0,.55),transparent);z-index:0}
+  #ggCard .scrim{position:absolute;inset:0;z-index:2;pointer-events:none}
+  #ggCard .pad{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column}
+  #ggCard .header{text-align:center;flex-shrink:0}
+  #ggCard .midspace{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+  #ggCard .footer{flex-shrink:0;text-align:center}
+  #ggCard .ph{color:rgba(255,255,255,.30);font-family:'Inter';font-weight:500;text-align:center}
+  #ggCard .headline{font-family:'Oswald';font-weight:300;letter-spacing:2px;line-height:1;color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.35)}
+  #ggCard .brand{font-family:'Oswald';font-weight:600;line-height:1.1;text-shadow:0 2px 14px rgba(0,0,0,.35);padding:0;display:block}
+  #ggCard .model{font-family:'Great Vibes';line-height:.9;margin:2px 0;text-shadow:0 3px 16px rgba(0,0,0,.4)}
+  #ggCard .edition{font-family:'Oswald';font-weight:400;line-height:1.1;text-shadow:0 2px 12px rgba(0,0,0,.35)}
+  #ggCard .editionLabel{font-family:'Oswald';font-weight:600;color:#c9d3e4}
+  #ggCard .rule{height:2px;background:linear-gradient(90deg,transparent,#C9A24B,transparent);margin:0 auto}
+  #ggCard .value{font-family:'Oswald';font-weight:500;letter-spacing:1px;text-shadow:0 2px 12px rgba(0,0,0,.35)}
+  #ggCard .value .amt{color:#E4C879;font-weight:700}
+  #ggCard .trust{display:flex;align-items:center;justify-content:center;font-family:'Montserrat';font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,.4)}
+  #ggCard .trust .tstar{display:inline-flex;align-items:center;justify-content:center;border-radius:4px}
+  #ggCard .stars{display:inline-flex}
+  #ggCard .discount{font-family:'Oswald';font-weight:700;color:#fff;letter-spacing:1px;line-height:1;text-shadow:0 2px 16px rgba(0,0,0,.45)}
+  #ggCard .pricebox{display:inline-flex;align-items:center;background:rgba(16,26,44,.72);border:1px solid rgba(255,255,255,.10);font-family:'Montserrat';font-weight:700}
+  #ggCard .oldp{position:relative;color:#d7deea;opacity:.85}
+  #ggCard .oldp .strike{position:absolute;left:-4px;right:-4px;top:52%;height:3px;background:#F26D6D;transform:rotate(-8deg)}
+  #ggCard .arrow{color:#E4C879}
+  #ggCard .newp{color:#fff}
+  #ggCard .brandmark{position:absolute;z-index:20;font-family:'Oswald';font-weight:700;letter-spacing:3px;line-height:1.05;color:#fff;text-align:left;opacity:.95;text-shadow:0 2px 12px rgba(0,0,0,.5)}
+  @media(max-width:860px){ #ggRoot{flex-direction:column;height:auto} #ggControls{width:100%} #ggPreview{min-height:60vh} }
+
 </style>
 
 <div id="app" style="display:none">
@@ -541,6 +613,8 @@
   </div>
 </div>
 
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Great+Vibes&family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ============================================================
@@ -1674,6 +1748,7 @@ const NAV=[
   ]},
   {group:'Content',items:[
     {k:'content',label:'New Content',ico:'✎',count:()=>DB.content.length},
+    {k:'graphics',label:'Graphics Generator',ico:'❖'},
     {k:'contentSchedule',label:'Content Schedule',ico:'▦',count:()=>dueContentToday().length},
     {k:'assets',label:'Asset Library',ico:'▣',count:()=>DB.assets.length},
     {k:'ideas',label:'Idea Inbox',ico:'✧',count:()=>DB.ideas.length},
@@ -1723,10 +1798,11 @@ function render(){
   const c=document.getElementById('content');
   const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
-    content:vContent,assets:vAssets,ideas:vIdeas,sops:vSops,kb:vKB,notes:vNotes,
+    content:vContent,assets:vAssets,ideas:vIdeas,graphics:vGraphics,sops:vSops,kb:vKB,notes:vNotes,
     projects:vProjects,project:vProject};
   c.innerHTML = (V[route.view]||vDashboard)();
   hydrateMedia();
+  if(route.view==='graphics') ggBoot();
 }
 
 /* ================= TASK BOARD (dashboard) ================= */
@@ -5923,6 +5999,251 @@ function changeVaultPrice(dropId, newPrice){
   d.tracker=d.tracker||{}; d.tracker.fullTicketPrice=price;
   saveDB(); render();
 }
+
+/* ================= GRAPHICS GENERATOR ================= */
+let ggState = {
+  headline:'ENDING SOON!', brand:'OMEGA', model:'Speedmaster',
+  edition:'Michael Schumacher', editionLabel:'SPECIAL EDITION',
+  valueLabel:'VALUE', valueAmount:'£5,000',
+  showTrust:true, trustLabel:'Trustpilot', stars:5, starColor:'#00B67A',
+  discount:'20% OFF', showPrice:true, oldPrice:'£19.99', newPrice:'£15.99',
+  imgSrc:null,
+  photoSize:64, photoX:0, photoY:6, photoRot:0, photoOpacity:100, dim:0,
+  fit:'contain', layer:'behind', showGround:true,
+  W:1080, H:1350, modelColor:'#ffffff', showLogo:true, logoText:'THE\nWATCH\nDROP'
+};
+let ggAspect = null;
+const ggEl = id => document.getElementById(id);
+
+function vGraphics(){
+  return `<div class="page-head"><div><h2>Graphics Generator</h2><div class="desc">Build a branded drop graphic — edit any text, drop in a photo, position it freely, then download a high-res PNG.</div></div></div>
+  <div id="ggRoot">
+    <div id="ggControls">
+      <div class="gg-group">
+        <div class="gg-title">Content</div>
+        <div class="gg-fld"><label>Top banner</label><input type="text" id="gg_headline"></div>
+        <div class="gg-fld"><label>Brand</label><input type="text" id="gg_brand"></div>
+        <div class="gg-fld"><label>Model (script)</label><input type="text" id="gg_model"></div>
+        <div class="gg-fld"><label>Edition line</label><input type="text" id="gg_edition"></div>
+        <div class="gg-fld"><label>Small label</label><input type="text" id="gg_editionLabel"></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Value &amp; Trust</div>
+        <div class="gg-row"><div class="gg-fld"><label>Value label</label><input type="text" id="gg_valueLabel"></div>
+          <div class="gg-fld"><label>Amount</label><input type="text" id="gg_valueAmount"></div></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gg_showTrust"><span class="gg-switch"></span><span class="gg-tl">Show trust badge</span></label></div>
+        <div class="gg-fld"><label>Badge label</label><input type="text" id="gg_trustLabel"></div>
+        <div class="gg-fld"><label>Stars <span class="gg-rv" id="gg_starsVal">5</span></label><input type="range" id="gg_stars" min="1" max="5" step="1"></div>
+        <div class="gg-fld"><label>Star colour</label><div class="gg-sw" id="gg_starSwatches">
+          <div class="gg-swatch" data-c="#00B67A" style="background:#00B67A" title="Trustpilot green"></div>
+          <div class="gg-swatch" data-c="#C9A24B" style="background:#C9A24B" title="Gold"></div>
+          <div class="gg-swatch" data-c="#FFFFFF" style="background:#FFFFFF" title="White"></div>
+        </div></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Offer</div>
+        <div class="gg-fld"><label>Discount headline</label><input type="text" id="gg_discount"></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gg_showPrice"><span class="gg-switch"></span><span class="gg-tl">Show price box</span></label></div>
+        <div class="gg-row"><div class="gg-fld"><label>Was</label><input type="text" id="gg_oldPrice"></div>
+          <div class="gg-fld"><label>Now</label><input type="text" id="gg_newPrice"></div></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">📷 Photo &amp; positioning</div>
+        <div class="gg-fld"><label class="gg-up" for="gg_photoInput">📷 <span id="gg_photoName">Upload watch photo</span></label>
+          <input type="file" id="gg_photoInput" accept="image/*" style="display:none"></div>
+        <div class="gg-fld"><label>Quick position</label><div class="gg-chips" id="gg_posPresets">
+          <div class="gg-chip" data-p="centre">Centre</div><div class="gg-chip" data-p="fill">Fill background</div>
+          <div class="gg-chip" data-p="top">Top</div><div class="gg-chip" data-p="bottom">Bottom</div>
+          <div class="gg-chip" data-p="left">Left</div><div class="gg-chip" data-p="right">Right</div>
+          <div class="gg-chip" data-p="reset">Reset</div></div></div>
+        <div class="gg-fld"><label>Layer</label><div class="gg-chips" id="gg_layerChips">
+          <div class="gg-chip" data-l="behind">Behind text</div><div class="gg-chip" data-l="front">In front of text</div></div></div>
+        <div class="gg-fld"><label>Fit</label><div class="gg-chips" id="gg_fitChips">
+          <div class="gg-chip" data-f="contain">Contain</div><div class="gg-chip" data-f="cover">Cover / fill</div></div></div>
+        <div class="gg-fld"><label>Size <span class="gg-rv" id="gg_photoSizeVal"></span></label><input type="range" id="gg_photoSize" min="20" max="240" step="1"></div>
+        <div class="gg-fld"><label>Horizontal <span class="gg-rv" id="gg_photoXVal"></span></label><input type="range" id="gg_photoX" min="-100" max="100" step="1"></div>
+        <div class="gg-fld"><label>Vertical <span class="gg-rv" id="gg_photoYVal"></span></label><input type="range" id="gg_photoY" min="-100" max="100" step="1"></div>
+        <div class="gg-fld"><label>Rotation <span class="gg-rv" id="gg_photoRotVal"></span></label><input type="range" id="gg_photoRot" min="-45" max="45" step="1"></div>
+        <div class="gg-fld"><label>Opacity <span class="gg-rv" id="gg_photoOpacityVal"></span></label><input type="range" id="gg_photoOpacity" min="15" max="100" step="1"></div>
+        <div class="gg-fld"><label>Dim behind photo <span class="gg-rv" id="gg_dimVal"></span></label><input type="range" id="gg_dim" min="0" max="75" step="1"></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gg_showGround"><span class="gg-switch"></span><span class="gg-tl">Ground shadow</span></label></div>
+        <div class="gg-hint">For a full-bleed watch: set <b>Behind text</b> + <b>Fill background</b>, then raise <b>Dim</b> so the wording stays readable. PNGs with transparent backgrounds work best.</div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Layout</div>
+        <div class="gg-fld"><label>Format</label><div class="gg-chips" id="gg_formatChips">
+          <div class="gg-chip" data-w="1080" data-h="1350">Portrait 4:5</div>
+          <div class="gg-chip" data-w="1080" data-h="1920">Story 9:16</div>
+          <div class="gg-chip" data-w="1080" data-h="1080">Square 1:1</div></div></div>
+        <div class="gg-fld"><label>Model colour</label><div class="gg-chips" id="gg_modelColor">
+          <div class="gg-chip" data-c="#ffffff">White</div><div class="gg-chip" data-c="#E4C879">Gold</div></div></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gg_showLogo"><span class="gg-switch"></span><span class="gg-tl">Show logo</span></label></div>
+        <div class="gg-fld"><label>Logo text</label><textarea id="gg_logoText" rows="3"></textarea></div>
+        <div class="gg-dlrow">
+          <button class="gg-dl" id="gg_download">⬇ Download PNG</button>
+          <select class="gg-q" id="gg_quality" title="Export resolution"><option value="2">2×</option><option value="3" selected>3×</option><option value="4">4×</option></select>
+        </div>
+      </div>
+    </div>
+    <div id="ggPreview"><div id="ggFrame">
+      <div id="ggCard">
+        <div class="photoLayer" id="gg_photoLayer"><div class="ground" id="gg_ground" style="display:none"></div><img id="gg_img" alt="" style="display:none"></div>
+        <div class="scrim" id="gg_scrim"></div>
+        <div class="pad">
+          <div class="header" id="gg_header"></div>
+          <div class="midspace"><div class="ph" id="gg_placeholder">Upload a watch photo →</div></div>
+          <div class="footer" id="gg_footer"></div>
+        </div>
+        <div class="brandmark" id="gg_logo"></div>
+      </div>
+    </div></div>
+  </div>`;
+}
+
+function ggStar(size,color){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}" style="display:block"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77 5.82 21l1.18-6.88-5-4.87 7.1-1.01L12 2z"/></svg>`;
+}
+function ggLayoutPhoto(){
+  const s=ggState, k=s.W/1080, img=ggEl('gg_img');
+  if(!img) return;
+  if(!s.imgSrc || !ggAspect){
+    img.style.display='none';
+    const ph=ggEl('gg_placeholder'); if(ph){ph.style.display='block';ph.style.fontSize=(20*k)+'px';}
+    ggEl('gg_ground').style.display='none'; return;
+  }
+  img.style.display='block';
+  ggEl('gg_placeholder').style.display='none';
+  const cardAspect=s.W/s.H; let baseW,baseH;
+  if(s.fit==='cover'){ if(ggAspect>cardAspect){baseH=s.H;baseW=s.H*ggAspect;}else{baseW=s.W;baseH=s.W/ggAspect;} }
+  else { if(ggAspect>cardAspect){baseW=s.W;baseH=s.W/ggAspect;}else{baseH=s.H;baseW=s.H*ggAspect;} }
+  const sc=s.photoSize/100, w=baseW*sc, h=baseH*sc;
+  const xOff=s.photoX/100*s.W, yOff=s.photoY/100*s.H;
+  const left=(s.W-w)/2+xOff, top=(s.H-h)/2+yOff;
+  img.style.width=w+'px'; img.style.height=h+'px'; img.style.left=left+'px'; img.style.top=top+'px';
+  img.style.transformOrigin='center center';
+  img.style.transform=s.photoRot?`rotate(${s.photoRot}deg)`:'none';
+  img.style.opacity=s.photoOpacity/100;
+  const g=ggEl('gg_ground');
+  if(s.showGround){ const gw=w*0.62,gh=Math.max(10,h*0.06);
+    g.style.display='block'; g.style.width=gw+'px'; g.style.height=gh+'px';
+    g.style.left=(left+w/2-gw/2)+'px'; g.style.top=(top+h-gh*0.5)+'px';
+  } else g.style.display='none';
+  ggEl('gg_photoLayer').style.zIndex = s.layer==='front'?15:1;
+}
+function ggRender(){
+  const s=ggState, card=ggEl('ggCard'); if(!card) return;
+  card.style.width=s.W+'px'; card.style.height=s.H+'px';
+  const k=s.W/1080, p=[];
+  if(s.headline.trim()) p.push(`<div class="headline" style="font-size:${88*k}px;margin-bottom:${10*k}px">${esc(s.headline)}</div>`);
+  if(s.brand.trim())    p.push(`<div class="brand" style="font-size:${58*k}px;letter-spacing:${8*k}px">${esc(s.brand)}</div>`);
+  if(s.model.trim())    p.push(`<div class="model" style="font-size:${138*k}px;color:${s.modelColor}">${esc(s.model)}</div>`);
+  if(s.edition.trim())  p.push(`<div class="edition" style="font-size:${46*k}px">${esc(s.edition)}</div>`);
+  if(s.editionLabel.trim()) p.push(`<div class="editionLabel" style="font-size:${24*k}px;letter-spacing:${6*k}px;margin-top:${6*k}px">${esc(s.editionLabel)}</div>`);
+  const hasValue=s.valueLabel.trim()||s.valueAmount.trim();
+  if(hasValue){
+    p.push(`<div class="rule" style="width:62%;margin-top:${16*k}px;margin-bottom:${12*k}px"></div>`);
+    const sep=(s.valueLabel.trim()&&s.valueAmount.trim())?` <span style="color:#6f7d95">|</span> `:'';
+    p.push(`<div class="value" style="font-size:${34*k}px">${esc(s.valueLabel)}${sep}<span class="amt">${esc(s.valueAmount)}</span></div>`);
+    p.push(`<div class="rule" style="width:62%;margin-top:${12*k}px;margin-bottom:${16*k}px"></div>`);
+  }
+  if(s.showTrust){
+    const sz=30*k; let st='';
+    for(let i=0;i<s.stars;i++) st+=`<span class="tstar" style="background:${s.starColor};width:${sz}px;height:${sz}px;margin-right:${4*k}px">${ggStar(sz*0.78,'#fff')}</span>`;
+    p.push(`<div class="trust" style="font-size:${30*k}px;gap:${10*k}px;margin-top:${hasValue?0:14*k}px">${ggStar(34*k,s.starColor)}<span>${esc(s.trustLabel)}</span><span class="stars">${st}</span></div>`);
+  }
+  ggEl('gg_header').innerHTML=p.join('');
+  if(s.imgSrc) ggEl('gg_img').src=s.imgSrc;
+  ggLayoutPhoto();
+  const scrim=ggEl('gg_scrim');
+  if(s.dim>0){ const a=s.dim/100; scrim.style.background=`linear-gradient(180deg, rgba(9,21,41,${a*0.9}) 0%, rgba(9,21,41,${a*0.5}) 45%, rgba(13,28,55,${a*0.95}) 100%)`; }
+  else scrim.style.background='transparent';
+  const f=[];
+  if(s.discount.trim()) f.push(`<div class="discount" style="font-size:${76*k}px;margin-bottom:${20*k}px">${esc(s.discount)}</div>`);
+  if(s.showPrice&&(s.oldPrice.trim()||s.newPrice.trim())){
+    const o=s.oldPrice.trim()?`<span class="oldp" style="font-size:${52*k}px">${esc(s.oldPrice)}<span class="strike"></span></span>`:'';
+    const ar=(s.oldPrice.trim()&&s.newPrice.trim())?`<span class="arrow" style="font-size:${44*k}px">→</span>`:'';
+    const n=s.newPrice.trim()?`<span class="newp" style="font-size:${56*k}px">${esc(s.newPrice)}</span>`:'';
+    f.push(`<div class="pricebox" style="gap:${18*k}px;padding:${14*k}px ${28*k}px;border-radius:${16*k}px">${o}${ar}${n}</div>`);
+  }
+  ggEl('gg_footer').innerHTML=f.join('');
+  ggEl('gg_footer').style.marginBottom=(10*k)+'px';
+  card.querySelector('.pad').style.padding=`${64*k}px ${58*k}px`;
+  const logo=ggEl('gg_logo');
+  if(s.showLogo&&s.logoText.trim()){ logo.style.display='block'; logo.style.fontSize=(34*k)+'px'; logo.style.letterSpacing=(3*k)+'px'; logo.style.left=(52*k)+'px'; logo.style.bottom=(46*k)+'px'; logo.innerHTML=esc(s.logoText).replace(/\n/g,'<br>'); }
+  else logo.style.display='none';
+  ggFit();
+}
+function ggFit(){
+  const prev=ggEl('ggPreview'), card=ggEl('ggCard'), frame=ggEl('ggFrame'); if(!prev||!card) return;
+  const s=Math.min((prev.clientWidth-60)/ggState.W,(prev.clientHeight-60)/ggState.H,1);
+  card.style.transform=`scale(${s})`;
+  frame.style.width=(ggState.W*s)+'px'; frame.style.height=(ggState.H*s)+'px';
+}
+function ggSyncAll(){
+  const s=ggState;
+  ['headline','brand','model','edition','editionLabel','valueLabel','valueAmount','trustLabel','discount','oldPrice','newPrice','logoText'].forEach(kk=>{ const el=ggEl('gg_'+kk); if(el) el.value=s[kk]; });
+  ggEl('gg_showTrust').checked=s.showTrust; ggEl('gg_showPrice').checked=s.showPrice; ggEl('gg_showLogo').checked=s.showLogo; ggEl('gg_showGround').checked=s.showGround;
+  const setR=(id,v,suf='')=>{ ggEl('gg_'+id).value=v; ggEl('gg_'+id+'Val').textContent=v+suf; };
+  setR('stars',s.stars); setR('photoSize',s.photoSize,'%'); setR('photoX',s.photoX); setR('photoY',s.photoY);
+  setR('photoRot',s.photoRot,'°'); setR('photoOpacity',s.photoOpacity,'%'); setR('dim',s.dim,'%');
+  const act=(wrap,fn)=>[...ggEl(wrap).children].forEach(c=>c.classList.toggle('active',fn(c)));
+  act('gg_layerChips',c=>c.dataset.l===s.layer);
+  act('gg_fitChips',c=>c.dataset.f===s.fit);
+  act('gg_formatChips',c=>+c.dataset.w===s.W&&+c.dataset.h===s.H);
+  act('gg_modelColor',c=>c.dataset.c===s.modelColor);
+  act('gg_starSwatches',c=>c.dataset.c===s.starColor);
+  act('gg_posPresets',()=>false);
+  if(s.imgSrc){ const nm=ggEl('gg_photoName'); if(nm) nm.textContent='Photo loaded'; }
+}
+const GG_PRESETS={
+  centre:{photoX:0,photoY:0,photoSize:72,fit:'contain',layer:'front',photoRot:0,dim:0},
+  fill:{photoX:0,photoY:0,photoSize:110,fit:'cover',layer:'behind',photoRot:0,dim:38},
+  top:{photoY:-30},bottom:{photoY:28},left:{photoX:-30},right:{photoX:30},
+  reset:{photoX:0,photoY:6,photoSize:64,fit:'contain',layer:'behind',photoRot:0,photoOpacity:100,dim:0}
+};
+function ggBoot(){
+  ggSyncAll();
+  const s=ggState;
+  const bindT=kk=>{ ggEl('gg_'+kk).oninput=e=>{ s[kk]=e.target.value; ggRender(); }; };
+  ['headline','brand','model','edition','editionLabel','valueLabel','valueAmount','trustLabel','discount','oldPrice','newPrice','logoText'].forEach(bindT);
+  ggEl('gg_showTrust').onchange=e=>{s.showTrust=e.target.checked;ggRender();};
+  ggEl('gg_showPrice').onchange=e=>{s.showPrice=e.target.checked;ggRender();};
+  ggEl('gg_showLogo').onchange=e=>{s.showLogo=e.target.checked;ggRender();};
+  ggEl('gg_showGround').onchange=e=>{s.showGround=e.target.checked;ggRender();};
+  const bindR=(id,suf='')=>{ ggEl('gg_'+id).oninput=e=>{ s[id]=+e.target.value; ggEl('gg_'+id+'Val').textContent=e.target.value+suf; ggRender(); }; };
+  bindR('stars'); bindR('photoSize','%'); bindR('photoX'); bindR('photoY'); bindR('photoRot','°'); bindR('photoOpacity','%'); bindR('dim','%');
+  const chip=(wrap,fn)=>{ ggEl(wrap).onclick=e=>{ const c=e.target.closest('.gg-chip'); if(!c)return; [...e.currentTarget.children].forEach(x=>x.classList.remove('active')); c.classList.add('active'); fn(c); ggRender(); }; };
+  chip('gg_layerChips',c=>s.layer=c.dataset.l);
+  chip('gg_fitChips',c=>s.fit=c.dataset.f);
+  chip('gg_formatChips',c=>{s.W=+c.dataset.w;s.H=+c.dataset.h;});
+  chip('gg_modelColor',c=>s.modelColor=c.dataset.c);
+  ggEl('gg_starSwatches').onclick=e=>{ const sw=e.target.closest('.gg-swatch'); if(!sw)return; [...e.currentTarget.children].forEach(x=>x.classList.remove('active')); sw.classList.add('active'); s.starColor=sw.dataset.c; ggRender(); };
+  ggEl('gg_posPresets').onclick=e=>{ const c=e.target.closest('.gg-chip'); if(!c)return; Object.assign(s,GG_PRESETS[c.dataset.p]||{}); ggSyncAll(); ggRender(); };
+  ggEl('gg_photoInput').onchange=e=>{
+    const file=e.target.files[0]; e.target.value=''; if(!file)return;
+    ggEl('gg_photoName').textContent=file.name.length>22?file.name.slice(0,20)+'…':file.name;
+    const rd=new FileReader();
+    rd.onload=()=>{ const pr=new Image(); pr.onload=()=>{ ggAspect=pr.naturalWidth/pr.naturalHeight; s.imgSrc=rd.result; ggRender(); }; pr.onerror=()=>alert('That image could not be loaded — try another file.'); pr.src=rd.result; };
+    rd.readAsDataURL(file);
+  };
+  ggEl('gg_download').onclick=async ()=>{
+    const btn=ggEl('gg_download'); const orig=btn.innerHTML; btn.disabled=true; btn.innerHTML='Rendering…';
+    try{
+      await document.fonts.ready;
+      const scale=+ggEl('gg_quality').value; const card=ggEl('ggCard');
+      const prevT=card.style.transform; card.style.transform='none';
+      const canvas=await html2canvas(card,{scale,backgroundColor:null,useCORS:true,logging:false,width:s.W,height:s.H});
+      card.style.transform=prevT;
+      const link=document.createElement('a');
+      link.download=((s.brand+'-'+s.model).replace(/[^a-z0-9]+/gi,'-').toLowerCase().replace(/^-|-$/g,'')||'watch-drop')+'.png';
+      link.href=canvas.toDataURL('image/png'); link.click();
+    }catch(err){ alert('Export failed: '+err.message); }
+    finally{ btn.disabled=false; btn.innerHTML=orig; ggFit(); }
+  };
+  document.fonts.ready.then(ggRender);
+  ggRender();
+}
+window.addEventListener('resize',()=>{ if(document.getElementById('ggPreview')) ggFit(); });
 
 checkSessionAndBoot();
 </script>
