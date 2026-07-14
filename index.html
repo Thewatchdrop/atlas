@@ -425,6 +425,20 @@
     .sync-status.sync-local .sync-dot{background:var(--warn);box-shadow:0 0 8px 1px rgba(245,165,36,.6);animation:syncPulse 1.5s ease-in-out infinite}
     .sync-status.sync-local{color:var(--warn);border-color:rgba(245,165,36,.35)}
     .sync-status.sync-unknown .sync-dot{background:var(--ink3)}
+
+    .presence-bar{display:flex;align-items:center;padding:6px 10px;border-radius:9px;background:var(--bg2);
+      border:1px solid var(--line2);cursor:pointer;flex-shrink:0;gap:0;min-height:38px}
+    .presence-bar:hover{border-color:var(--gold)}
+    .presence-bar.presence-alone{opacity:.55}
+    .presence-bar.presence-crowded{border-color:var(--warn);background:rgba(245,165,36,.08)}
+    .presence-avatar{width:26px;height:26px;border-radius:50%;background:var(--panel2);border:2px solid var(--bg2);
+      display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink);
+      margin-left:-8px;flex-shrink:0}
+    .presence-avatar:first-child{margin-left:0}
+    .presence-avatar.me{background:var(--gold);color:#0B1220}
+    .presence-avatar.other{background:var(--live);color:#0B1220}
+    .presence-extra{font-size:11px;color:var(--ink3);margin-left:6px;font-weight:600}
+    @media(max-width:860px){ .presence-bar{padding:6px} }
     @keyframes syncPulse{0%,100%{opacity:1}50%{opacity:.35}}
     @media(max-width:860px){ .sync-status .sync-label{display:none} .sync-status{padding:8px} }
 
@@ -726,6 +740,7 @@
         <input id="search" placeholder="Search everything — drops, watches, winners, content…" autocomplete="off">
         <div id="sresults" class="sresults"></div>
       </div>
+      <div id="presenceBar" class="presence-bar" onclick="showPresenceDetails()" title="Who else is currently in Atlas"></div>
       <div id="syncStatus" class="sync-status sync-unknown" onclick="showSyncDetails()" title="Cloud sync status — click for details">
         <span class="sync-dot"></span><span class="sync-label">Checking…</span>
       </div>
@@ -917,6 +932,7 @@ async function doSignIn(){
   await bootApp();
 }
 async function doSignOut(){
+  teardownPresence();
   if(sb) await sb.auth.signOut();
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
@@ -927,6 +943,83 @@ async function bootApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='flex';
   await loadDB(); migrate(); applyTheme(); render();
+  initPresence();
+}
+
+/* ---------- Presence: shows who else is currently in Atlas, live ----------
+   Uses Supabase Realtime Presence (a lightweight "who's connected" channel —
+   separate from the data table). Each open tab/device tracks itself with a
+   random session id, so if the SAME account is open on two devices (the
+   exact scenario that caused data loss before), it shows up as 2 present,
+   not 1 — that's deliberate. */
+let presenceChannel = null;
+const PRESENCE_SESSION_ID = 'sess_'+Math.random().toString(36).slice(2,10);
+function deviceLabel(){
+  const ua = navigator.userAgent;
+  if(/iPhone|iPad/.test(ua)) return 'iPhone';
+  if(/Android/.test(ua)) return 'Android';
+  if(/Macintosh/.test(ua)) return 'Mac';
+  if(/Windows/.test(ua)) return 'Windows';
+  return 'Device';
+}
+function initialsFor(email){
+  if(!email) return '?';
+  const name = email.split('@')[0];
+  return name.slice(0,2).toUpperCase();
+}
+async function initPresence(){
+  if(!sb) return;
+  try{
+    const { data: userData } = await sb.auth.getUser();
+    const email = (userData && userData.user && userData.user.email) || 'unknown';
+    presenceChannel = sb.channel('atlas-presence-v1', { config: { presence: { key: PRESENCE_SESSION_ID } } });
+    presenceChannel.on('presence', { event: 'sync' }, renderPresence);
+    presenceChannel.subscribe(async (status)=>{
+      if(status==='SUBSCRIBED'){
+        await presenceChannel.track({ email, device: deviceLabel(), online_at: new Date().toISOString() });
+      }
+    });
+    window.addEventListener('beforeunload', teardownPresence);
+  }catch(e){ console.warn('Presence init failed', e); }
+}
+function teardownPresence(){
+  if(presenceChannel){ try{ presenceChannel.untrack(); sb.removeChannel(presenceChannel); }catch(e){} presenceChannel=null; }
+}
+let lastPresenceState = [];
+function renderPresence(){
+  if(!presenceChannel) return;
+  const state = presenceChannel.presenceState();
+  const all = [];
+  Object.keys(state).forEach(key=>{
+    (state[key]||[]).forEach(p=> all.push({ key, email:p.email, device:p.device, online_at:p.online_at }));
+  });
+  lastPresenceState = all;
+  const bar = document.getElementById('presenceBar'); if(!bar) return;
+  const others = all.filter(p=>p.key!==PRESENCE_SESSION_ID);
+  bar.classList.remove('presence-alone','presence-crowded');
+  if(all.length<=1) bar.classList.add('presence-alone');
+  else bar.classList.add('presence-crowded');
+
+  const shown = all.slice(0,4);
+  bar.innerHTML = shown.map(p=>{
+    const mine = p.key===PRESENCE_SESSION_ID;
+    return `<div class="presence-avatar ${mine?'me':'other'}" title="${esc(p.email||'')}${mine?' (you, '+deviceLabel()+')':' — '+esc(p.device||'')}">${initialsFor(p.email)}</div>`;
+  }).join('') + (all.length>4? `<span class="presence-extra">+${all.length-4}</span>` : '');
+
+  if(others.length>0) bar.title = `${all.length} active right now — click for details`;
+  else bar.title = 'Just you right now';
+}
+function showPresenceDetails(){
+  const rows = lastPresenceState.length? lastPresenceState.map(p=>{
+    const mine = p.key===PRESENCE_SESSION_ID;
+    const since = p.online_at? new Date(p.online_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '';
+    return `<div class="row-item"><div class="txt"><div class="t">${esc(p.email||'Unknown')}${mine?' (this device)':''}</div><div class="meta">${esc(p.device||'')} · online since ${since}</div></div></div>`;
+  }).join('') : '<div class="muted">No one else detected right now.</div>';
+  const warnLine = lastPresenceState.length>1
+    ? `<div class="muted" style="margin-bottom:12px;color:var(--warn)">⚠ More than one session is active. If you're both editing at the same time, whoever saves last will overwrite the other's changes. Best practice right now: only one person in Atlas at a time.</div>`
+    : `<div class="muted" style="margin-bottom:12px;color:var(--live)">🟢 You're the only one in Atlas right now — safe to edit.</div>`;
+  openModal(`<div class="modal"><div class="modal-h"><h3>👥 Who's here</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">${warnLine}${rows}</div></div>`);
 }
 async function checkSessionAndBoot(){
   if(!sb){ showLoginErr(supabaseLoadError); return; }
@@ -1099,6 +1192,25 @@ function migrateDrop(d){
     t.checkpoints=buildCheckpointTemplate(d);
     t.checkpointsGeneratedV2=true;
     t.checkpointsGenerated=true;
+  }
+  // One-time cleanup: older drops had up to 5 checkpoints crammed into the final
+  // day (9am/1pm/6pm/7pm/8pm), which meant multiple ticket-count prompts on the
+  // same day. Collapse any same-date checkpoints into a single 6pm entry,
+  // keeping the highest ticket count already recorded so nothing is lost.
+  if(!t.checkpointsCollapsedV1){
+    const byDate={};
+    (t.checkpoints||[]).forEach(cp=>{ (byDate[cp.date]=byDate[cp.date]||[]).push(cp); });
+    const collapsed=[];
+    Object.keys(byDate).sort().forEach(date=>{
+      const group=byDate[date];
+      if(group.length<=1){ collapsed.push(group[0]); return; }
+      const dayName=(group[0].label||'').split(' ')[0]||'';
+      const maxSold=Math.max(...group.map(g=>Number(g.ticketsSold)||0));
+      const anyFilled=group.some(g=>g.filled);
+      collapsed.push({id:(group.find(g=>g.filled)||group[0]).id, label:`${dayName} 6pm`.trim(), date, ticketsSold:maxSold, filled:anyFilled, locked:true});
+    });
+    t.checkpoints=collapsed;
+    t.checkpointsCollapsedV1=true;
   }
   if(!d.contentChecklistGenerated){
     d.contentChecklist=buildContentChecklist(d);
@@ -1574,7 +1686,7 @@ function buildCheckpointTemplate(d){
   const pushFinalDay=(offsetDays)=>{
     const dt=new Date(launch); dt.setDate(dt.getDate()+offsetDays);
     const label=dayNames[dt.getDay()]; const dateStr=localISODate(dt);
-    ['9am','1pm','6pm','7pm','8pm'].forEach(time=>cps.push({id:uid('cp'), label:`${label} ${time}`, date:dateStr, ticketsSold:0, filled:false, locked:true}));
+    cps.push({id:uid('cp'), label:`${label} 6pm`, date:dateStr, ticketsSold:0, filled:false, locked:true});
   };
   if(d.type==='Weekend Drop'){
     // Fri 5:30pm launch (tracked at 8:30pm) -> Sun 8:30pm draw, 2-day span
@@ -3172,22 +3284,7 @@ function vPastDropDetail(){
 
 
 
-let taskFilter='Today', taskPerson='All', taskUrgentOnly=false, taskDropFilter='All';
-function recurringTasksCard(){
-  const list = DB.recurringTasks||[];
-  return `<div class="card" style="margin-bottom:16px">
-    <div class="card-h"><h3>🔁 Recurring Tasks</h3><button class="btn btn-sm btn-gold" onclick="addRecurringTemplate()">＋ New Template</button></div>
-    <div class="card-b">
-      ${list.length? list.map(rt=>`
-        <div class="row-item">
-          <span class="ttype-dot" style="background:${(TASK_TYPES[rt.type]||{}).color||'var(--ink3)'}">${(TASK_TYPES[rt.type]||{}).ico||'📌'}</span>
-          <div class="txt"><div class="t">${esc(rt.title)}</div><div class="meta">${esc(rt.category)} · ${esc(rt.type)}</div></div>
-          <button class="btn btn-sm btn-gold" onclick="openRecurringTaskAdd('${rt.id}')">＋ Add Task</button>
-          <button class="btn btn-sm btn-ghost" onclick="editRecurringTemplate('${rt.id}')">Edit</button>
-        </div>`).join('') : `<div class="empty">No recurring task templates yet.</div>`}
-    </div>
-  </div>`;
-}
+let taskFilter='Today', taskPerson='All', taskUrgentOnly=false, taskDropFilter='All', taskCenterTab='tasks';
 function addRecurringTemplate(){ editRecurringTemplate(null); }
 function editRecurringTemplate(id){
   const rt = id ? (DB.recurringTasks||[]).find(x=>x.id===id) : {title:'',type:'Finance & Reconciliation',category:'Admin'};
@@ -3220,38 +3317,34 @@ function delRecurringTemplate(id){
   DB.recurringTasks=(DB.recurringTasks||[]).filter(x=>x.id!==id);
   saveDB();closeModal();render();
 }
-function openRecurringTaskAdd(templateId){
+function openRecurringTaskAdd(templateId, dropType){
   const rt=(DB.recurringTasks||[]).find(x=>x.id===templateId); if(!rt) return;
+  const eligibleDrops=DB.drops.filter(d=>['Draft','Upcoming','Live'].includes(d.status) && (!dropType || d.type===dropType));
   openModal(`<div class="modal"><div class="modal-h"><h3>Add: ${esc(rt.title)}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
-      <div class="field"><label>Drop <span class="muted" style="font-weight:400;text-transform:none">(leave blank to pick a watch instead)</span></label>
-        ${dd('rta_drop',[{value:'',label:'— none —'},...DB.drops.filter(d=>['Draft','Upcoming','Live'].includes(d.status)).map(d=>({value:d.id,label:`${d.number} — ${watchName(d.watchId)}`}))],'','onRtaDropChange')}</div>
-      <div class="field" id="rta_watch_field"><label>Watch <span class="muted" style="font-weight:400;text-transform:none">(only used if no drop selected)</span></label>
-        ${dd('rta_watch',[{value:'',label:'— none —'},...DB.watches.map(w=>({value:w.id,label:`${w.brand} ${w.model}`}))],'')}</div>
+      <div class="field"><label>Drop</label>
+        ${eligibleDrops.length
+          ? dd('rta_drop',eligibleDrops.map(d=>({value:d.id,label:`${d.number} — ${watchName(d.watchId)}`})),eligibleDrops[0].id)
+          : `<div class="muted">No active ${esc(dropType||'')} drops right now.</div>`}</div>
       <div class="field-row">
         <div class="field"><label>Due date</label><input id="rta_due" type="date" value="${today()}"></div>
         <div class="field"><label>Assigned to</label>${dd('rta_assignee',teamList(),teamList()[0])}</div>
       </div>
     </div>
-    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveRecurringTaskAdd('${templateId}')">＋ Add Task</button></div></div>`);
-}
-function onRtaDropChange(id,val){
-  const field=document.getElementById('rta_watch_field'); if(!field) return;
-  field.style.opacity = val? '0.4' : '1';
-  field.style.pointerEvents = val? 'none' : 'auto';
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button>${eligibleDrops.length?`<button class="btn btn-gold" onclick="saveRecurringTaskAdd('${templateId}')">＋ Add Task</button>`:''}</div></div>`);
 }
 function saveRecurringTaskAdd(templateId){
   const rt=(DB.recurringTasks||[]).find(x=>x.id===templateId); if(!rt) return;
   const dropId=ddVal('rta_drop');
-  const watchId=dropId? '' : ddVal('rta_watch');
-  if(!dropId && !watchId){ alert('Pick a drop or a watch'); return; }
-  DB.tasks.unshift({id:uid('t'),title:rt.title,dropId,watchId,
+  if(!dropId){ alert('Pick a drop'); return; }
+  DB.tasks.unshift({id:uid('t'),title:rt.title,dropId,watchId:'',
     due:document.getElementById('rta_due').value||today(),done:false,
     category:rt.category||'Task',type:rt.type||'Other',
     assignedTo:ddVal('rta_assignee'),time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()});
   saveDB();closeModal();toast('Task added');render();
 }
 function vTasks(){
+  if(taskCenterTab==='recurring') return vRecurringTasks();
   const groups={Today:[],Tomorrow:[],'This Week':[],Overdue:[],Completed:[]};
   const tmr=addDays(today(),1), wk=addDays(today(),7);
   let all=DB.tasks.filter(t=> taskPerson==='All' || t.assignedTo===taskPerson);
@@ -3270,7 +3363,10 @@ function vTasks(){
   const activeDropsWithTasks=DB.drops.filter(d=>['Draft','Upcoming','Live'].includes(d.status) && DB.tasks.some(t=>t.dropId===d.id));
   return `<div class="page-head"><div><h2>Tasks</h2><div class="desc">Everything you need to do, typed and assigned.</div></div>
     <div class="page-actions"><button class="btn btn-gold" onclick="newTask()">＋ New Task</button></div></div>
-  ${recurringTasksCard()}
+  <div class="tabs" style="margin-bottom:18px">
+    <div class="tab ${taskCenterTab==='tasks'?'active':''}" onclick="taskCenterTab='tasks';render()">Tasks</div>
+    <div class="tab ${taskCenterTab==='recurring'?'active':''}" onclick="taskCenterTab='recurring';render()">🔁 Recurring Tasks</div>
+  </div>
   <div class="filters">${cats.map(c=>`<button class="fbtn ${taskFilter===c?'active':''}" onclick="taskFilter='${c}';render()">${c} · ${groups[c].length}</button>`).join('')}</div>
   <div class="filters">${['All',...teamList()].map(p=>`<button class="fbtn ${taskPerson===p?'active':''}" onclick="taskPerson='${p}';render()">${p}</button>`).join('')}
     <button class="fbtn ${taskUrgentOnly?'active':''}" onclick="taskUrgentOnly=!taskUrgentOnly;render()">⚡ Urgent only</button></div>
@@ -3284,6 +3380,30 @@ function vTasks(){
       ${dd('pageTaskDropDD',[{value:'',label:'No drop'},...DB.drops.map(d=>({value:d.id,label:d.number}))],'')}
       <button class="btn btn-sm" onclick="pageAddTask()">Add</button></div>
   </div></div>`;
+}
+const RECURRING_DROP_TYPES=['Main Drop','Weekend Drop','Tech Drop','Free Drop','Vault'];
+function vRecurringTasks(){
+  const list=DB.recurringTasks||[];
+  return `<div class="page-head"><div><h2>Tasks</h2><div class="desc">Everything you need to do, typed and assigned.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="addRecurringTemplate()">＋ New Template</button></div></div>
+  <div class="tabs" style="margin-bottom:18px">
+    <div class="tab ${taskCenterTab==='tasks'?'active':''}" onclick="taskCenterTab='tasks';render()">Tasks</div>
+    <div class="tab ${taskCenterTab==='recurring'?'active':''}" onclick="taskCenterTab='recurring';render()">🔁 Recurring Tasks</div>
+  </div>
+  <div class="desc" style="margin-bottom:16px">The standard checklist for every drop. Pick a drop type below to see its tasks, then add one straight to a live drop.</div>
+  ${RECURRING_DROP_TYPES.map(ty=>`
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h"><h3>${ty}</h3></div>
+      <div class="card-b">
+        ${list.length? list.map(rt=>`
+          <div class="row-item">
+            <span class="ttype-dot" style="background:${(TASK_TYPES[rt.type]||{}).color||'var(--ink3)'}">${(TASK_TYPES[rt.type]||{}).ico||'📌'}</span>
+            <div class="txt"><div class="t">${esc(rt.title)}</div><div class="meta">${esc(rt.category)} · ${esc(rt.type)}</div></div>
+            <button class="btn btn-sm btn-gold" onclick="openRecurringTaskAdd('${rt.id}','${ty}')">＋ Add Task</button>
+            <button class="btn btn-sm btn-ghost" onclick="editRecurringTemplate('${rt.id}')">Edit</button>
+          </div>`).join('') : `<div class="empty">No recurring task templates yet.</div>`}
+      </div>
+    </div>`).join('')}`;
 }
 function addTeamMember(){
   const n=prompt('Team member name:'); if(!n||!n.trim())return;
