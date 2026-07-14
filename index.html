@@ -416,6 +416,18 @@
       font-size:16px; /* prevents iPhone zoom */
     }
 
+    .sync-status{display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:9px;background:var(--bg2);
+      border:1px solid var(--line2);cursor:pointer;font-size:12px;font-weight:600;color:var(--ink2);flex-shrink:0;white-space:nowrap}
+    .sync-status:hover{border-color:var(--gold)}
+    .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--ink3);flex-shrink:0}
+    .sync-status.sync-ok .sync-dot{background:var(--live)}
+    .sync-status.sync-ok{color:var(--live)}
+    .sync-status.sync-local .sync-dot{background:var(--warn);animation:syncPulse 1.5s ease-in-out infinite}
+    .sync-status.sync-local{color:var(--warn)}
+    .sync-status.sync-unknown .sync-dot{background:var(--ink3)}
+    @keyframes syncPulse{0%,100%{opacity:1}50%{opacity:.35}}
+    @media(max-width:860px){ .sync-status .sync-label{display:none} .sync-status{padding:8px} }
+
     #themeToggleBtn{
       width:40px;
       height:40px;
@@ -714,6 +726,9 @@
         <input id="search" placeholder="Search everything — drops, watches, winners, content…" autocomplete="off">
         <div id="sresults" class="sresults"></div>
       </div>
+      <div id="syncStatus" class="sync-status sync-unknown" onclick="showSyncDetails()" title="Cloud sync status — click for details">
+        <span class="sync-dot"></span><span class="sync-label">Checking…</span>
+      </div>
       <button class="btn btn-sm btn-ghost" id="themeToggleBtn" onclick="toggleTheme()" title="Switch appearance">🌙 Dark</button>
       <button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button>
     </div>
@@ -766,15 +781,80 @@ function showLoginErr(msg){
 }
 
 /* ---------- Storage wrapper (same shape as window.storage, backed by a Supabase table) ---------- */
+/* Safety net: tracks whether saves are truly reaching the cloud (vs falling back to
+   this device only), keeps the last 10 cloud versions so an overwrite can be rolled
+   back, and warns before saving if the cloud has moved on since we last loaded
+   (i.e. someone else — or another device — saved after us). */
+let lastKnownCloudUpdatedAt = null;
+let cloudReachable = null; // true/false/null(unknown)
+
+function setSyncStatus(mode, detail){
+  const el = document.getElementById('syncStatus'); if(!el) return;
+  el.classList.remove('sync-ok','sync-local','sync-unknown');
+  const label = el.querySelector('.sync-label');
+  if(mode==='ok'){ el.classList.add('sync-ok'); if(label) label.textContent = 'Synced'+(detail?' · '+detail:''); }
+  else if(mode==='local'){ el.classList.add('sync-local'); if(label) label.textContent = 'This device only'; }
+  else { el.classList.add('sync-unknown'); if(label) label.textContent = detail || 'Checking…'; }
+}
+function showSyncDetails(){
+  openVersionHistory();
+}
+async function openVersionHistory(){
+  if(!sb){ toast('No cloud connection available.'); return; }
+  const statusLine = cloudReachable===true
+    ? `<div class="muted" style="margin-bottom:12px">🟢 Synced to the shared cloud database. Last save: ${lastKnownCloudUpdatedAt? new Date(lastKnownCloudUpdatedAt).toLocaleString('en-GB') : 'unknown'}</div>`
+    : cloudReachable===false
+      ? `<div class="muted" style="margin-bottom:12px;color:var(--warn)">⚠ Not reaching the cloud right now — changes are only saved on this device until connection is restored.</div>`
+      : `<div class="muted" style="margin-bottom:12px">Checking connection…</div>`;
+  openModal(`<div class="modal"><div class="modal-h"><h3>☁️ Sync &amp; Backups</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      ${statusLine}
+      <div class="section-sub" style="margin-bottom:8px">Recent saved versions</div>
+      <div id="versionList" class="muted">Loading…</div>
+    </div></div>`);
+  try{
+    const { data: versions, error } = await sb.from('atlas_kv').select('key, updated_at').like('key', K+':v:%').order('updated_at', { ascending:false });
+    const list = document.getElementById('versionList'); if(!list) return;
+    if(error || !versions || !versions.length){ list.textContent='No backup versions yet — one is saved automatically every time changes are saved to the cloud.'; return; }
+    list.innerHTML = versions.map(v=>{
+      const d = new Date(v.updated_at);
+      return `<div class="row-item"><div class="txt"><div class="t">${d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</div><div class="meta">${d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div></div>
+        <button class="btn btn-sm" onclick="restoreVersion('${v.key}')">Restore this version</button></div>`;
+    }).join('');
+  }catch(e){
+    const list = document.getElementById('versionList'); if(list) list.textContent='Could not load version history.';
+  }
+}
+async function restoreVersion(versionKey){
+  if(!confirm('This will replace your CURRENT data with this saved version. Your current data will itself be backed up first, so nothing is lost. Continue?')) return;
+  try{
+    // Back up current state before restoring, so restoring is itself reversible.
+    const { data: currentRow } = await sb.from('atlas_kv').select('value').eq('key', K).maybeSingle();
+    if(currentRow){
+      await sb.from('atlas_kv').upsert({ key: K+':v:'+new Date().toISOString()+':pre-restore', value: currentRow.value, updated_at: new Date().toISOString() });
+    }
+    const { data: versionRow, error } = await sb.from('atlas_kv').select('value').eq('key', versionKey).maybeSingle();
+    if(error || !versionRow){ toast('Could not load that version.'); return; }
+    await dbStorage.set(K, versionRow.value);
+    DB = JSON.parse(versionRow.value);
+    migrate(); closeModal(); toast('Version restored ✅'); render();
+  }catch(e){ toast('Restore failed — see console for details.'); console.error(e); }
+}
+
 const dbStorage = {
   async get(key){
     // Try Supabase first, fall back to localStorage
     if(sb){
       try{
-        const { data, error } = await sb.from('atlas_kv').select('value').eq('key', key).maybeSingle();
-        if(!error && data) return { key, value: data.value };
-        if(error) console.warn('Supabase get failed, using localStorage', error.message);
-      }catch(e){ console.warn('Supabase get error, using localStorage'); }
+        const { data, error } = await sb.from('atlas_kv').select('value, updated_at').eq('key', key).maybeSingle();
+        if(!error && data){
+          cloudReachable = true;
+          lastKnownCloudUpdatedAt = data.updated_at || new Date().toISOString();
+          setSyncStatus('ok', 'loaded');
+          return { key, value: data.value };
+        }
+        if(error){ console.warn('Supabase get failed, using localStorage', error.message); cloudReachable=false; setSyncStatus('local'); }
+      }catch(e){ console.warn('Supabase get error, using localStorage'); cloudReachable=false; setSyncStatus('local'); }
     }
     const local = localStorage.getItem(key);
     return local ? { key, value: local } : null;
@@ -782,16 +862,44 @@ const dbStorage = {
   async set(key, value){
     // Always save to localStorage immediately (instant, no auth needed)
     try{ localStorage.setItem(key, value); }catch(e){}
-    // Also push to Supabase if available
-    if(sb){
+    if(!sb){ setSyncStatus('local'); return { key, value }; }
+
+    try{
+      // Safety check: has the cloud moved on since we last loaded? (another
+      // device/person saved after us). If so, don't silently overwrite —
+      // stash a backup of what's up there right now under a rescue key first.
+      const { data: current } = await sb.from('atlas_kv').select('updated_at, value').eq('key', key).maybeSingle();
+      if(current && lastKnownCloudUpdatedAt && current.updated_at && new Date(current.updated_at) > new Date(lastKnownCloudUpdatedAt) && current.value !== value){
+        const rescueKey = key+':conflict:'+Date.now();
+        try{ await sb.from('atlas_kv').upsert({ key: rescueKey, value: current.value, updated_at: new Date().toISOString() }); }catch(e){}
+        console.warn('Cloud data had changed since last load — saved a safety copy under', rescueKey, 'before overwriting.');
+      }
+
+      const nowIso = new Date().toISOString();
+      const { error } = await sb.from('atlas_kv').upsert({ key, value, updated_at: nowIso });
+      if(error){ console.warn('Supabase save failed (local save OK)', error.message); cloudReachable=false; setSyncStatus('local'); return { key, value }; }
+
+      cloudReachable = true; lastKnownCloudUpdatedAt = nowIso;
+      setSyncStatus('ok', new Date(nowIso).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
+
+      // Keep a rolling set of the last 10 versions so any bad save can be rolled back.
       try{
-        const { error } = await sb.from('atlas_kv').upsert({ key, value, updated_at: new Date().toISOString() });
-        if(error) console.warn('Supabase save failed (local save OK)', error.message);
-      }catch(e){ console.warn('Supabase save error (local save OK)'); }
+        const verKey = key+':v:'+nowIso;
+        await sb.from('atlas_kv').upsert({ key: verKey, value, updated_at: nowIso });
+        const { data: versions } = await sb.from('atlas_kv').select('key, updated_at').like('key', key+':v:%').order('updated_at', { ascending:false });
+        if(versions && versions.length > 10){
+          const toDelete = versions.slice(10).map(v=>v.key);
+          if(toDelete.length) await sb.from('atlas_kv').delete().in('key', toDelete);
+        }
+      }catch(e){ console.warn('Version backup skipped', e); }
+    }catch(e){
+      console.warn('Supabase save error (local save OK)', e);
+      cloudReachable=false; setSyncStatus('local');
     }
     return { key, value };
   }
 };
+
 
 /* ---------- Auth ---------- */
 async function doSignIn(){
@@ -2039,6 +2147,9 @@ function vDashboard(){
   const live=DB.drops.filter(d=>d.status==='Live');
   const upcoming=DB.drops.filter(d=>d.status==='Upcoming');
   const monthRev=DB.drops.filter(inThisMonth).reduce((a,d)=>a+dropNumbers(d).revenue,0);
+  const monthActual=monthTakingsTotals().amount;
+  const revPct=monthRev>0?Math.round(monthActual/monthRev*100):null;
+  const revPctColor=revPct===null?'var(--ink3)':revPct>=100?'var(--live)':revPct>=75?'var(--gold2)':'var(--ink3)';
   const monthProfit=DB.drops.filter(inThisMonth).reduce((a,d)=>a+dropNumbers(d).profit,0);
   const weekRev=DB.drops.filter(inThisWeek).reduce((a,d)=>a+dropNumbers(d).revenue,0);
   const awaitingDispatch=DB.winners.filter(w=>!w.dispatched);
@@ -2091,7 +2202,23 @@ function vDashboard(){
 
   <div class="kpi-row">
     <div class="kpi"><div class="label">Live Drops</div><div class="val green">${live.length}</div><div class="sub">${upcoming.length} upcoming</div></div>
-    <div class="kpi"><div class="label">Revenue this month</div><div class="val gold">${gbp(monthRev)}</div><div class="sub">across all drops</div></div>
+    <div class="kpi" style="grid-column:span 2">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div class="label">Revenue this month</div>
+        ${revPct!==null?`<div class="sub" style="margin:0;font-weight:700;color:${revPctColor}">${revPct}% of forecast</div>`:''}
+      </div>
+      <div style="display:flex;gap:16px;margin-top:9px;align-items:flex-end">
+        <div style="flex:1;min-width:0">
+          <div class="val gold">${gbp(monthActual)}</div>
+          <div class="sub">Actual · landed</div>
+        </div>
+        <div style="width:1px;align-self:stretch;background:var(--line2);margin-bottom:4px"></div>
+        <div style="flex:1;min-width:0">
+          <div class="val" style="color:var(--ink2)">${gbp(monthRev)}</div>
+          <div class="sub">Forecast · modelled</div>
+        </div>
+      </div>
+    </div>
     <div class="kpi"><div class="label">Profit this month</div><div class="val">${gbp(monthProfit)}</div><div class="sub">rev − cost</div></div>
     <div class="kpi"><div class="label">Awaiting dispatch</div><div class="val">${awaitingDispatch.length}</div><div class="sub">winners</div></div>
   </div>
