@@ -416,14 +416,14 @@
       font-size:16px; /* prevents iPhone zoom */
     }
 
-    .sync-status{display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:9px;background:var(--bg2);
+    .sync-status{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:9px;background:var(--bg2);
       border:1px solid var(--line2);cursor:pointer;font-size:12px;font-weight:600;color:var(--ink2);flex-shrink:0;white-space:nowrap}
     .sync-status:hover{border-color:var(--gold)}
-    .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--ink3);flex-shrink:0}
-    .sync-status.sync-ok .sync-dot{background:var(--live)}
-    .sync-status.sync-ok{color:var(--live)}
-    .sync-status.sync-local .sync-dot{background:var(--warn);animation:syncPulse 1.5s ease-in-out infinite}
-    .sync-status.sync-local{color:var(--warn)}
+    .sync-dot{width:11px;height:11px;border-radius:50%;background:var(--ink3);flex-shrink:0;display:inline-block;box-shadow:0 0 0 3px transparent}
+    .sync-status.sync-ok .sync-dot{background:var(--live);box-shadow:0 0 8px 1px rgba(74,222,128,.7)}
+    .sync-status.sync-ok{color:var(--live);border-color:rgba(74,222,128,.35)}
+    .sync-status.sync-local .sync-dot{background:var(--warn);box-shadow:0 0 8px 1px rgba(245,165,36,.6);animation:syncPulse 1.5s ease-in-out infinite}
+    .sync-status.sync-local{color:var(--warn);border-color:rgba(245,165,36,.35)}
     .sync-status.sync-unknown .sync-dot{background:var(--ink3)}
     @keyframes syncPulse{0%,100%{opacity:1}50%{opacity:.35}}
     @media(max-width:860px){ .sync-status .sync-label{display:none} .sync-status{padding:8px} }
