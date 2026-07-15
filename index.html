@@ -85,6 +85,10 @@
   .kpi .val.gold{color:var(--gold2)}
   .kpi .val.green{color:var(--live)}
   .kpi .sub{font-size:11.5px;color:var(--ink3);margin-top:2px}
+  .kpi-row.condensed{margin-bottom:18px}
+  .kpi-row.condensed .kpi{padding:11px 14px}
+  .kpi-row.condensed .val{font-size:19px;margin-top:3px}
+  .kpi-row.condensed .sub{font-size:11px}
   .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
   .calc-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
   .calc-row span:first-child{color:var(--ink2)}
@@ -1117,7 +1121,7 @@ const DEFAULT_RECURRING_TASKS = [
 ];
 const CONTENT_CATS=['Watch Photos','Watch Video','Delivery Video','Evergreen Video','Person Only'];
 function watchGalleryKeyForCategory(cat){ return slug(cat); }
-const CONTENT_STATUSES=['Idea','In Motion','Done'];
+const CONTENT_STATUSES=['To Do','Done'];
 
 /* ---------- Storage ---------- */
 async function loadDB(){
@@ -1318,15 +1322,15 @@ function migrate(){
   const CAT_MIGRATE_V2={'Watch Still Content':'Watch Photos','Ad Content':'Watch Video','Social Content':'Watch Video',
     'Watch Unboxing':'Watch Video','Funny Content':'Watch Video','BTS Content':'Watch Video',
     'Educational Content':'Evergreen Video','Evergreen Content':'Evergreen Video'};
-  const STATUS_MIGRATE={'Writing':'In Motion','Ready':'In Motion','Filmed':'In Motion','Edited':'In Motion',
-    'Posted':'Done','Archived':'Done'};
+  const STATUS_MIGRATE={'Writing':'To Do','Ready':'To Do','Filmed':'To Do','Edited':'To Do',
+    'Idea':'To Do','In Motion':'To Do','Posted':'Done','Archived':'Done'};
   (DB.content||[]).forEach(c=>{
     c.video=c.video||''; c.images=c.images||[]; c.assetId=c.assetId||''; c.tags=c.tags||[]; c.watchId=c.watchId||'';
     c.creator=c.creator||(DB.settings.team[0]);
     c.useCases=c.useCases||(c.useCase?[c.useCase]:['Organic Post']);
     c.mediaStage=c.mediaStage||'Finished';
     c.filmDate=c.filmDate||'';
-    if(!CONTENT_STATUSES.includes(c.status)){ c.status=STATUS_MIGRATE[c.status]||'Idea'; }
+    if(!CONTENT_STATUSES.includes(c.status)){ c.status=STATUS_MIGRATE[c.status]||'To Do'; }
     if(!CONTENT_CATS.includes(c.category)){
       if(c.type==='Unboxing') c.category='Watch Unboxing';
       else if(c.useCases.includes('Paid Ad')) c.category='Ad Content';
@@ -1406,7 +1410,7 @@ function seed(){
       {id:uid('cn'),title:'Why low entry counts = better odds',category:'Evergreen Video',
        status:'Ready',body:'Only 349 entries. Compare that to a national lottery…',tags:['odds','hook'],dropId:d1,filmDate:addDays(today(),1),video:'',assetId:'',creator:'Felix',useCases:['Organic Post'],created:now()},
       {id:uid('cn'),title:'Unboxing the Speedmaster',category:'Watch Video',
-       status:'Idea',body:'',tags:['Omega','BTS'],dropId:d3,filmDate:'',video:'',assetId:'',creator:'Leila',useCases:['Organic Post'],created:now()},
+       status:'To Do',body:'',tags:['Omega','BTS'],dropId:d3,filmDate:'',video:'',assetId:'',creator:'Leila',useCases:['Organic Post'],created:now()},
     ],
     sops:[
       {id:uid('sop'),title:'Launching a Drop',body:'1. Confirm stock\n2. Photography\n3. Build website entry\n4. Launch email\n5. Meta ads live\n6. SMS schedule',created:now()},
@@ -1629,6 +1633,7 @@ function trkKpiRow(d,t){
   const breakEvenTicketsTotal=trkBreakEvenTickets(t);
   const ticketsToBreakEven=Math.max(0, breakEvenTicketsTotal-soldVal);
   const revenueToBreakEven=ticketsToBreakEven*trkFullPrice(t);
+  const breakEvenPct = breakEvenTicketsTotal>0 ? (soldVal/breakEvenTicketsTotal*100) : 0;
   const launchTicketsN=Number(t.launchTicketsSold)||0, couponTicketsN=Number(t.couponBulkTicketsSold)||0;
   const missedRevenue = launchTicketsN*(trkFullPrice(t)-trkLaunchPrice(t)) + couponTicketsN*(trkFullPrice(t)-trkCompPrice(t));
   return `<div class="kpi-row" style="margin:18px 0">
@@ -1639,6 +1644,7 @@ function trkKpiRow(d,t){
       </div>
     </div>
     <div class="kpi"><div class="label">Status</div><div class="val" style="font-size:18px;${status!=='PROFITABLE'?'color:var(--danger)':'color:var(--gold2)'}">${status}</div>
+      <div class="sub" style="font-size:15px;font-weight:700;margin-top:2px;${breakEvenPct>=100?'color:var(--live)':'color:var(--ink2)'}">${breakEvenPct.toFixed(0)}% to break-even</div>
       <div class="cost-breakdown">
         <div class="cb-row"><span>Break-even Tickets</span><span>${breakEvenTicketsTotal}</span></div>
         <div class="cb-row"><span>Tickets to Break Even</span><span>${ticketsToBreakEven}</span></div>
@@ -2265,7 +2271,7 @@ function vDashboard(){
   const monthProfit=DB.drops.filter(inThisMonth).reduce((a,d)=>a+dropNumbers(d).profit,0);
   const weekRev=DB.drops.filter(inThisWeek).reduce((a,d)=>a+dropNumbers(d).revenue,0);
   const awaitingDispatch=DB.winners.filter(w=>!w.dispatched);
-  const filmList=DB.content.filter(cn=>cn.status==='Ready'||cn.status==='Writing');
+  const filmList=DB.content.filter(cn=>cn.status==='To Do');
   const noPhoto=DB.watches.filter(w=>!w.img);
   const dueCp=dueCheckpoints();
   const dueCs=dueContentToday();
@@ -2371,9 +2377,9 @@ function vDashboard(){
         <div class="card-h"><h3>Content to Film</h3><span class="link" onclick="go('content')">Content →</span></div>
         <div class="card-b">
           ${filmList.length? filmList.slice(0,5).map(cn=>`
-            <div class="row-item" onclick="go('content');setTimeout(()=>openContent('${cn.id}'),50)">
-              <div class="txt"><div class="t">${esc(cn.title)}</div><div class="meta">${esc(cn.category)}${cn.filmDate?' · film '+fmtDate(cn.filmDate):''}</div></div>
-              <span class="pill pill-draft">${cn.status}</span>
+            <div class="row-item">
+              <div class="txt" style="cursor:pointer" onclick="go('content');setTimeout(()=>openContent('${cn.id}'),50)"><div class="t">${esc(cn.title)}</div><div class="meta">${esc(cn.category)}${cn.filmDate?' · film '+fmtDate(cn.filmDate):''}</div></div>
+              <button class="btn btn-sm btn-gold" onclick="event.stopPropagation();markContentDone('${cn.id}')">✓ Done</button>
             </div>`).join('') : `<div class="empty">Nothing queued to film.</div>`}
         </div>
       </div>
@@ -2478,7 +2484,7 @@ function vDrops(){
 }
 
 /* ================= DROP HUB ================= */
-const DROP_TABS=['overview','tasks','marketing','performance','winner','content','files','timeline','financials','calculator'];
+const DROP_TABS=['overview','watch','tasks','marketing','performance','winner','content','files','timeline','financials','calculator'];
 function vDropHub(){
   const d=dropById(route.id);
   if(!d) return `<div class="empty">Drop not found. <span class="link" onclick="go('drops')">Back to drops</span></div>`;
@@ -2512,6 +2518,7 @@ function vDropHub(){
 }
 function dropTab(d,tab){
   if(tab==='overview') return dropOverview(d);
+  if(tab==='watch') return dropWatchTab(d);
   if(tab==='tasks') return dropTasks(d);
   if(tab==='marketing') return dropMarketing(d);
   if(tab==='performance') return dropPerformance(d);
@@ -2521,6 +2528,44 @@ function dropTab(d,tab){
   if(tab==='timeline') return dropTimeline(d);
   if(tab==='financials') return `<div class="muted" style="font-size:11.5px;margin-bottom:16px">✎ All figures below are fully editable — changes update the drop's numbers everywhere in the app immediately.</div>`+trackerBody(d);
   if(tab==='calculator') return dropCalculator(d);
+}
+function dropWatchTab(d){
+  if(!d.watchId) return `<div class="empty">No watch linked to this drop yet. <span class="link" onclick="go('drop','${d.id}','overview')">Pick one in Overview →</span></div>`;
+  const w=watchById(d.watchId);
+  if(!w) return `<div class="empty">Linked watch not found — it may have been deleted.</div>`;
+  const roRow=(label,val)=>`<div class="field"><label>${label}</label><input value="${esc(val||'—')}" disabled style="opacity:.75;cursor:not-allowed"></div>`;
+  return `<div class="card">
+    <div class="card-h">
+      <h3>${esc(w.brand)} ${esc(w.model)} ${w.retired?'<span class="pill pill-closed" style="margin-left:8px">Retired</span>':''}</h3>
+      <button class="btn btn-sm btn-gold" onclick="go('watches');setTimeout(()=>openWatch('${w.id}'),50)">✎ Edit in Watch Library →</button>
+    </div>
+    <div class="modal-b" style="max-height:none">
+      <div style="display:flex;gap:18px;align-items:flex-start;margin-bottom:6px">
+        ${w.img?`<img src="${esc(w.img)}" style="width:110px;height:110px;object-fit:cover;border-radius:10px;border:1px solid var(--line2);flex-shrink:0">`:''}
+        <div style="flex:1;min-width:0">
+          <div class="field-row-3">
+            ${roRow('Reference',w.ref)}
+            ${roRow('Serial Number',w.serial)}
+            ${roRow('Movement',w.movement)}
+          </div>
+          <div class="field-row-3">
+            ${roRow('Retail Value',w.retail?gbp(w.retail):'')}
+            ${roRow('Cost Paid',w.cost?gbp(w.cost):'')}
+            ${roRow('Year / Date',w.watchDate)}
+          </div>
+        </div>
+      </div>
+      <div class="field-row">
+        ${roRow('Supplier',supName(w.supplierId))}
+        ${roRow('Model Family',w.family)}
+      </div>
+      ${w.variant?roRow('Variant / Spec',w.variant):''}
+      ${w.specs?roRow('Specs',w.specs):''}
+      ${w.mediaLink?`<div class="field"><label>Media Folder</label><a href="${esc(w.mediaLink)}" target="_blank" class="link" style="display:block;padding:9px 11px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px">Open Drive/Canva folder ↗</a></div>`:''}
+      ${w.invoiceUrl?`<div class="field"><label>Invoice</label><a href="${esc(mediaUrl(w.invoiceUrl))}" target="_blank" class="link" style="display:block;padding:9px 11px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px">📎 View invoice ↗</a></div>`:''}
+      <div class="muted" style="font-size:11.5px;margin-top:8px">This is the same watch record used across every drop it's linked to — editing it here or in the Watch Library updates both.</div>
+    </div>
+  </div>`;
 }
 function fld(label,val,path,type='text'){
   return `<div class="field"><label>${label}</label><input type="${type}" value="${esc(val)}" onchange="updDrop('${path}',this.value)"></div>`;
@@ -2551,6 +2596,24 @@ function onDropWatchChange(id,val){
 function onDropSupplierChange(id,val){ updDrop('supplierId',val); }
 function onDropStatusChange(id,val){ const dropId=id.replace('drop_status_',''); setDropStatus(dropId,val); }
 
+function trkSnapshotStrip(d){
+  const t=d.tracker; if(!t) return '';
+  const status=trkStatus(t);
+  const netProfit=trkNetProfit(t);
+  const totalCostsCombined=trkTotalCostsCombined(d,t);
+  const maxTicketsVal=Number(t.maxTickets)||0, soldVal=Number(t.ticketsSoldTotal)||0;
+  const breakEvenTicketsTotal=trkBreakEvenTickets(t);
+  const breakEvenPct = breakEvenTicketsTotal>0 ? (soldVal/breakEvenTicketsTotal*100) : 0;
+  return `<div class="kpi-row condensed">
+    <div class="kpi"><div class="label">Current %</div><div class="val">${(trkCurrentPct(t)*100).toFixed(1)}%</div><div class="sub">${soldVal} of ${maxTicketsVal} sold</div></div>
+    <div class="kpi"><div class="label">Status</div><div class="val" style="${status!=='PROFITABLE'?'color:var(--danger)':'color:var(--gold2)'}">${status}</div>
+      <div class="sub" style="font-weight:700;${breakEvenPct>=100?'color:var(--live)':''}">${breakEvenPct.toFixed(0)}% to break-even</div></div>
+    <div class="kpi"><div class="label">Total Costs</div><div class="val">${gbp(totalCostsCombined)}</div></div>
+    <div class="kpi"><div class="label">Net Profit</div><div class="val" style="${netProfit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(netProfit)}</div></div>
+    <div class="kpi"><div class="label">Ad Spend</div><div class="val">${gbp(t.adsBudget)}</div></div>
+  </div>
+  <div class="muted" style="font-size:11px;margin:-10px 0 18px;cursor:pointer" onclick="go('drop','${d.id}','financials')">Full breakdown → Financials tab</div>`;
+}
 function dropOverview(d){
   d.images=d.images||{}; d.copy=d.copy||{};
   const t=d.tracker||{};
@@ -2578,7 +2641,7 @@ function dropOverview(d){
       ${fld('Slug', d.copy.slug,'copy.slug')}
       <div class="field"><label>Meta Description</label><textarea onchange="updDrop('copy.metaDescription',this.value)">${esc(d.copy.metaDescription)}</textarea></div>
     </div></div>`;
-  return `<div class="two-col">
+  return `${trkSnapshotStrip(d)}<div class="two-col">
     <div class="card"><div class="card-h"><h3>Details</h3></div><div class="modal-b" style="max-height:none">
       <div class="field"><label>Series</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
@@ -4409,6 +4472,10 @@ function setContentStatus(id,status){
   const c=DB.content.find(x=>x.id===id); if(!c) return;
   c.status=status; saveDB(); render();
 }
+function markContentDone(id){
+  const c=DB.content.find(x=>x.id===id); if(!c) return;
+  c.status='Done'; saveDB(); toast('Marked done ✓'); render();
+}
 function stageToggle(id,options,selected){
   return `<div class="status-quick" id="${id}">
     ${options.map(o=>`<button type="button" class="sq-btn sq-btn-lg ${o===selected?'active':''}" data-value="${esc(o)}" onclick="selectStageBtn('${id}',this)">${esc(o)}</button>`).join('')}
@@ -5225,6 +5292,7 @@ function openWatch(id){
         ${mInput('w_specs','Specs',w.specs)}
         ${mInput('w_medialink','Media folder link (Drive/Canva)',w.mediaLink)}
         ${mediaField('w_thumb','Thumbnail Image (shown in Watch Library)',w.img)}
+        ${fileField('w_invoice','Invoice',w.invoiceUrl)}
       </div>
     </div>${mArea('w_desc','Description',w.desc)}
     ${CONTENT_CATS.map(cat=>galleryHTML(slug(cat),cat,'image/*,video/*',id)).join('')}
@@ -5239,6 +5307,7 @@ function saveWatch(id){const g=k=>document.getElementById(k).value;
   const media=JSON.parse(JSON.stringify(watchMediaDraft));
   CONTENT_CATS.forEach(cat=>{ const k=slug(cat); media[k]=(media[k]||[]).filter(it=>!it.uploading); });
   const explicitThumb=mediaVal('w_thumb');
+  const invoiceUrl=mediaVal('w_invoice');
   const coverImg=explicitThumb||((media[slug('Watch Photos')]||[]).map(x=>x.ref).find(Boolean))||'';
   const retiredBtn=document.getElementById('w_retired_btn');
   let fam=g('w_family').trim(), variant=g('w_variant').trim();
@@ -5246,7 +5315,7 @@ function saveWatch(id){const g=k=>document.getElementById(k).value;
   const data={brand:g('w_brand'),model:g('w_model'),family:fam,variant:variant,ref:g('w_ref'),serial:g('w_serial'),year:Number(g('w_year'))||null,movement:g('w_move'),
     retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),mediaLink:g('w_medialink'),desc:g('w_desc'),
     supplierId:ddVal('w_supplier'), retired: retiredBtn? retiredBtn.dataset.val==='1' : false,
-    media, img:coverImg};
+    media, img:coverImg, invoiceUrl};
   if(!data.brand){alert('Brand required');return;}
   if(id){Object.assign(watchById(id),data);}else{DB.watches.unshift({id:uid('watch'),...data,links:{},created:now()});}
   saveDB();closeModal();toast('Watch saved');render();}
@@ -5340,7 +5409,7 @@ function openContent(id, prefillTitle, fromWatch){const pf=(!id&&fromWatch&&cont
       ${mInput('cn_title','Title',c.title)}
       <div class="field-row-3">
         <div class="field"><label>Category</label>${dd('cn_cat',CONTENT_CATS,c.category||CONTENT_CATS[0])}</div>
-        <div class="field"><label>Status</label>${dd('cn_status',CONTENT_STATUSES,c.status||CONTENT_STATUSES[0])}</div>
+        <div class="field"><label>Status</label>${stageToggle('cn_status',CONTENT_STATUSES,c.status||CONTENT_STATUSES[0])}</div>
         <div class="field"><label>Filming Date</label><input id="cn_filmdate" type="date" value="${esc(c.filmDate||today())}"></div>
       </div>
       <div class="field-row">
@@ -5388,7 +5457,7 @@ function saveContent(id){
   const dropId=ddVal('cn_drop');
   if(!dropId){alert('Pick a drop first — every piece of content has to be linked to one.');return;}
   const data={title:document.getElementById('cn_title').value,category:ddVal('cn_cat'),
-    status:ddVal('cn_status'),creator:ddVal('cn_creator'),useCases:readUseCaseChips(),dropId,watchId:ddVal('cn_watch'),
+    status:stageVal('cn_status')||'To Do',creator:ddVal('cn_creator'),useCases:readUseCaseChips(),dropId,watchId:ddVal('cn_watch'),
     mediaStage:stageVal('cn_stage')||'Finished',
     filmDate:document.getElementById('cn_filmdate').value,
     tags:document.getElementById('cn_tags').value.split(',').map(t=>t.trim()).filter(Boolean),
