@@ -89,6 +89,33 @@
   .kpi-row.condensed .kpi{padding:11px 14px}
   .kpi-row.condensed .val{font-size:19px;margin-top:3px}
   .kpi-row.condensed .sub{font-size:11px}
+
+  /* ================= Scripts / Teleprompter ================= */
+  .script-row{display:flex;align-items:center;gap:14px;padding:14px 4px;border-bottom:1px solid var(--line)}
+  .script-row:last-child{border-bottom:none}
+  .script-row .txt{flex:1;min-width:0}
+  .script-row .t{font-weight:700;font-size:14.5px}
+  .script-row .snippet{font-size:12.5px;color:var(--ink3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px}
+  .script-row .meta{font-size:11.5px;color:var(--ink3);margin-top:2px}
+
+  #tpOverlay{position:fixed;inset:0;background:#000;z-index:900;display:flex;flex-direction:column}
+  #tpText{flex:1;overflow-y:auto;padding:14vh 10% 40vh;color:#fff;line-height:1.65;font-family:'Georgia',serif;white-space:pre-wrap;scroll-behavior:auto}
+  #tpText.tp-sans{font-family:var(--font,-apple-system,sans-serif)}
+  #tpClose{position:fixed;top:18px;right:20px;z-index:902;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
+    color:#fff;width:38px;height:38px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  #tpClose:hover{background:rgba(255,255,255,.16)}
+  #tpControls{position:fixed;left:0;right:0;bottom:0;z-index:901;background:rgba(8,13,24,.94);backdrop-filter:blur(8px);
+    border-top:1px solid rgba(255,255,255,.12);padding:14px 22px;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+  #tpControls .tp-group{display:flex;align-items:center;gap:9px}
+  #tpControls label{font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.5);font-weight:700}
+  .tp-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:8px;
+    width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;flex-shrink:0}
+  .tp-btn:hover{background:rgba(255,255,255,.16)}
+  .tp-btn.tp-play{background:var(--gold);color:#0B1220;border-color:var(--gold);font-weight:700}
+  #tpSpeed,#tpFontRange{width:110px;accent-color:var(--gold)}
+  .tp-progress{flex:1;min-width:120px;height:4px;background:rgba(255,255,255,.15);border-radius:3px;position:relative;overflow:hidden}
+  .tp-progress-bar{position:absolute;left:0;top:0;bottom:0;background:var(--gold);width:0%}
+  @media(max-width:860px){ #tpText{padding:10vh 6% 34vh;font-size:80%} #tpControls{gap:12px;padding:10px 12px} .tp-progress{display:none} }
   .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
   .calc-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
   .calc-row span:first-child{color:var(--ink2)}
@@ -1244,6 +1271,7 @@ function migrate(){
   });
   DB.fixedCosts=DB.fixedCosts||[];
   DB.notes=DB.notes||[];
+  DB.scripts=DB.scripts||[];
   DB.dailyTakings=DB.dailyTakings||[];
   DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
   Object.keys(DEFAULT_CONTENT_SCHEDULE_TEMPLATES).forEach(ty=>{
@@ -1424,6 +1452,7 @@ function seed(){
       {id:uid('id'),text:'Compare Monaco to a football boot — "worn by legends" angle',created:now()},
     ],
     notes:[],
+    scripts:[],
     timeline:[],
     settings:{team:['Felix','Leila']}
   };
@@ -1641,6 +1670,7 @@ function trkKpiRow(d,t){
       <div class="cost-breakdown">
         <div class="cb-row"><span>Tickets to Sell Out</span><span>${ticketsToSellOut}</span></div>
         <div class="cb-row"><span>Revenue to Sell Out</span><span>${gbp(revenueToSellOut)}</span></div>
+        <div class="cb-row"><span>Break-even %</span><span style="${breakEvenPct>=100?'color:var(--live)':''}">${breakEvenPct.toFixed(0)}%</span></div>
       </div>
     </div>
     <div class="kpi"><div class="label">Status</div><div class="val" style="font-size:18px;${status!=='PROFITABLE'?'color:var(--danger)':'color:var(--gold2)'}">${status}</div>
@@ -2097,6 +2127,7 @@ const NAV=[
   {group:'Content',items:[
     {k:'content',label:'New Content',ico:'✎',count:()=>DB.content.length},
     {k:'graphics',label:'Graphics Generator',ico:'❖'},
+    {k:'scripts',label:'Scripts',ico:'📜',count:()=>DB.scripts.length},
     {k:'contentSchedule',label:'Content Schedule',ico:'▦',count:()=>dueContentToday().length},
     {k:'assets',label:'Asset Library',ico:'▣',count:()=>DB.assets.length},
     {k:'ideas',label:'Idea Inbox',ico:'✧',count:()=>DB.ideas.length},
@@ -2146,7 +2177,7 @@ function render(){
   const c=document.getElementById('content');
   const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
-    content:vContent,assets:vAssets,ideas:vIdeas,graphics:vGraphics,sops:vSops,kb:vKB,notes:vNotes,
+    content:vContent,assets:vAssets,ideas:vIdeas,graphics:vGraphics,scripts:vScripts,sops:vSops,kb:vKB,notes:vNotes,
     projects:vProjects,project:vProject};
   c.innerHTML = (V[route.view]||vDashboard)();
   hydrateMedia();
@@ -4631,6 +4662,135 @@ function vKB(){return docList('kb','Knowledge Base','Everything you\'ve learned,
 /* ================= NOTES ================= */
 const NOTE_TYPES=['Meeting','Call','Strategy','Compliance','Supplier','General'];
 let noteSearch='', noteTypeFilter='All';
+let scriptSearch='';
+function vScripts(){
+  let items=[...DB.scripts].sort((a,b)=>(b.created||'').localeCompare(a.created||''));
+  if(scriptSearch.trim()) items=items.filter(s=>(s.title+' '+(s.body||'')).toLowerCase().includes(scriptSearch.trim().toLowerCase()));
+  return `<div class="page-head"><div><h2>Scripts</h2><div class="desc">Paste in a script, then hit Read to run it as a full-screen autoscrolling prompter. ${DB.scripts.length} total.</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="editScript()">＋ New Script</button></div></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+    <div class="search-wrap" style="flex:1;min-width:220px"><span class="si">⌕</span>
+      <input placeholder="Search scripts…" value="${esc(scriptSearch)}" oninput="scriptSearch=this.value;render()"></div>
+  </div>
+  <div class="card"><div class="card-b">
+    ${items.length? items.map(s=>{
+      const d=s.dropId?dropById(s.dropId):null;
+      const words=(s.body||'').trim().split(/\s+/).filter(Boolean).length;
+      return `<div class="script-row">
+        <div class="txt" style="cursor:pointer" onclick="editScript('${s.id}')">
+          <div class="t">${esc(s.title||'Untitled script')}</div>
+          <div class="snippet">${esc((s.body||'').slice(0,140).replace(/\n/g,' '))}</div>
+          <div class="meta">${words} words${d?' · '+esc(d.number):''} · ${fmtDate(s.created)}</div>
+        </div>
+        <button class="btn btn-sm btn-gold" onclick="openTeleprompter('${s.id}')">▶ Read</button>
+        <button class="btn btn-sm btn-ghost" onclick="editScript('${s.id}')">Edit</button>
+      </div>`;
+    }).join('') : `<div class="empty">No scripts yet — paste your first one in.</div>`}
+  </div></div>`;
+}
+function editScript(id){
+  const s=id?DB.scripts.find(x=>x.id===id):{id:'',title:'',body:'',dropId:''};
+  if(id&&!s) return;
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Edit Script':'New Script'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Title</label><input id="sc_title" value="${esc(s.title)}" placeholder="e.g. D35 Launch Post script"></div>
+      <div class="field"><label>Linked Drop (optional)</label>${dd('sc_drop',[{value:'',label:'— none —'},...DB.drops.map(d=>({value:d.id,label:d.number}))],s.dropId||'')}</div>
+      <div class="field"><label>Script</label><textarea id="sc_body" rows="16" placeholder="Paste your script here…" style="font-family:Georgia,serif;line-height:1.6;font-size:14.5px">${esc(s.body)}</textarea></div>
+    </div>
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delScript('${id}')">Delete</button>`:''}
+      ${id?`<button class="btn" onclick="closeModal();openTeleprompter('${id}')">▶ Read</button>`:''}
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveScript('${id||''}')">Save</button></div></div>`);
+}
+function saveScript(id){
+  const title=document.getElementById('sc_title').value.trim();
+  const body=document.getElementById('sc_body').value;
+  if(!title){alert('Give the script a title');return;}
+  const data={title,body,dropId:ddVal('sc_drop')};
+  if(id){ Object.assign(DB.scripts.find(x=>x.id===id),data); }
+  else{ DB.scripts.unshift({id:uid('script'),...data,created:now()}); }
+  saveDB();closeModal();toast('Script saved');render();
+}
+function delScript(id){
+  if(!confirm('Delete this script?'))return;
+  DB.scripts=DB.scripts.filter(x=>x.id!==id);
+  saveDB();closeModal();render();
+}
+
+/* ---------- Teleprompter ("Autoprompt") ---------- */
+let tpTimer=null, tpSpeed=3, tpFontSize=44, tpPlaying=false;
+function openTeleprompter(id){
+  const s=DB.scripts.find(x=>x.id===id); if(!s) return;
+  const savedSize=Number(localStorage.getItem('atlas:tp:fontSize'))||44;
+  const savedSpeed=Number(localStorage.getItem('atlas:tp:speed'))||3;
+  tpFontSize=savedSize; tpSpeed=savedSpeed; tpPlaying=false;
+  const overlay=document.createElement('div');
+  overlay.id='tpOverlay';
+  overlay.innerHTML=`
+    <button id="tpClose" onclick="closeTeleprompter()" title="Close (Esc)">×</button>
+    <div id="tpText" style="font-size:${tpFontSize}px">${esc(s.body||'').replace(/\n/g,'<br>')}</div>
+    <div id="tpControls">
+      <div class="tp-group">
+        <button class="tp-btn tp-play" id="tpPlayBtn" onclick="tpTogglePlay()" title="Play/Pause (Space)">▶</button>
+        <button class="tp-btn" onclick="tpRestart()" title="Back to top">⤒</button>
+      </div>
+      <div class="tp-group"><label>Speed</label><input type="range" id="tpSpeed" min="1" max="10" step="1" value="${tpSpeed}" oninput="tpSetSpeed(this.value)"></div>
+      <div class="tp-group">
+        <label>Text size</label>
+        <button class="tp-btn" onclick="tpAdjustFont(-4)">A-</button>
+        <input type="range" id="tpFontRange" min="20" max="96" step="2" value="${tpFontSize}" oninput="tpSetFont(this.value)">
+        <button class="tp-btn" onclick="tpAdjustFont(4)">A+</button>
+      </div>
+      <div class="tp-progress"><div class="tp-progress-bar" id="tpProgressBar"></div></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.addEventListener('keydown', tpKeyHandler);
+  document.getElementById('tpText').addEventListener('scroll', tpUpdateProgress);
+}
+function tpKeyHandler(e){
+  if(e.key==='Escape'){ closeTeleprompter(); return; }
+  if(e.code==='Space'){ e.preventDefault(); tpTogglePlay(); }
+  if(e.key==='+'||e.key==='='){ tpAdjustFont(4); }
+  if(e.key==='-'||e.key==='_'){ tpAdjustFont(-4); }
+}
+function tpTogglePlay(){
+  tpPlaying=!tpPlaying;
+  const btn=document.getElementById('tpPlayBtn'); if(btn) btn.textContent=tpPlaying?'❚❚':'▶';
+  if(tpPlaying){
+    tpTimer=setInterval(()=>{
+      const el=document.getElementById('tpText'); if(!el) return;
+      el.scrollTop += tpSpeed*0.6;
+      if(el.scrollTop >= el.scrollHeight-el.clientHeight-4){ tpTogglePlay(); }
+    },30);
+  } else if(tpTimer){ clearInterval(tpTimer); tpTimer=null; }
+}
+function tpRestart(){
+  const el=document.getElementById('tpText'); if(el) el.scrollTop=0;
+}
+function tpSetSpeed(v){ tpSpeed=Number(v); localStorage.setItem('atlas:tp:speed',tpSpeed); }
+function tpSetFont(v){
+  tpFontSize=Number(v);
+  const el=document.getElementById('tpText'); if(el) el.style.fontSize=tpFontSize+'px';
+  localStorage.setItem('atlas:tp:fontSize',tpFontSize);
+}
+function tpAdjustFont(delta){
+  tpFontSize=Math.max(20,Math.min(96,tpFontSize+delta));
+  const range=document.getElementById('tpFontRange'); if(range) range.value=tpFontSize;
+  tpSetFont(tpFontSize);
+}
+function tpUpdateProgress(){
+  const el=document.getElementById('tpText'), bar=document.getElementById('tpProgressBar');
+  if(!el||!bar) return;
+  const max=el.scrollHeight-el.clientHeight;
+  const pct=max>0? (el.scrollTop/max*100) : 0;
+  bar.style.width=pct+'%';
+}
+function closeTeleprompter(){
+  if(tpTimer){ clearInterval(tpTimer); tpTimer=null; }
+  tpPlaying=false;
+  document.removeEventListener('keydown', tpKeyHandler);
+  const overlay=document.getElementById('tpOverlay'); if(overlay) overlay.remove();
+}
+
 function vNotes(){
   let items=[...DB.notes].sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
   if(noteTypeFilter!=='All') items=items.filter(n=>n.type===noteTypeFilter);
