@@ -4718,11 +4718,15 @@ function delScript(id){
 
 /* ---------- Teleprompter ("Autoprompt") ---------- */
 let tpTimer=null, tpSpeed=3, tpFontSize=44, tpPlaying=false;
+let tpSentences=[], tpSentenceIdx=0, tpSpeaking=false, tpRate=1, tpVoice=null, tpUtterance=null;
 function openTeleprompter(id){
   const s=DB.scripts.find(x=>x.id===id); if(!s) return;
   const savedSize=Number(localStorage.getItem('atlas:tp:fontSize'))||44;
   const savedSpeed=Number(localStorage.getItem('atlas:tp:speed'))||3;
+  const savedRate=Number(localStorage.getItem('atlas:tp:rate'))||1;
   tpFontSize=savedSize; tpSpeed=savedSpeed; tpPlaying=false;
+  tpRate=savedRate; tpSpeaking=false; tpSentenceIdx=0;
+  tpSentences=tpBuildSentences(s.body||'');
   const overlay=document.createElement('div');
   overlay.id='tpOverlay';
   overlay.innerHTML=`
@@ -4730,7 +4734,7 @@ function openTeleprompter(id){
     <div id="tpText" style="font-size:${tpFontSize}px">${esc(s.body||'').replace(/\n/g,'<br>')}</div>
     <div id="tpControls">
       <div class="tp-group">
-        <button class="tp-btn tp-play" id="tpPlayBtn" onclick="tpTogglePlay()" title="Play/Pause (Space)">▶</button>
+        <button class="tp-btn tp-play" id="tpPlayBtn" onclick="tpTogglePlay()" title="Play/Pause scroll (Space)">▶</button>
         <button class="tp-btn" onclick="tpRestart()" title="Back to top">⤒</button>
       </div>
       <div class="tp-group"><label>Speed</label><input type="range" id="tpSpeed" min="1" max="10" step="1" value="${tpSpeed}" oninput="tpSetSpeed(this.value)"></div>
@@ -4740,17 +4744,25 @@ function openTeleprompter(id){
         <input type="range" id="tpFontRange" min="20" max="96" step="2" value="${tpFontSize}" oninput="tpSetFont(this.value)">
         <button class="tp-btn" onclick="tpAdjustFont(4)">A+</button>
       </div>
+      <div class="tp-group">
+        <button class="tp-btn tp-play" id="tpSpeakBtn" onclick="tpToggleSpeak()" title="Read aloud (R)">🔊</button>
+        <select id="tpVoiceSelect" onchange="tpSetVoice(this.value)" title="Voice"></select>
+        <label>Voice speed</label><input type="range" id="tpRate" min="0.6" max="1.6" step="0.1" value="${tpRate}" oninput="tpSetRate(this.value)">
+      </div>
       <div class="tp-progress"><div class="tp-progress-bar" id="tpProgressBar"></div></div>
     </div>`;
   document.body.appendChild(overlay);
   document.addEventListener('keydown', tpKeyHandler);
   document.getElementById('tpText').addEventListener('scroll', tpUpdateProgress);
+  tpPopulateVoices();
+  if(window.speechSynthesis) speechSynthesis.onvoiceschanged=tpPopulateVoices;
 }
 function tpKeyHandler(e){
   if(e.key==='Escape'){ closeTeleprompter(); return; }
   if(e.code==='Space'){ e.preventDefault(); tpTogglePlay(); }
   if(e.key==='+'||e.key==='='){ tpAdjustFont(4); }
   if(e.key==='-'||e.key==='_'){ tpAdjustFont(-4); }
+  if(e.key==='r'||e.key==='R'){ tpToggleSpeak(); }
 }
 function tpTogglePlay(){
   tpPlaying=!tpPlaying;
@@ -4787,8 +4799,69 @@ function tpUpdateProgress(){
 function closeTeleprompter(){
   if(tpTimer){ clearInterval(tpTimer); tpTimer=null; }
   tpPlaying=false;
+  if(window.speechSynthesis) speechSynthesis.cancel();
+  tpSpeaking=false;
   document.removeEventListener('keydown', tpKeyHandler);
   const overlay=document.getElementById('tpOverlay'); if(overlay) overlay.remove();
+}
+
+/* ---------- Read Aloud (browser text-to-speech, no external service) ---------- */
+function tpBuildSentences(text){
+  const clean=(text||'').replace(/\s+/g,' ').trim();
+  if(!clean) return [];
+  const parts=clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
+  return parts? parts.map(p=>p.trim()).filter(Boolean) : [clean];
+}
+function tpPopulateVoices(){
+  if(!window.speechSynthesis) return;
+  const sel=document.getElementById('tpVoiceSelect'); if(!sel) return;
+  const voices=speechSynthesis.getVoices();
+  if(!voices.length) return; // will retry via onvoiceschanged
+  const preferred=voices.filter(v=>v.lang.startsWith('en'));
+  const list=preferred.length?preferred:voices;
+  const savedName=localStorage.getItem('atlas:tp:voice');
+  sel.innerHTML=list.map(v=>`<option value="${esc(v.name)}">${esc(v.name)} (${esc(v.lang)})</option>`).join('');
+  const match=list.find(v=>v.name===savedName)||list.find(v=>/UK|British/i.test(v.name))||list[0];
+  if(match){ sel.value=match.name; tpVoice=match; }
+}
+function tpSetVoice(name){
+  const voices=speechSynthesis.getVoices();
+  tpVoice=voices.find(v=>v.name===name)||null;
+  if(tpVoice) localStorage.setItem('atlas:tp:voice',tpVoice.name);
+}
+function tpSetRate(v){ tpRate=Number(v); localStorage.setItem('atlas:tp:rate',tpRate); }
+function tpToggleSpeak(){
+  if(!window.speechSynthesis){ toast('Read aloud isn\'t supported in this browser.'); return; }
+  if(tpSpeaking){
+    speechSynthesis.cancel();
+    tpSpeaking=false;
+    const btn=document.getElementById('tpSpeakBtn'); if(btn) btn.textContent='🔊';
+    return;
+  }
+  if(tpSentenceIdx>=tpSentences.length) tpSentenceIdx=0;
+  tpSpeaking=true;
+  const btn=document.getElementById('tpSpeakBtn'); if(btn) btn.textContent='⏸';
+  tpSpeakNext();
+}
+function tpSpeakNext(){
+  if(!tpSpeaking) return;
+  if(tpSentenceIdx>=tpSentences.length){
+    tpSpeaking=false; tpSentenceIdx=0;
+    const btn=document.getElementById('tpSpeakBtn'); if(btn) btn.textContent='🔊';
+    return;
+  }
+  const utter=new SpeechSynthesisUtterance(tpSentences[tpSentenceIdx]);
+  utter.rate=tpRate; if(tpVoice) utter.voice=tpVoice;
+  utter.onend=()=>{ if(!tpSpeaking) return; tpSentenceIdx++; tpSyncScrollToSentence(); tpSpeakNext(); };
+  utter.onerror=()=>{ if(!tpSpeaking) return; tpSentenceIdx++; tpSpeakNext(); };
+  tpUtterance=utter;
+  speechSynthesis.speak(utter);
+}
+function tpSyncScrollToSentence(){
+  const el=document.getElementById('tpText'); if(!el||!tpSentences.length) return;
+  const max=el.scrollHeight-el.clientHeight;
+  if(max<=0) return;
+  el.scrollTop = max * (tpSentenceIdx/tpSentences.length);
 }
 
 function vNotes(){
