@@ -113,8 +113,12 @@
   .tp-btn:hover{background:rgba(255,255,255,.16)}
   .tp-btn.tp-play{background:var(--gold);color:#0B1220;border-color:var(--gold);font-weight:700}
   #tpSpeed,#tpFontRange{width:110px;accent-color:var(--gold)}
-  .tp-progress{flex:1;min-width:120px;height:4px;background:rgba(255,255,255,.15);border-radius:3px;position:relative;overflow:hidden}
-  .tp-progress-bar{position:absolute;left:0;top:0;bottom:0;background:var(--gold);width:0%}
+  .tp-progress{flex:1;min-width:120px;height:4px;background:rgba(255,255,255,.15);border-radius:3px;position:relative;overflow:visible;cursor:pointer}
+  .tp-progress-bar{position:absolute;left:0;top:0;bottom:0;background:var(--gold);width:0%;border-radius:3px;pointer-events:none}
+  .tp-progress-bar::after{content:'';position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:12px;height:12px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px rgba(0,0,0,.4)}
+  .tp-sentence{cursor:pointer;border-radius:5px;transition:background .15s}
+  .tp-sentence:hover{background:rgba(255,255,255,.06)}
+  .tp-sentence.active{background:rgba(201,162,75,.32);box-shadow:0 0 0 4px rgba(201,162,75,.32)}
   @media(max-width:860px){ #tpText{padding:10vh 6% 34vh;font-size:80%} #tpControls{gap:12px;padding:10px 12px} .tp-progress{display:none} }
   .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
   .calc-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
@@ -4726,12 +4730,13 @@ function openTeleprompter(id){
   const savedRate=Number(localStorage.getItem('atlas:tp:rate'))||1;
   tpFontSize=savedSize; tpSpeed=savedSpeed; tpPlaying=false;
   tpRate=savedRate; tpSpeaking=false; tpSentenceIdx=0;
-  tpSentences=tpBuildSentences(s.body||'');
+  const parsed=tpParseScript(s.body||'');
+  tpSentences=parsed.sentences;
   const overlay=document.createElement('div');
   overlay.id='tpOverlay';
   overlay.innerHTML=`
     <button id="tpClose" onclick="closeTeleprompter()" title="Close (Esc)">×</button>
-    <div id="tpText" style="font-size:${tpFontSize}px">${esc(s.body||'').replace(/\n/g,'<br>')}</div>
+    <div id="tpText" style="font-size:${tpFontSize}px">${parsed.html}</div>
     <div id="tpControls">
       <div class="tp-group">
         <button class="tp-btn tp-play" id="tpPlayBtn" onclick="tpTogglePlay()" title="Play/Pause scroll (Space)">▶</button>
@@ -4745,15 +4750,20 @@ function openTeleprompter(id){
         <button class="tp-btn" onclick="tpAdjustFont(4)">A+</button>
       </div>
       <div class="tp-group">
+        <button class="tp-btn" onclick="tpSkipBack10()" title="Back 10 seconds">⏪ 10s</button>
         <button class="tp-btn tp-play" id="tpSpeakBtn" onclick="tpToggleSpeak()" title="Read aloud (R)">🔊</button>
         <select id="tpVoiceSelect" onchange="tpSetVoice(this.value)" title="Voice"></select>
         <label>Voice speed</label><input type="range" id="tpRate" min="0.6" max="1.6" step="0.1" value="${tpRate}" oninput="tpSetRate(this.value)">
       </div>
-      <div class="tp-progress"><div class="tp-progress-bar" id="tpProgressBar"></div></div>
+      <div class="tp-progress" id="tpProgressWrap" title="Click or drag to jump to that point">
+        <div class="tp-progress-bar" id="tpProgressBar"></div>
+      </div>
     </div>`;
   document.body.appendChild(overlay);
   document.addEventListener('keydown', tpKeyHandler);
   document.getElementById('tpText').addEventListener('scroll', tpUpdateProgress);
+  document.getElementById('tpText').addEventListener('click', tpTextClick);
+  tpBindScrubbing();
   tpPopulateVoices();
   if(window.speechSynthesis) speechSynthesis.onvoiceschanged=tpPopulateVoices;
 }
@@ -4792,6 +4802,10 @@ function tpAdjustFont(delta){
 function tpUpdateProgress(){
   const el=document.getElementById('tpText'), bar=document.getElementById('tpProgressBar');
   if(!el||!bar) return;
+  if(tpSpeaking && tpSentences.length){
+    bar.style.width=(tpSentenceIdx/Math.max(1,tpSentences.length-1)*100)+'%';
+    return;
+  }
   const max=el.scrollHeight-el.clientHeight;
   const pct=max>0? (el.scrollTop/max*100) : 0;
   bar.style.width=pct+'%';
@@ -4802,15 +4816,31 @@ function closeTeleprompter(){
   if(window.speechSynthesis) speechSynthesis.cancel();
   tpSpeaking=false;
   document.removeEventListener('keydown', tpKeyHandler);
+  if(tpMouseMoveHandler){ window.removeEventListener('mousemove',tpMouseMoveHandler); tpMouseMoveHandler=null; }
+  if(tpMouseUpHandler){ window.removeEventListener('mouseup',tpMouseUpHandler); tpMouseUpHandler=null; }
+  if(tpTouchMoveHandler){ window.removeEventListener('touchmove',tpTouchMoveHandler); tpTouchMoveHandler=null; }
+  if(tpTouchEndHandler){ window.removeEventListener('touchend',tpTouchEndHandler); tpTouchEndHandler=null; }
   const overlay=document.getElementById('tpOverlay'); if(overlay) overlay.remove();
 }
 
 /* ---------- Read Aloud (browser text-to-speech, no external service) ---------- */
-function tpBuildSentences(text){
-  const clean=(text||'').replace(/\s+/g,' ').trim();
-  if(!clean) return [];
-  const parts=clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
-  return parts? parts.map(p=>p.trim()).filter(Boolean) : [clean];
+function tpParseScript(text){
+  const raw=text||'';
+  const segs=raw.split(/(\n+)/); // odd indices are runs of newlines
+  const sentences=[]; let html='';
+  segs.forEach(seg=>{
+    if(!seg) return;
+    if(/^\n+$/.test(seg)){ html+='<br>'.repeat(seg.length); return; }
+    const parts=seg.match(/[^.!?]+[.!?]+\s*|[^.!?]+$/g);
+    if(!parts){ if(seg.trim()){ const idx=sentences.length; sentences.push(seg.trim().replace(/\s+/g,' ')); html+=`<span class="tp-sentence" data-i="${idx}">${esc(seg)}</span>`; } return; }
+    parts.forEach(p=>{
+      if(!p.trim()){ html+=esc(p); return; }
+      const idx=sentences.length;
+      sentences.push(p.trim().replace(/\s+/g,' '));
+      html+=`<span class="tp-sentence" data-i="${idx}">${esc(p)}</span>`;
+    });
+  });
+  return {sentences, html};
 }
 function tpPopulateVoices(){
   if(!window.speechSynthesis) return;
@@ -4848,20 +4878,79 @@ function tpSpeakNext(){
   if(tpSentenceIdx>=tpSentences.length){
     tpSpeaking=false; tpSentenceIdx=0;
     const btn=document.getElementById('tpSpeakBtn'); if(btn) btn.textContent='🔊';
+    tpHighlightSentence(-1);
     return;
   }
+  tpHighlightSentence(tpSentenceIdx);
+  tpSyncScrollToSentence();
+  tpUpdateProgress();
   const utter=new SpeechSynthesisUtterance(tpSentences[tpSentenceIdx]);
   utter.rate=tpRate; if(tpVoice) utter.voice=tpVoice;
-  utter.onend=()=>{ if(!tpSpeaking) return; tpSentenceIdx++; tpSyncScrollToSentence(); tpSpeakNext(); };
+  utter.onend=()=>{ if(!tpSpeaking) return; tpSentenceIdx++; tpSpeakNext(); };
   utter.onerror=()=>{ if(!tpSpeaking) return; tpSentenceIdx++; tpSpeakNext(); };
   tpUtterance=utter;
   speechSynthesis.speak(utter);
 }
+function tpHighlightSentence(idx){
+  const el=document.getElementById('tpText'); if(!el) return;
+  const prev=el.querySelector('.tp-sentence.active'); if(prev) prev.classList.remove('active');
+  if(idx<0) return;
+  const span=el.querySelector(`.tp-sentence[data-i="${idx}"]`);
+  if(span) span.classList.add('active');
+}
 function tpSyncScrollToSentence(){
   const el=document.getElementById('tpText'); if(!el||!tpSentences.length) return;
-  const max=el.scrollHeight-el.clientHeight;
-  if(max<=0) return;
-  el.scrollTop = max * (tpSentenceIdx/tpSentences.length);
+  const span=el.querySelector(`.tp-sentence[data-i="${tpSentenceIdx}"]`);
+  if(span && span.scrollIntoView){ span.scrollIntoView({block:'center',behavior:'smooth'}); }
+}
+/* Jump reading position to a specific sentence index and (re)start speaking from there —
+   used by click-to-read, the -10s button, and dragging/clicking the progress bar. */
+function tpJumpTo(index){
+  if(!window.speechSynthesis) return;
+  tpSentenceIdx=Math.max(0, Math.min(tpSentences.length-1, index));
+  speechSynthesis.cancel();
+  tpSpeaking=true;
+  const btn=document.getElementById('tpSpeakBtn'); if(btn) btn.textContent='⏸';
+  tpSpeakNext();
+}
+function tpTextClick(e){
+  const span=e.target.closest('.tp-sentence'); if(!span) return;
+  const idx=Number(span.dataset.i);
+  if(Number.isNaN(idx)) return;
+  tpJumpTo(idx);
+}
+function tpSkipBack10(){
+  if(!tpSentences.length) return;
+  // Roughly 150 words/min (2.5 words/sec) at normal rate, scaled by the current voice speed.
+  const wordsPerSec=2.5*(tpRate||1);
+  let wordsToSkip=Math.round(10*wordsPerSec);
+  let i=tpSentenceIdx;
+  while(i>0 && wordsToSkip>0){
+    i--;
+    wordsToSkip -= (tpSentences[i]||'').split(/\s+/).filter(Boolean).length;
+  }
+  tpJumpTo(i);
+}
+let tpMouseMoveHandler=null, tpMouseUpHandler=null, tpTouchMoveHandler=null, tpTouchEndHandler=null;
+function tpBindScrubbing(){
+  const wrap=document.getElementById('tpProgressWrap'); if(!wrap) return;
+  const seekFromEvent=(clientX)=>{
+    const rect=wrap.getBoundingClientRect();
+    const pct=Math.max(0,Math.min(1,(clientX-rect.left)/rect.width));
+    const idx=Math.round(pct*(tpSentences.length-1));
+    tpJumpTo(idx);
+  };
+  let dragging=false;
+  wrap.addEventListener('mousedown',e=>{ dragging=true; seekFromEvent(e.clientX); });
+  tpMouseMoveHandler=e=>{ if(dragging) seekFromEvent(e.clientX); };
+  tpMouseUpHandler=()=>{ dragging=false; };
+  window.addEventListener('mousemove',tpMouseMoveHandler);
+  window.addEventListener('mouseup',tpMouseUpHandler);
+  wrap.addEventListener('touchstart',e=>{ dragging=true; seekFromEvent(e.touches[0].clientX); },{passive:true});
+  tpTouchMoveHandler=e=>{ if(dragging) seekFromEvent(e.touches[0].clientX); };
+  tpTouchEndHandler=()=>{ dragging=false; };
+  window.addEventListener('touchmove',tpTouchMoveHandler,{passive:true});
+  window.addEventListener('touchend',tpTouchEndHandler);
 }
 
 function vNotes(){
