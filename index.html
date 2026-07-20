@@ -2686,7 +2686,16 @@ function trkSnapshotStrip(d){
       <div class="sub" style="font-weight:700;${breakEvenPct>=100?'color:var(--live)':''}">${breakEvenPct.toFixed(0)}% to break-even</div></div>
     <div class="kpi"><div class="label">Total Costs</div><div class="val">${gbp(totalCostsCombined)}</div></div>
     <div class="kpi"><div class="label">Net Profit</div><div class="val" style="${netProfit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(netProfit)}</div></div>
-    <div class="kpi"><div class="label">Ad Spend</div><div class="val">${gbp(t.adsBudget)}</div></div>
+    <div class="kpi"><div class="label">Ad Spend</div><div class="val">${gbp(t.adsBudget)}</div>
+      ${d.type==='Vault'&&d.launch?(()=>{
+        const weeksLive=Math.max(0,(new Date()-new Date(d.launch))/(1000*60*60*24*7));
+        const expected=Math.round(weeksLive*(Number(t.adWeeklyBudget)||1000));
+        const actual=Number(t.adsBudget)||0;
+        const delta=actual-expected;
+        const col=Math.abs(delta)<100?'var(--live)':delta<0?'var(--warn)':'var(--danger)';
+        return `<div class="sub" style="color:${col}">${gbp(expected)} expected</div>`;
+      })():''}
+    </div>
     ${d.type==='Vault'&&d.launch&&d.draw?(()=>{
       const now=new Date(), launch=new Date(d.launch), draw=new Date(d.draw);
       const daysLive=Math.max(0,Math.round((now-launch)/(1000*60*60*24)));
