@@ -89,37 +89,6 @@
   .kpi-row.condensed .kpi{padding:11px 14px}
   .kpi-row.condensed .val{font-size:19px;margin-top:3px}
   .kpi-row.condensed .sub{font-size:11px}
-
-  /* ================= Scripts / Teleprompter ================= */
-  .script-row{display:flex;align-items:center;gap:14px;padding:14px 4px;border-bottom:1px solid var(--line)}
-  .script-row:last-child{border-bottom:none}
-  .script-row .txt{flex:1;min-width:0}
-  .script-row .t{font-weight:700;font-size:14.5px}
-  .script-row .snippet{font-size:12.5px;color:var(--ink3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px}
-  .script-row .meta{font-size:11.5px;color:var(--ink3);margin-top:2px}
-
-  #tpOverlay{position:fixed;inset:0;background:#000;z-index:900;display:flex;flex-direction:column}
-  #tpText{flex:1;overflow-y:auto;padding:14vh 10% 40vh;color:#fff;line-height:1.65;font-family:'Georgia',serif;white-space:pre-wrap;scroll-behavior:auto}
-  #tpText.tp-sans{font-family:var(--font,-apple-system,sans-serif)}
-  #tpClose{position:fixed;top:18px;right:20px;z-index:902;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
-    color:#fff;width:38px;height:38px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-  #tpClose:hover{background:rgba(255,255,255,.16)}
-  #tpControls{position:fixed;left:0;right:0;bottom:0;z-index:901;background:rgba(8,13,24,.94);backdrop-filter:blur(8px);
-    border-top:1px solid rgba(255,255,255,.12);padding:14px 22px;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
-  #tpControls .tp-group{display:flex;align-items:center;gap:9px}
-  #tpControls label{font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.5);font-weight:700}
-  .tp-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:8px;
-    width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;flex-shrink:0}
-  .tp-btn:hover{background:rgba(255,255,255,.16)}
-  .tp-btn.tp-play{background:var(--gold);color:#0B1220;border-color:var(--gold);font-weight:700}
-  #tpSpeed,#tpFontRange{width:110px;accent-color:var(--gold)}
-  .tp-progress{flex:1;min-width:120px;height:4px;background:rgba(255,255,255,.15);border-radius:3px;position:relative;overflow:visible;cursor:pointer}
-  .tp-progress-bar{position:absolute;left:0;top:0;bottom:0;background:var(--gold);width:0%;border-radius:3px;pointer-events:none}
-  .tp-progress-bar::after{content:'';position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:12px;height:12px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px rgba(0,0,0,.4)}
-  .tp-sentence{cursor:pointer;border-radius:5px;transition:background .15s}
-  .tp-sentence:hover{background:rgba(255,255,255,.06)}
-  .tp-sentence.active{background:rgba(201,162,75,.32);box-shadow:0 0 0 4px rgba(201,162,75,.32)}
-  @media(max-width:860px){ #tpText{padding:10vh 6% 34vh;font-size:80%} #tpControls{gap:12px;padding:10px 12px} .tp-progress{display:none} }
   .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
   .calc-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
   .calc-row span:first-child{color:var(--ink2)}
@@ -1002,20 +971,56 @@ function initialsFor(email){
   const name = email.split('@')[0];
   return name.slice(0,2).toUpperCase();
 }
+function getPresenceName(){
+  return localStorage.getItem('atlas:username')||'';
+}
+function promptPresenceName(cb){
+  const team = (DB&&DB.settings&&DB.settings.team)||['Felix','Leila'];
+  openModal(`<div class="modal"><div class="modal-h"><h3>👋 Who are you?</h3></div>
+    <div class="modal-b">
+      <div class="muted" style="margin-bottom:16px">This is stored on your device so Atlas knows who you are. You only need to do this once.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${team.map(name=>`<button class="btn btn-gold" style="flex:1;justify-content:center;padding:14px" onclick="setPresenceName('${name}')">${name}</button>`).join('')}
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <input id="presenceNameInput" placeholder="Or type your name…" style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px" onkeydown="if(event.key==='Enter'&&this.value.trim())setPresenceName(this.value.trim())">
+        <button class="btn" onclick="const v=document.getElementById('presenceNameInput').value.trim();if(v)setPresenceName(v)">Set</button>
+      </div>
+    </div>
+  </div>`);
+  window._presenceNameCb = cb;
+}
+function setPresenceName(name){
+  if(!name) return;
+  localStorage.setItem('atlas:username', name);
+  closeModal();
+  if(window._presenceNameCb){ window._presenceNameCb(name); window._presenceNameCb=null; }
+  renderPresence();
+}
 async function initPresence(){
   if(!sb) return;
   try{
-    const { data: userData } = await sb.auth.getUser();
-    const email = (userData && userData.user && userData.user.email) || 'unknown';
+    let name = getPresenceName();
+    if(!name){
+      // Ask once, then start presence after they answer
+      promptPresenceName(n=>{ name=n; _startPresenceChannel(name); });
+      return;
+    }
+    _startPresenceChannel(name);
+  }catch(e){ console.warn('Presence init failed', e); }
+}
+async function _startPresenceChannel(name){
+  if(!sb) return;
+  try{
     presenceChannel = sb.channel('atlas-presence-v1', { config: { presence: { key: PRESENCE_SESSION_ID } } });
     presenceChannel.on('presence', { event: 'sync' }, renderPresence);
     presenceChannel.subscribe(async (status)=>{
       if(status==='SUBSCRIBED'){
-        await presenceChannel.track({ email, device: deviceLabel(), online_at: new Date().toISOString() });
+        await presenceChannel.track({ name, device: deviceLabel(), online_at: new Date().toISOString() });
       }
     });
     window.addEventListener('beforeunload', teardownPresence);
-  }catch(e){ console.warn('Presence init failed', e); }
+  }catch(e){ console.warn('Presence channel failed', e); }
 }
 function teardownPresence(){
   if(presenceChannel){ try{ presenceChannel.untrack(); sb.removeChannel(presenceChannel); }catch(e){} presenceChannel=null; }
@@ -1026,7 +1031,7 @@ function renderPresence(){
   const state = presenceChannel.presenceState();
   const all = [];
   Object.keys(state).forEach(key=>{
-    (state[key]||[]).forEach(p=> all.push({ key, email:p.email, device:p.device, online_at:p.online_at }));
+    (state[key]||[]).forEach(p=> all.push({ key, name:p.name||p.email||'?', device:p.device, online_at:p.online_at }));
   });
   lastPresenceState = all;
   const bar = document.getElementById('presenceBar'); if(!bar) return;
@@ -1038,23 +1043,30 @@ function renderPresence(){
   const shown = all.slice(0,4);
   bar.innerHTML = shown.map(p=>{
     const mine = p.key===PRESENCE_SESSION_ID;
-    return `<div class="presence-avatar ${mine?'me':'other'}" title="${esc(p.email||'')}${mine?' (you, '+deviceLabel()+')':' — '+esc(p.device||'')}">${initialsFor(p.email)}</div>`;
+    const initials = (p.name||'?').slice(0,2).toUpperCase();
+    return `<div class="presence-avatar ${mine?'me':'other'}" title="${esc(p.name||'')}${mine?' (you)':' — '+esc(p.device||'')}">${initials}</div>`;
   }).join('') + (all.length>4? `<span class="presence-extra">+${all.length-4}</span>` : '');
 
-  if(others.length>0) bar.title = `${all.length} active right now — click for details`;
+  if(others.length>0) bar.title = `${others.map(p=>p.name).join(', ')} also in Atlas`;
   else bar.title = 'Just you right now';
 }
 function showPresenceDetails(){
+  const myName = getPresenceName();
   const rows = lastPresenceState.length? lastPresenceState.map(p=>{
     const mine = p.key===PRESENCE_SESSION_ID;
     const since = p.online_at? new Date(p.online_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '';
-    return `<div class="row-item"><div class="txt"><div class="t">${esc(p.email||'Unknown')}${mine?' (this device)':''}</div><div class="meta">${esc(p.device||'')} · online since ${since}</div></div></div>`;
+    return `<div class="row-item"><div class="txt"><div class="t">${esc(p.name||'Unknown')}${mine?' <span style=\"color:var(--gold2);font-size:11px\">(you)</span>':''}</div><div class="meta">${esc(p.device||'')} · online since ${since}</div></div></div>`;
   }).join('') : '<div class="muted">No one else detected right now.</div>';
   const warnLine = lastPresenceState.length>1
     ? `<div class="muted" style="margin-bottom:12px;color:var(--warn)">⚠ More than one session is active. If you're both editing at the same time, whoever saves last will overwrite the other's changes. Best practice right now: only one person in Atlas at a time.</div>`
     : `<div class="muted" style="margin-bottom:12px;color:var(--live)">🟢 You're the only one in Atlas right now — safe to edit.</div>`;
   openModal(`<div class="modal"><div class="modal-h"><h3>👥 Who's here</h3><span class="x" onclick="closeModal()">×</span></div>
-    <div class="modal-b">${warnLine}${rows}</div></div>`);
+    <div class="modal-b">${warnLine}${rows}
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        <span class="muted" style="font-size:12px">Signed in as <strong>${esc(getPresenceName()||'Unknown')}</strong></span>
+        <button class="btn btn-sm btn-ghost" style="margin-left:10px" onclick="closeModal();localStorage.removeItem('atlas:username');initPresence()">Change name</button>
+      </div>
+    </div></div>`);
 }
 async function checkSessionAndBoot(){
   if(!sb){ showLoginErr(supabaseLoadError); return; }
@@ -1182,6 +1194,7 @@ function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveDB,300);
    is created, so the Drop Tracker / Overview always have something to write to. */
 function migrateDrop(d){
   d.websiteLink=d.websiteLink||'';
+  d.dropId=d.dropId||'';
   d.discountPrice=d.discountPrice||0;
   d.discountEntriesSold=d.discountEntriesSold||0;
   d.copy=d.copy||{};
@@ -1275,7 +1288,6 @@ function migrate(){
   });
   DB.fixedCosts=DB.fixedCosts||[];
   DB.notes=DB.notes||[];
-  DB.scripts=DB.scripts||[];
   DB.dailyTakings=DB.dailyTakings||[];
   DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
   Object.keys(DEFAULT_CONTENT_SCHEDULE_TEMPLATES).forEach(ty=>{
@@ -1456,7 +1468,6 @@ function seed(){
       {id:uid('id'),text:'Compare Monaco to a football boot — "worn by legends" angle',created:now()},
     ],
     notes:[],
-    scripts:[],
     timeline:[],
     settings:{team:['Felix','Leila']}
   };
@@ -1674,7 +1685,6 @@ function trkKpiRow(d,t){
       <div class="cost-breakdown">
         <div class="cb-row"><span>Tickets to Sell Out</span><span>${ticketsToSellOut}</span></div>
         <div class="cb-row"><span>Revenue to Sell Out</span><span>${gbp(revenueToSellOut)}</span></div>
-        <div class="cb-row"><span>Break-even %</span><span style="${breakEvenPct>=100?'color:var(--live)':''}">${breakEvenPct.toFixed(0)}%</span></div>
       </div>
     </div>
     <div class="kpi"><div class="label">Status</div><div class="val" style="font-size:18px;${status!=='PROFITABLE'?'color:var(--danger)':'color:var(--gold2)'}">${status}</div>
@@ -1818,7 +1828,33 @@ function profit(d){ return (Number(d.revenue)||0)-totalCost(d); }
 /* Single source of truth for a drop's headline numbers — used by the Drops table,
    the Dashboard's Live Drops widget, and anywhere else that shows entries/revenue/profit,
    so they never disagree. Prefers the Drop Tracker (full VAT/fees/ads calc) when present. */
+function vaultNumbers(d){
+  // Mirror the exact same calculation as vaultTrackerBody
+  const t=d.tracker||{};
+  d.vaultPrizeHistory=d.vaultPriceHistory||[];
+  const history=d.vaultPriceHistory||[];
+  const totalSold = history.reduce((a,h)=>a+(Number(h.tickets)||0),0)||Number(t.ticketsSoldTotal)||0;
+  const grossRev = history.length
+    ? history.reduce((a,h)=>a+(Number(h.tickets)||0)*(Number(h.price)||0),0)
+    : totalSold*(Number(t.fullTicketPrice)||2.49);
+  const creditPct = (Number(t.creditRedemptionPct)||0)/100;
+  const cashRev   = grossRev*(1-creditPct);
+  const vatAmt    = cashRev*(0.2/1.2);
+  const fees      = cashRev*(Number(t.paymentFeePct)||0.01);
+  const fixed     = Number(t.fixed)||0;
+  const adsBudget = Number(t.adsBudget)||0;
+  const prizes    = d.vaultPrizes||[];
+  const watchCost = prizes.filter(p=>p.type==='watch').reduce((a,p)=>a+(Number(p.cost)||0),0);
+  const cashCost  = prizes.filter(p=>p.type==='cash').reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const prizeCost = watchCost+cashCost;
+  const totalCost = prizeCost+fixed+adsBudget+fees;
+  const netProfit = cashRev-totalCost-vatAmt;
+  const pool      = Number(t.maxTickets)||99999;
+  return { entries:totalSold, pool, fillPct:pool?Math.round(totalSold/pool*100):0,
+    revenue:cashRev, profit:netProfit, isProfitable:netProfit>=0 };
+}
 function dropNumbers(d){
+  if(d.type==='Vault') return vaultNumbers(d);
   if(d.tracker){
     const t=d.tracker;
     const entries=Number(t.ticketsSoldTotal)||0, pool=Number(t.maxTickets)||0;
@@ -2131,7 +2167,6 @@ const NAV=[
   {group:'Content',items:[
     {k:'content',label:'New Content',ico:'✎',count:()=>DB.content.length},
     {k:'graphics',label:'Graphics Generator',ico:'❖'},
-    {k:'scripts',label:'Scripts',ico:'📜',count:()=>DB.scripts.length},
     {k:'contentSchedule',label:'Content Schedule',ico:'▦',count:()=>dueContentToday().length},
     {k:'assets',label:'Asset Library',ico:'▣',count:()=>DB.assets.length},
     {k:'ideas',label:'Idea Inbox',ico:'✧',count:()=>DB.ideas.length},
@@ -2181,7 +2216,7 @@ function render(){
   const c=document.getElementById('content');
   const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
-    content:vContent,assets:vAssets,ideas:vIdeas,graphics:vGraphics,scripts:vScripts,sops:vSops,kb:vKB,notes:vNotes,
+    content:vContent,assets:vAssets,ideas:vIdeas,graphics:vGraphics,sops:vSops,kb:vKB,notes:vNotes,
     projects:vProjects,project:vProject};
   c.innerHTML = (V[route.view]||vDashboard)();
   hydrateMedia();
@@ -2695,6 +2730,8 @@ function dropOverview(d){
         <span style="cursor:pointer;color:var(--gold2)" onclick="go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)">— open in Watch Library →</span>
       </div>`:''}
       <div class="field-row">${fld('Launch Date',d.launch,'launch','date')}${fld('Draw Date',d.draw,'draw','date')}</div>
+      <div class="field"><label>Drop ID <span class="muted" style="text-transform:none;font-weight:400;font-size:10px">(WooCommerce product ID — numbers only)</span></label>
+        <input type="number" value="${esc(d.dropId||'')}" placeholder="e.g. 10300" onchange="updDrop('dropId',this.value)" style="font-size:15px;font-weight:700;letter-spacing:.5px"></div>
       ${fld('Website Link (live page)', d.websiteLink,'websiteLink')}
       <div class="field"><label>Notes</label><textarea onchange="updDrop('notes',this.value)">${esc(d.notes)}</textarea></div>
     </div></div>
@@ -4666,293 +4703,6 @@ function vKB(){return docList('kb','Knowledge Base','Everything you\'ve learned,
 /* ================= NOTES ================= */
 const NOTE_TYPES=['Meeting','Call','Strategy','Compliance','Supplier','General'];
 let noteSearch='', noteTypeFilter='All';
-let scriptSearch='';
-function vScripts(){
-  let items=[...DB.scripts].sort((a,b)=>(b.created||'').localeCompare(a.created||''));
-  if(scriptSearch.trim()) items=items.filter(s=>(s.title+' '+(s.body||'')).toLowerCase().includes(scriptSearch.trim().toLowerCase()));
-  return `<div class="page-head"><div><h2>Scripts</h2><div class="desc">Paste in a script, then hit Read to run it as a full-screen autoscrolling prompter. ${DB.scripts.length} total.</div></div>
-    <div class="page-actions"><button class="btn btn-gold" onclick="editScript()">＋ New Script</button></div></div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-    <div class="search-wrap" style="flex:1;min-width:220px"><span class="si">⌕</span>
-      <input placeholder="Search scripts…" value="${esc(scriptSearch)}" oninput="scriptSearch=this.value;render()"></div>
-  </div>
-  <div class="card"><div class="card-b">
-    ${items.length? items.map(s=>{
-      const d=s.dropId?dropById(s.dropId):null;
-      const words=(s.body||'').trim().split(/\s+/).filter(Boolean).length;
-      return `<div class="script-row">
-        <div class="txt" style="cursor:pointer" onclick="editScript('${s.id}')">
-          <div class="t">${esc(s.title||'Untitled script')}</div>
-          <div class="snippet">${esc((s.body||'').slice(0,140).replace(/\n/g,' '))}</div>
-          <div class="meta">${words} words${d?' · '+esc(d.number):''} · ${fmtDate(s.created)}</div>
-        </div>
-        <button class="btn btn-sm btn-gold" onclick="openTeleprompter('${s.id}')">▶ Read</button>
-        <button class="btn btn-sm btn-ghost" onclick="editScript('${s.id}')">Edit</button>
-      </div>`;
-    }).join('') : `<div class="empty">No scripts yet — paste your first one in.</div>`}
-  </div></div>`;
-}
-function editScript(id){
-  const s=id?DB.scripts.find(x=>x.id===id):{id:'',title:'',body:'',dropId:''};
-  if(id&&!s) return;
-  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Edit Script':'New Script'}</h3><span class="x" onclick="closeModal()">×</span></div>
-    <div class="modal-b">
-      <div class="field"><label>Title</label><input id="sc_title" value="${esc(s.title)}" placeholder="e.g. D35 Launch Post script"></div>
-      <div class="field"><label>Linked Drop (optional)</label>${dd('sc_drop',[{value:'',label:'— none —'},...DB.drops.map(d=>({value:d.id,label:d.number}))],s.dropId||'')}</div>
-      <div class="field"><label>Script</label><textarea id="sc_body" rows="16" placeholder="Paste your script here…" style="font-family:Georgia,serif;line-height:1.6;font-size:14.5px">${esc(s.body)}</textarea></div>
-    </div>
-    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delScript('${id}')">Delete</button>`:''}
-      ${id?`<button class="btn" onclick="closeModal();openTeleprompter('${id}')">▶ Read</button>`:''}
-      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveScript('${id||''}')">Save</button></div></div>`);
-}
-function saveScript(id){
-  const title=document.getElementById('sc_title').value.trim();
-  const body=document.getElementById('sc_body').value;
-  if(!title){alert('Give the script a title');return;}
-  const data={title,body,dropId:ddVal('sc_drop')};
-  if(id){ Object.assign(DB.scripts.find(x=>x.id===id),data); }
-  else{ DB.scripts.unshift({id:uid('script'),...data,created:now()}); }
-  saveDB();closeModal();toast('Script saved');render();
-}
-function delScript(id){
-  if(!confirm('Delete this script?'))return;
-  DB.scripts=DB.scripts.filter(x=>x.id!==id);
-  saveDB();closeModal();render();
-}
-
-/* ---------- Teleprompter ("Autoprompt") ---------- */
-let tpTimer=null, tpSpeed=3, tpFontSize=44, tpPlaying=false;
-let tpSentences=[], tpSentenceIdx=0, tpSpeaking=false, tpRate=1, tpVoice=null, tpUtterance=null;
-function openTeleprompter(id){
-  const s=DB.scripts.find(x=>x.id===id); if(!s) return;
-  const savedSize=Number(localStorage.getItem('atlas:tp:fontSize'))||44;
-  const savedSpeed=Number(localStorage.getItem('atlas:tp:speed'))||3;
-  const savedRate=Number(localStorage.getItem('atlas:tp:rate'))||1;
-  tpFontSize=savedSize; tpSpeed=savedSpeed; tpPlaying=false;
-  tpRate=savedRate; tpSpeaking=false; tpSentenceIdx=0;
-  const parsed=tpParseScript(s.body||'');
-  tpSentences=parsed.sentences;
-  const overlay=document.createElement('div');
-  overlay.id='tpOverlay';
-  overlay.innerHTML=`
-    <button id="tpClose" onclick="closeTeleprompter()" title="Close (Esc)">×</button>
-    <div id="tpText" style="font-size:${tpFontSize}px">${parsed.html}</div>
-    <div id="tpControls">
-      <div class="tp-group">
-        <button class="tp-btn tp-play" id="tpPlayBtn" onclick="tpTogglePlay()" title="Play/Pause scroll (Space)">▶</button>
-        <button class="tp-btn" onclick="tpRestart()" title="Back to top">⤒</button>
-      </div>
-      <div class="tp-group"><label>Speed</label><input type="range" id="tpSpeed" min="1" max="10" step="1" value="${tpSpeed}" oninput="tpSetSpeed(this.value)"></div>
-      <div class="tp-group">
-        <label>Text size</label>
-        <button class="tp-btn" onclick="tpAdjustFont(-4)">A-</button>
-        <input type="range" id="tpFontRange" min="20" max="96" step="2" value="${tpFontSize}" oninput="tpSetFont(this.value)">
-        <button class="tp-btn" onclick="tpAdjustFont(4)">A+</button>
-      </div>
-      <div class="tp-group">
-        <button class="tp-btn" onclick="tpSkipBack10()" title="Back 10 seconds">⏪ 10s</button>
-        <button class="tp-btn tp-play" id="tpSpeakBtn" onclick="tpToggleSpeak()" title="Read aloud (R)">🔊</button>
-        <select id="tpVoiceSelect" onchange="tpSetVoice(this.value)" title="Voice"></select>
-        <label>Voice speed</label><input type="range" id="tpRate" min="0.6" max="1.6" step="0.1" value="${tpRate}" oninput="tpSetRate(this.value)">
-      </div>
-      <div class="tp-progress" id="tpProgressWrap" title="Click or drag to jump to that point">
-        <div class="tp-progress-bar" id="tpProgressBar"></div>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  document.addEventListener('keydown', tpKeyHandler);
-  document.getElementById('tpText').addEventListener('scroll', tpUpdateProgress);
-  document.getElementById('tpText').addEventListener('click', tpTextClick);
-  tpBindScrubbing();
-  tpPopulateVoices();
-  if(window.speechSynthesis) speechSynthesis.onvoiceschanged=tpPopulateVoices;
-}
-function tpKeyHandler(e){
-  if(e.key==='Escape'){ closeTeleprompter(); return; }
-  if(e.code==='Space'){ e.preventDefault(); tpTogglePlay(); }
-  if(e.key==='+'||e.key==='='){ tpAdjustFont(4); }
-  if(e.key==='-'||e.key==='_'){ tpAdjustFont(-4); }
-  if(e.key==='r'||e.key==='R'){ tpToggleSpeak(); }
-}
-function tpTogglePlay(){
-  tpPlaying=!tpPlaying;
-  const btn=document.getElementById('tpPlayBtn'); if(btn) btn.textContent=tpPlaying?'❚❚':'▶';
-  if(tpPlaying){
-    tpTimer=setInterval(()=>{
-      const el=document.getElementById('tpText'); if(!el) return;
-      el.scrollTop += tpSpeed*0.6;
-      if(el.scrollTop >= el.scrollHeight-el.clientHeight-4){ tpTogglePlay(); }
-    },30);
-  } else if(tpTimer){ clearInterval(tpTimer); tpTimer=null; }
-}
-function tpRestart(){
-  const el=document.getElementById('tpText'); if(el) el.scrollTop=0;
-}
-function tpSetSpeed(v){ tpSpeed=Number(v); localStorage.setItem('atlas:tp:speed',tpSpeed); }
-function tpSetFont(v){
-  tpFontSize=Number(v);
-  const el=document.getElementById('tpText'); if(el) el.style.fontSize=tpFontSize+'px';
-  localStorage.setItem('atlas:tp:fontSize',tpFontSize);
-}
-function tpAdjustFont(delta){
-  tpFontSize=Math.max(20,Math.min(96,tpFontSize+delta));
-  const range=document.getElementById('tpFontRange'); if(range) range.value=tpFontSize;
-  tpSetFont(tpFontSize);
-}
-function tpUpdateProgress(){
-  const el=document.getElementById('tpText'), bar=document.getElementById('tpProgressBar');
-  if(!el||!bar) return;
-  if(tpSpeaking && tpSentences.length){
-    bar.style.width=(tpSentenceIdx/Math.max(1,tpSentences.length-1)*100)+'%';
-    return;
-  }
-  const max=el.scrollHeight-el.clientHeight;
-  const pct=max>0? (el.scrollTop/max*100) : 0;
-  bar.style.width=pct+'%';
-}
-function closeTeleprompter(){
-  if(tpTimer){ clearInterval(tpTimer); tpTimer=null; }
-  tpPlaying=false;
-  if(window.speechSynthesis) speechSynthesis.cancel();
-  tpSpeaking=false;
-  document.removeEventListener('keydown', tpKeyHandler);
-  if(tpMouseMoveHandler){ window.removeEventListener('mousemove',tpMouseMoveHandler); tpMouseMoveHandler=null; }
-  if(tpMouseUpHandler){ window.removeEventListener('mouseup',tpMouseUpHandler); tpMouseUpHandler=null; }
-  if(tpTouchMoveHandler){ window.removeEventListener('touchmove',tpTouchMoveHandler); tpTouchMoveHandler=null; }
-  if(tpTouchEndHandler){ window.removeEventListener('touchend',tpTouchEndHandler); tpTouchEndHandler=null; }
-  const overlay=document.getElementById('tpOverlay'); if(overlay) overlay.remove();
-}
-
-/* ---------- Read Aloud (browser text-to-speech, no external service) ---------- */
-function tpParseScript(text){
-  const raw=text||'';
-  const segs=raw.split(/(\n+)/); // odd indices are runs of newlines
-  const sentences=[]; let html='';
-  segs.forEach(seg=>{
-    if(!seg) return;
-    if(/^\n+$/.test(seg)){ html+='<br>'.repeat(seg.length); return; }
-    const parts=seg.match(/[^.!?]+[.!?]+\s*|[^.!?]+$/g);
-    if(!parts){ if(seg.trim()){ const idx=sentences.length; sentences.push(seg.trim().replace(/\s+/g,' ')); html+=`<span class="tp-sentence" data-i="${idx}">${esc(seg)}</span>`; } return; }
-    parts.forEach(p=>{
-      if(!p.trim()){ html+=esc(p); return; }
-      const idx=sentences.length;
-      sentences.push(p.trim().replace(/\s+/g,' '));
-      html+=`<span class="tp-sentence" data-i="${idx}">${esc(p)}</span>`;
-    });
-  });
-  return {sentences, html};
-}
-function tpPopulateVoices(){
-  if(!window.speechSynthesis) return;
-  const sel=document.getElementById('tpVoiceSelect'); if(!sel) return;
-  const voices=speechSynthesis.getVoices();
-  if(!voices.length) return; // will retry via onvoiceschanged
-  const preferred=voices.filter(v=>v.lang.startsWith('en'));
-  const list=preferred.length?preferred:voices;
-  const savedName=localStorage.getItem('atlas:tp:voice');
-  sel.innerHTML=list.map(v=>`<option value="${esc(v.name)}">${esc(v.name)} (${esc(v.lang)})</option>`).join('');
-  const match=list.find(v=>v.name===savedName)||list.find(v=>/UK|British/i.test(v.name))||list[0];
-  if(match){ sel.value=match.name; tpVoice=match; }
-}
-function tpSetVoice(name){
-  const voices=speechSynthesis.getVoices();
-  tpVoice=voices.find(v=>v.name===name)||null;
-  if(tpVoice) localStorage.setItem('atlas:tp:voice',tpVoice.name);
-}
-function tpSetRate(v){ tpRate=Number(v); localStorage.setItem('atlas:tp:rate',tpRate); }
-function tpToggleSpeak(){
-  if(!window.speechSynthesis){ toast('Read aloud isn\'t supported in this browser.'); return; }
-  if(tpSpeaking){
-    speechSynthesis.cancel();
-    tpSpeaking=false;
-    const btn=document.getElementById('tpSpeakBtn'); if(btn) btn.textContent='🔊';
-    return;
-  }
-  if(tpSentenceIdx>=tpSentences.length) tpSentenceIdx=0;
-  tpSpeaking=true;
-  const btn=document.getElementById('tpSpeakBtn'); if(btn) btn.textContent='⏸';
-  tpSpeakNext();
-}
-function tpSpeakNext(){
-  if(!tpSpeaking) return;
-  if(tpSentenceIdx>=tpSentences.length){
-    tpSpeaking=false; tpSentenceIdx=0;
-    const btn=document.getElementById('tpSpeakBtn'); if(btn) btn.textContent='🔊';
-    tpHighlightSentence(-1);
-    return;
-  }
-  tpHighlightSentence(tpSentenceIdx);
-  tpSyncScrollToSentence();
-  tpUpdateProgress();
-  const utter=new SpeechSynthesisUtterance(tpSentences[tpSentenceIdx]);
-  utter.rate=tpRate; if(tpVoice) utter.voice=tpVoice;
-  utter.onend=()=>{ if(!tpSpeaking) return; tpSentenceIdx++; tpSpeakNext(); };
-  utter.onerror=()=>{ if(!tpSpeaking) return; tpSentenceIdx++; tpSpeakNext(); };
-  tpUtterance=utter;
-  speechSynthesis.speak(utter);
-}
-function tpHighlightSentence(idx){
-  const el=document.getElementById('tpText'); if(!el) return;
-  const prev=el.querySelector('.tp-sentence.active'); if(prev) prev.classList.remove('active');
-  if(idx<0) return;
-  const span=el.querySelector(`.tp-sentence[data-i="${idx}"]`);
-  if(span) span.classList.add('active');
-}
-function tpSyncScrollToSentence(){
-  const el=document.getElementById('tpText'); if(!el||!tpSentences.length) return;
-  const span=el.querySelector(`.tp-sentence[data-i="${tpSentenceIdx}"]`);
-  if(span && span.scrollIntoView){ span.scrollIntoView({block:'center',behavior:'smooth'}); }
-}
-/* Jump reading position to a specific sentence index and (re)start speaking from there —
-   used by click-to-read, the -10s button, and dragging/clicking the progress bar. */
-function tpJumpTo(index){
-  if(!window.speechSynthesis) return;
-  tpSentenceIdx=Math.max(0, Math.min(tpSentences.length-1, index));
-  speechSynthesis.cancel();
-  tpSpeaking=true;
-  const btn=document.getElementById('tpSpeakBtn'); if(btn) btn.textContent='⏸';
-  tpSpeakNext();
-}
-function tpTextClick(e){
-  const span=e.target.closest('.tp-sentence'); if(!span) return;
-  const idx=Number(span.dataset.i);
-  if(Number.isNaN(idx)) return;
-  tpJumpTo(idx);
-}
-function tpSkipBack10(){
-  if(!tpSentences.length) return;
-  // Roughly 150 words/min (2.5 words/sec) at normal rate, scaled by the current voice speed.
-  const wordsPerSec=2.5*(tpRate||1);
-  let wordsToSkip=Math.round(10*wordsPerSec);
-  let i=tpSentenceIdx;
-  while(i>0 && wordsToSkip>0){
-    i--;
-    wordsToSkip -= (tpSentences[i]||'').split(/\s+/).filter(Boolean).length;
-  }
-  tpJumpTo(i);
-}
-let tpMouseMoveHandler=null, tpMouseUpHandler=null, tpTouchMoveHandler=null, tpTouchEndHandler=null;
-function tpBindScrubbing(){
-  const wrap=document.getElementById('tpProgressWrap'); if(!wrap) return;
-  const seekFromEvent=(clientX)=>{
-    const rect=wrap.getBoundingClientRect();
-    const pct=Math.max(0,Math.min(1,(clientX-rect.left)/rect.width));
-    const idx=Math.round(pct*(tpSentences.length-1));
-    tpJumpTo(idx);
-  };
-  let dragging=false;
-  wrap.addEventListener('mousedown',e=>{ dragging=true; seekFromEvent(e.clientX); });
-  tpMouseMoveHandler=e=>{ if(dragging) seekFromEvent(e.clientX); };
-  tpMouseUpHandler=()=>{ dragging=false; };
-  window.addEventListener('mousemove',tpMouseMoveHandler);
-  window.addEventListener('mouseup',tpMouseUpHandler);
-  wrap.addEventListener('touchstart',e=>{ dragging=true; seekFromEvent(e.touches[0].clientX); },{passive:true});
-  tpTouchMoveHandler=e=>{ if(dragging) seekFromEvent(e.touches[0].clientX); };
-  tpTouchEndHandler=()=>{ dragging=false; };
-  window.addEventListener('touchmove',tpTouchMoveHandler,{passive:true});
-  window.addEventListener('touchend',tpTouchEndHandler);
-}
-
 function vNotes(){
   let items=[...DB.notes].sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
   if(noteTypeFilter!=='All') items=items.filter(n=>n.type===noteTypeFilter);
@@ -5131,7 +4881,7 @@ function createNewDrop(){
     launch:today(),draw:addDays(today(),def.draw),price:def.price,discountPrice:0,pool:def.pool,
     entriesSold:0,discountEntriesSold:0,revenue:0,
     costWatch:w?Number(w.cost)||0:0,costFixed:0,variableCosts:[],
-    notes:'',websiteLink:'',copy:{headline:'',body:'',seoKeyphrase:'',seoTitle:'',slug:'',metaDescription:''},
+    notes:'',websiteLink:'',dropId:'',copy:{headline:'',body:'',seoKeyphrase:'',seoTitle:'',slug:'',metaDescription:''},
     images:{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''},
     entrants:{filename:'',headers:[],rows:[]},marketing:[],perf:{},links:{drive:'',canva:''},winnerId:'',created:now()};
   if(w){ d.tracker={}; d.tracker.watchCost=Number(w.cost)||0; d.tracker.statedValue=Number(w.retail)||0; }
@@ -5740,7 +5490,10 @@ function openContent(id, prefillTitle, fromWatch){const pf=(!id&&fromWatch&&cont
       </div>
       ${mInput('cn_tags','Tags (comma separated)',(c.tags||[]).join(', '))}
       ${tagChipsHTML(c.tags||[])}
-      ${mArea('cn_body','Script / Body',c.body)}
+      <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">
+          <span>Script / Body</span>
+          ${id?`<button type="button" class="btn btn-sm btn-gold" style="font-size:11px;padding:4px 10px" onclick="closeModal();setTimeout(()=>openScriptReaderById('${id}'),100)">▶ Read Script</button>`:''}
+        </label><textarea id="cn_body">${esc(c.body||'')}</textarea></div>
       <div class="field"><label>Content Type</label>${stageToggle('cn_stage',['Raw','Finished'],c.mediaStage||'Finished')}
         <div class="muted" style="font-size:11.5px;margin-top:4px">Raw = unedited footage/photos just dumped for editing. Finished = ready to post.</div></div>
       <div class="field"><label>Finished Media (video or photos)</label>
@@ -7401,6 +7154,98 @@ function gpBoot(){
 }
 
 window.addEventListener('resize',()=>{ if(document.getElementById('ggPreview')) ggFit(); if(document.getElementById('gePreview')) geFit(); if(document.getElementById('gpPreview')) gpFit(); });
+
+/* ===== Script Reader / Teleprompter ===== */
+let _srUtterance=null, _srSpeaking=false, _srRate=0.9;
+const SR_STEPS=20, SR_MIN=0.3, SR_MAX=2.0;
+function srStepToRate(step){ return Math.round((SR_MIN+(step/SR_STEPS)*(SR_MAX-SR_MIN))*100)/100; }
+function srRateToStep(rate){ return Math.round(((rate-SR_MIN)/(SR_MAX-SR_MIN))*SR_STEPS); }
+
+function openScriptReaderById(id){
+  const c=DB.content.find(x=>x.id===id); if(!c||!c.body) return;
+  openScriptReader(c.body);
+}
+function openScriptReader(text){
+  if(!text||!text.trim()){ alert('No script to read'); return; }
+  // Stop any running speech
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  _srSpeaking=false;
+
+  const step=srRateToStep(_srRate);
+  const speedPct=Math.round((_srRate-SR_MIN)/(SR_MAX-SR_MIN)*100);
+
+  // Build fullscreen overlay
+  const overlay=document.createElement('div');
+  overlay.id='scriptReaderOverlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column;overflow:hidden';
+  overlay.innerHTML=`
+    <div style="flex:1;overflow-y:auto;padding:32px 24px 120px;-webkit-overflow-scrolling:touch">
+      <div id="sr_text" style="font-size:22px;line-height:1.7;color:#fff;white-space:pre-wrap;word-break:break-word">${esc(text)}</div>
+    </div>
+    <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,.92);backdrop-filter:blur(10px);padding:14px 20px 28px;border-top:1px solid rgba(255,255,255,.1)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <button id="sr_play" onclick="srToggle()" style="width:52px;height:52px;border-radius:50%;background:var(--gold);border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#000;flex-shrink:0">▶</button>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.8px">Speed</span>
+            <span id="sr_speed_label" style="font-size:13px;color:var(--gold);font-weight:700">${_srRate.toFixed(2)}×</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button onclick="srAdjustSpeed(-1)" style="background:rgba(255,255,255,.1);border:none;color:#fff;width:32px;height:32px;border-radius:6px;font-size:16px;cursor:pointer;flex-shrink:0">−</button>
+            <input id="sr_speed" type="range" min="0" max="${SR_STEPS}" step="1" value="${step}"
+              oninput="srSetSpeed(parseInt(this.value))"
+              style="flex:1;accent-color:var(--gold);height:4px">
+            <button onclick="srAdjustSpeed(1)" style="background:rgba(255,255,255,.1);border:none;color:#fff;width:32px;height:32px;border-radius:6px;font-size:16px;cursor:pointer;flex-shrink:0">+</button>
+          </div>
+        </div>
+        <button onclick="srClose()" style="background:rgba(255,255,255,.1);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:18px;cursor:pointer;flex-shrink:0">×</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  // Store text for speech
+  overlay._text = text;
+}
+
+function srToggle(){
+  const overlay=document.getElementById('scriptReaderOverlay'); if(!overlay) return;
+  if(_srSpeaking){
+    window.speechSynthesis.cancel();
+    _srSpeaking=false;
+    document.getElementById('sr_play').textContent='▶';
+  } else {
+    _srUtterance=new SpeechSynthesisUtterance(overlay._text);
+    _srUtterance.rate=_srRate;
+    _srUtterance.onend=()=>{ _srSpeaking=false; const b=document.getElementById('sr_play'); if(b) b.textContent='▶'; };
+    window.speechSynthesis.speak(_srUtterance);
+    _srSpeaking=true;
+    document.getElementById('sr_play').textContent='⏸';
+  }
+}
+
+function srSetSpeed(step){
+  _srRate=srStepToRate(step);
+  const lbl=document.getElementById('sr_speed_label'); if(lbl) lbl.textContent=_srRate.toFixed(2)+'×';
+  const sl=document.getElementById('sr_speed'); if(sl) sl.value=step;
+  // If playing, restart at new rate
+  if(_srSpeaking){
+    const overlay=document.getElementById('scriptReaderOverlay');
+    window.speechSynthesis.cancel();
+    _srSpeaking=false;
+    setTimeout(()=>{ if(overlay){ srToggle(); } }, 50);
+  }
+}
+
+function srAdjustSpeed(delta){
+  const sl=document.getElementById('sr_speed'); if(!sl) return;
+  const newStep=Math.max(0,Math.min(SR_STEPS,parseInt(sl.value)+delta));
+  srSetSpeed(newStep);
+}
+
+function srClose(){
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  _srSpeaking=false;
+  const el=document.getElementById('scriptReaderOverlay'); if(el) el.remove();
+}
 
 checkSessionAndBoot();
 </script>
