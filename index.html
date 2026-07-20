@@ -1195,6 +1195,7 @@ function queueSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveDB,300);
 function migrateDrop(d){
   d.websiteLink=d.websiteLink||'';
   d.dropId=d.dropId||'';
+  d.scripts=d.scripts||[];
   d.discountPrice=d.discountPrice||0;
   d.discountEntriesSold=d.discountEntriesSold||0;
   d.copy=d.copy||{};
@@ -2554,7 +2555,7 @@ function vDrops(){
 }
 
 /* ================= DROP HUB ================= */
-const DROP_TABS=['overview','watch','tasks','marketing','performance','winner','content','files','timeline','financials','calculator'];
+const DROP_TABS=['overview','watch','tasks','marketing','performance','winner','content','scripts','files','timeline','financials','calculator'];
 function vDropHub(){
   const d=dropById(route.id);
   if(!d) return `<div class="empty">Drop not found. <span class="link" onclick="go('drops')">Back to drops</span></div>`;
@@ -2598,6 +2599,7 @@ function dropTab(d,tab){
   if(tab==='timeline') return dropTimeline(d);
   if(tab==='financials') return `<div class="muted" style="font-size:11.5px;margin-bottom:16px">✎ All figures below are fully editable — changes update the drop's numbers everywhere in the app immediately.</div>`+trackerBody(d);
   if(tab==='calculator') return dropCalculator(d);
+  if(tab==='scripts') return dropScripts(d);
 }
 function dropWatchTab(d){
   if(!d.watchId) return `<div class="empty">No watch linked to this drop yet. <span class="link" onclick="go('drop','${d.id}','overview')">Pick one in Overview →</span></div>`;
@@ -7245,6 +7247,82 @@ function srClose(){
   window.speechSynthesis && window.speechSynthesis.cancel();
   _srSpeaking=false;
   const el=document.getElementById('scriptReaderOverlay'); if(el) el.remove();
+}
+
+/* ===== Scripts tab ===== */
+function dropScripts(d){
+  d.scripts = d.scripts||[];
+  const rows = d.scripts.map(s=>`
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-h">
+        <h3>${esc(s.title||'Untitled Script')}</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-gold" onclick="openScriptReader(${JSON.stringify(s.body||'')})">▶ Read</button>
+          <button class="btn btn-sm" onclick="editDropScript('${d.id}','${s.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="delDropScript('${d.id}','${s.id}')">✕</button>
+        </div>
+      </div>
+      <div style="padding:12px 18px;color:var(--ink2);font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:120px;overflow:hidden;cursor:pointer" onclick="editDropScript('${d.id}','${s.id}')">${esc((s.body||'').slice(0,300))}${(s.body||'').length>300?'…':''}</div>
+    </div>`).join('');
+
+  return `<div style="margin-top:4px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="muted" style="font-size:12.5px">${d.scripts.length} script${d.scripts.length===1?'':'s'} for ${esc(d.number)}</div>
+      <button class="btn btn-gold" onclick="newDropScript('${d.id}')">＋ New Script</button>
+    </div>
+    ${rows||'<div class="card"><div class="empty">No scripts yet — add one to get started.</div></div>'}
+  </div>`;
+}
+
+function newDropScript(dropId){
+  const d=dropById(dropId); if(!d) return;
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>New Script</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Title</label><input id="sc_title" placeholder="e.g. Launch hook, Draw day urgency…"></div>
+      <div class="field"><label>Script</label><textarea id="sc_body" style="min-height:260px" placeholder="Write your script here…"></textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveDropScript('${dropId}','')">Save</button>
+    </div>
+  </div>`);
+}
+
+function editDropScript(dropId, scriptId){
+  const d=dropById(dropId); if(!d) return;
+  const s=(d.scripts||[]).find(x=>x.id===scriptId); if(!s) return;
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>Edit Script</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Title</label><input id="sc_title" value="${esc(s.title||'')}"></div>
+      <div class="field"><label>Script</label><textarea id="sc_body" style="min-height:260px">${esc(s.body||'')}</textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="closeModal();openScriptReader(document.getElementById('sc_body').value)">▶ Read</button>
+      <button class="btn btn-gold" onclick="saveDropScript('${dropId}','${scriptId}')">Save</button>
+    </div>
+  </div>`);
+}
+
+function saveDropScript(dropId, scriptId){
+  const d=dropById(dropId); if(!d) return;
+  d.scripts=d.scripts||[];
+  const title=document.getElementById('sc_title').value.trim()||'Untitled';
+  const body=document.getElementById('sc_body').value||'';
+  if(scriptId){
+    const s=d.scripts.find(x=>x.id===scriptId);
+    if(s){ s.title=title; s.body=body; }
+  } else {
+    d.scripts.push({id:uid('sc'),title,body,created:now()});
+  }
+  saveDB(); closeModal(); render();
+}
+
+function delDropScript(dropId, scriptId){
+  const d=dropById(dropId); if(!d) return;
+  if(!confirm('Delete this script?')) return;
+  d.scripts=(d.scripts||[]).filter(x=>x.id!==scriptId);
+  saveDB(); render();
 }
 
 checkSessionAndBoot();
