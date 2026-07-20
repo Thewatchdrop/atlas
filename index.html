@@ -7384,5 +7384,64 @@ function vAllScripts(){
     ${filtered.length? rows : '<div class="card"><div class="empty">${scriptsFilter==="To Film"?"No scripts marked to film yet — tick the checkbox on any script.":"No scripts yet — add them from any Drop Hub under the Scripts tab."}</div></div>'}`;
 }
 
+function vaultLiveBanner(d){
+  if(!d.launch||!d.draw) return '';
+  const now = new Date();
+  const launch = new Date(d.launch);
+  const draw = new Date(d.draw);
+  const totalDays = Math.max(1, Math.round((draw-launch)/(1000*60*60*24)));
+  const daysLive = Math.max(0, Math.round((now-launch)/(1000*60*60*24)));
+  const daysLeft = Math.max(0, Math.round((draw-now)/(1000*60*60*24)));
+  const pctThrough = Math.min(100, Math.round(daysLive/totalDays*100));
+
+  // Ad spend pacing — £1k/week assumption
+  const weeksLive = daysLive/7;
+  const adPacePerWeek = Number((d.tracker||{}).adWeeklyBudget)||1000;
+  const expectedAdSpend = Math.round(weeksLive*adPacePerWeek);
+  const actualAdSpend = Number((d.tracker||{}).adsBudget)||0;
+  const adDelta = actualAdSpend - expectedAdSpend;
+  const adStatus = adDelta>100?'over':adDelta<-100?'under':'on track';
+  const adColor = adStatus==='over'?'var(--danger)':adStatus==='under'?'var(--warn)':'var(--live)';
+
+  return `<div class="card" style="margin-bottom:16px;border-color:var(--gold)">
+    <div class="card-h"><h3>⏱ Vault Progress</h3>
+      <span class="muted" style="font-size:11.5px">${daysLive} days live · ${daysLeft} days remaining</span>
+    </div>
+    <div style="padding:14px 18px">
+      <!-- Timeline bar -->
+      <div style="position:relative;height:10px;background:var(--panel2);border-radius:10px;margin-bottom:10px;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;height:100%;width:${pctThrough}%;background:var(--gold);border-radius:10px;transition:width .5s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-bottom:16px">
+        <span>${fmtDate(d.launch)}</span>
+        <span style="color:var(--gold2);font-weight:700">${pctThrough}% through</span>
+        <span>${fmtDate(d.draw)}</span>
+      </div>
+      <!-- Stats row -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:120px;background:var(--panel);border-radius:10px;padding:12px 14px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3)">Days Live</div>
+          <div style="font-size:24px;font-weight:800;color:var(--ink)">${daysLive}</div>
+          <div style="font-size:11px;color:var(--ink3)">${Math.round(weeksLive*10)/10} weeks</div>
+        </div>
+        <div style="flex:1;min-width:120px;background:var(--panel);border-radius:10px;padding:12px 14px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3)">Days Left</div>
+          <div style="font-size:24px;font-weight:800;color:${daysLeft<14?'var(--warn)':'var(--ink)'}">${daysLeft}</div>
+          <div style="font-size:11px;color:var(--ink3)">${totalDays} total</div>
+        </div>
+        <div style="flex:2;min-width:180px;background:var(--panel);border-radius:10px;padding:12px 14px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3)">Ad Spend Pacing (£${adPacePerWeek.toLocaleString()}/wk)</div>
+          <div style="font-size:24px;font-weight:800;color:${adColor}">${gbp(actualAdSpend)}</div>
+          <div style="font-size:11px;color:${adColor}">${adStatus==='on track'?'On track':'${adStatus==="over"?"£"+(adDelta)+" over pace":"£"+Math.abs(adDelta)+" under pace"}'} · expected ${gbp(expectedAdSpend)}</div>
+          <div style="margin-top:8px">
+            <label style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px">Weekly budget (£)</label>
+            <input type="number" value="${adPacePerWeek}" style="width:100%;margin-top:4px;font-size:13px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:6px;padding:5px 8px" onchange="updTracker('adWeeklyBudget',this.value)">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 checkSessionAndBoot();
 </script>
