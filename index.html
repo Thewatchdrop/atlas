@@ -7164,9 +7164,19 @@ const SR_STEPS=20, SR_MIN=0.3, SR_MAX=2.0;
 function srStepToRate(step){ return Math.round((SR_MIN+(step/SR_STEPS)*(SR_MAX-SR_MIN))*100)/100; }
 function srRateToStep(rate){ return Math.round(((rate-SR_MIN)/(SR_MAX-SR_MIN))*SR_STEPS); }
 
-function openScriptReaderById(id){
-  const c=DB.content.find(x=>x.id===id); if(!c||!c.body) return;
-  openScriptReader(c.body);
+function openScriptReaderById(scriptId, dropId){
+  // Try drop scripts first, then content items
+  const d=dropId?dropById(dropId):null;
+  const s=d?(d.scripts||[]).find(x=>x.id===scriptId):null;
+  if(s){ openScriptReader(s.body||''); return; }
+  const c=DB.content.find(x=>x.id===scriptId);
+  if(c){ openScriptReader(c.body||''); return; }
+  // fallback: search all drops
+  for(const dr of DB.drops){
+    const found=(dr.scripts||[]).find(x=>x.id===scriptId);
+    if(found){ openScriptReader(found.body||''); return; }
+  }
+  alert('Script not found');
 }
 function openScriptReader(text){
   if(!text||!text.trim()){ alert('No script to read'); return; }
@@ -7264,7 +7274,7 @@ function dropScripts(d){
           <h3 style="margin:0">${esc(s.title||'Untitled Script')}</h3>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-sm btn-gold" onclick="openScriptReader(${JSON.stringify(s.body||'')})">▶ Read</button>
+          <button class="btn btn-sm btn-gold" onclick="openScriptReaderById('${s.id}','${d.id}')">▶ Read</button>
           <button class="btn btn-sm" onclick="editDropScript('${d.id}','${s.id}')">Edit</button>
           <button class="btn btn-sm btn-danger" onclick="delDropScript('${d.id}','${s.id}')">✕</button>
         </div>
@@ -7305,7 +7315,7 @@ function editDropScript(dropId, scriptId){
     </div>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-gold" onclick="closeModal();openScriptReader(document.getElementById('sc_body').value)">▶ Read</button>
+      <button class="btn btn-gold" onclick="openScriptReader(document.getElementById('sc_body').value)">▶ Read</button>
       <button class="btn btn-gold" onclick="saveDropScript('${dropId}','${scriptId}')">Save</button>
     </div>
   </div>`);
@@ -7359,7 +7369,7 @@ function vAllScripts(){
           </div>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-sm btn-gold" onclick="openScriptReader(${JSON.stringify(s.body||'')})">▶ Read</button>
+          <button class="btn btn-sm btn-gold" onclick="openScriptReaderById('${s.id}','${d.id}')">▶ Read</button>
           <button class="btn btn-sm" onclick="go('drop','${s.dropId}','scripts')">Open →</button>
         </div>
       </div>
