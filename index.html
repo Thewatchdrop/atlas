@@ -1199,6 +1199,7 @@ function migrateDrop(d){
   d.websiteLink=d.websiteLink||'';
   d.dropId=d.dropId||'';
   d.scripts=d.scripts||[];
+  d.ads=d.ads||[];
   d.discountPrice=d.discountPrice||0;
   d.discountEntriesSold=d.discountEntriesSold||0;
   d.copy=d.copy||{};
@@ -2559,7 +2560,7 @@ function vDrops(){
 }
 
 /* ================= DROP HUB ================= */
-const DROP_TABS=['overview','watch','tasks','marketing','performance','winner','content','scripts','files','timeline','financials','calculator'];
+const DROP_TABS=['overview','watch','tasks','marketing','performance','winner','content','ads','scripts','files','timeline','financials','calculator'];
 function vDropHub(){
   const d=dropById(route.id);
   if(!d) return `<div class="empty">Drop not found. <span class="link" onclick="go('drops')">Back to drops</span></div>`;
@@ -2604,6 +2605,7 @@ function dropTab(d,tab){
   if(tab==='financials') return `<div class="muted" style="font-size:11.5px;margin-bottom:16px">✎ All figures below are fully editable — changes update the drop's numbers everywhere in the app immediately.</div>`+trackerBody(d);
   if(tab==='calculator') return dropCalculator(d);
   if(tab==='scripts') return dropScripts(d);
+  if(tab==='ads') return dropAds(d);
 }
 function dropWatchTab(d){
   if(!d.watchId) return `<div class="empty">No watch linked to this drop yet. <span class="link" onclick="go('drop','${d.id}','overview')">Pick one in Overview →</span></div>`;
@@ -7468,6 +7470,94 @@ function vaultLiveBanner(d){
       </div>
     </div>
   </div>`;
+}
+
+/* ===== Ads tab ===== */
+function dropAds(d){
+  d.ads=d.ads||[];
+  // Ensure 5 ad slots
+  while(d.ads.length<5) d.ads.push({id:uid('ad'),label:'AD'+(d.ads.length+1),desc:'',square:'',vertical:''});
+
+  const cards = d.ads.map((ad,i)=>`
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-h">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;font-weight:800;color:var(--gold2);min-width:36px">AD${i+1}</span>
+          <input value="${esc(ad.label||'AD'+(i+1))}" placeholder="Ad name…"
+            style="background:transparent;border:none;border-bottom:1px solid var(--line2);color:var(--ink);font-size:14px;font-weight:600;padding:2px 4px;width:180px"
+            onchange="updDropAd('${d.id}','${ad.id}','label',this.value)">
+        </div>
+        <button class="btn btn-sm btn-danger" onclick="delDropAd('${d.id}','${ad.id}')">✕</button>
+      </div>
+      <div style="padding:0 18px 14px;display:flex;flex-direction:column;gap:12px">
+        <!-- Description -->
+        <div class="field" style="margin:0">
+          <label>Description / Brief</label>
+          <textarea style="min-height:60px" placeholder="Hook, copy direction, notes for Leila…" onchange="updDropAd('${d.id}','${ad.id}','desc',this.value)">${esc(ad.desc||'')}</textarea>
+        </div>
+        <!-- Two format slots -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <!-- Square 1080x1080 -->
+          <div style="flex:1;min-width:180px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">1080 × 1080 (Square)</div>
+            <div style="position:relative;width:100%;aspect-ratio:1;background:var(--panel2);border-radius:10px;border:2px dashed var(--line2);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="document.getElementById('ad_sq_${ad.id}').click()">
+              ${ad.square
+                ? `<img data-mediaref="${esc(ad.square)}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">
+                   <button onclick="event.stopPropagation();updDropAd('${d.id}','${ad.id}','square','');saveDB();render()" style="position:absolute;top:6px;right:6px;background:rgba(11,18,32,.8);border:none;color:#fff;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:12px">×</button>`
+                : `<div style="text-align:center;color:var(--ink3)"><div style="font-size:22px">＋</div><div style="font-size:11px;margin-top:4px">Upload square</div></div>`}
+            </div>
+            <input id="ad_sq_${ad.id}" type="file" accept="image/*,video/*" style="display:none" onchange="uploadAdAsset(event,'${d.id}','${ad.id}','square')">
+          </div>
+          <!-- Vertical 1080x1920 -->
+          <div style="flex:1;min-width:120px;max-width:160px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">1080 × 1920 (Vertical)</div>
+            <div style="position:relative;width:100%;aspect-ratio:9/16;background:var(--panel2);border-radius:10px;border:2px dashed var(--line2);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="document.getElementById('ad_vt_${ad.id}').click()">
+              ${ad.vertical
+                ? `<img data-mediaref="${esc(ad.vertical)}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">
+                   <button onclick="event.stopPropagation();updDropAd('${d.id}','${ad.id}','vertical','');saveDB();render()" style="position:absolute;top:6px;right:6px;background:rgba(11,18,32,.8);border:none;color:#fff;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:12px">×</button>`
+                : `<div style="text-align:center;color:var(--ink3)"><div style="font-size:22px">＋</div><div style="font-size:11px;margin-top:4px">Vertical</div></div>`}
+            </div>
+            <input id="ad_vt_${ad.id}" type="file" accept="image/*,video/*" style="display:none" onchange="uploadAdAsset(event,'${d.id}','${ad.id}','vertical')">
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  return `<div style="margin-top:4px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="muted" style="font-size:12.5px">${d.ads.length} ad slots · upload square and vertical formats for each</div>
+      <button class="btn btn-gold" onclick="addDropAd('${d.id}')">＋ Add Ad</button>
+    </div>
+    ${cards}
+  </div>`;
+}
+
+function updDropAd(dropId, adId, field, val){
+  const d=dropById(dropId); if(!d) return;
+  const ad=(d.ads||[]).find(a=>a.id===adId); if(!ad) return;
+  ad[field]=val; queueSave();
+}
+function addDropAd(dropId){
+  const d=dropById(dropId); if(!d) return;
+  d.ads=d.ads||[];
+  d.ads.push({id:uid('ad'),label:'AD'+(d.ads.length+1),desc:'',square:'',vertical:''});
+  saveDB(); render();
+}
+function delDropAd(dropId, adId){
+  const d=dropById(dropId); if(!d) return;
+  if(!confirm('Remove this ad slot?')) return;
+  d.ads=(d.ads||[]).filter(a=>a.id!==adId);
+  saveDB(); render();
+}
+async function uploadAdAsset(evt, dropId, adId, format){
+  const file=evt.target.files[0]; if(!file) return;
+  try{
+    const ref=await storeMedia(file);
+    updDropAd(dropId,adId,format,ref);
+    saveDB(); render();
+    toast('Uploaded');
+  }catch(e){ alert('Upload failed: '+e.message); }
+  evt.target.value='';
 }
 
 checkSessionAndBoot();
