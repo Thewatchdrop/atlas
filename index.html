@@ -4755,6 +4755,18 @@ function vKB(){return docList('kb','Knowledge Base','Everything you\'ve learned,
 /* ================= NOTES ================= */
 const NOTE_TYPES=['Meeting','Call','Strategy','Compliance','Supplier','Project','General'];
 let noteSearch='', noteTypeFilter='All';
+const expandedNotes = new Set();
+function toggleNoteExpand(id){ expandedNotes.has(id)?expandedNotes.delete(id):expandedNotes.add(id); render(); }
+function downloadNotePdf(id){
+  const n=DB.notes.find(x=>x.id===id); if(!n) return;
+  const d=n.dropId?dropById(n.dropId):null;
+  const tableHtml=(n.tables&&n.tables.length)?n.tables.map(t=>{
+    if(!t.headers||!t.headers.length) return '';
+    return '<h3 style="margin:20px 0 8px;font-size:14px">'+( t.title||'Table')+'</h3><table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px"><thead><tr>'+t.headers.map(h=>'<th style="background:#f5f5f5;border:1px solid #ccc;padding:7px 10px;text-align:left">'+h+'</th>').join('')+'</tr></thead><tbody>'+(t.rows||[]).map(row=>'<tr>'+t.headers.map((_,ci)=>'<td style="border:1px solid #ccc;padding:7px 10px">'+(row[ci]||'')+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+  }).join(''):'';
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+(n.title||'Note')+'</title><style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;color:#111;line-height:1.6}h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;color:#555;font-weight:normal;margin:0 0 20px}.body{font-size:14px;white-space:pre-wrap;margin-bottom:20px}.actions{background:#fffbf0;border-left:3px solid #c9a84c;padding:10px 16px;font-size:13px;margin-bottom:20px}@media print{body{margin:20px}}</style></head><body><h1>'+(n.title||'Untitled')+'</h1><h2>'+(n.type||'Note')+' · '+(n.date||'')+(n.attendees?' · '+n.attendees:'')+'</h2>'+(d?'<div style="font-size:12px;color:#888;margin-bottom:20px">Linked drop: '+d.number+' — '+watchName(d.watchId)+'</div>':'')+(n.body?'<div class="body">'+n.body+'</div>':'')+(n.actions?'<div class="actions"><strong>Action Points</strong><br>'+n.actions+'</div>':'')+tableHtml+'<div style="margin-top:40px;font-size:11px;color:#aaa;border-top:1px solid #eee;padding-top:10px">The Watch Drop · Atlas · '+new Date().toLocaleDateString('en-GB')+'</div></body></html>';
+  const w=window.open('','_blank'); w.document.write(html); w.document.close(); setTimeout(()=>w.print(),400);
+}
 function vNotes(){
   let items=[...DB.notes].sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
   if(noteTypeFilter!=='All') items=items.filter(n=>n.type===noteTypeFilter);
@@ -4770,13 +4782,24 @@ function vNotes(){
     ${items.map(n=>{
       const d=n.dropId?dropById(n.dropId):null;
       const w=n.watchId?watchById(n.watchId):null;
-      return `<div class="card" style="cursor:pointer;padding:0" onclick="openNote('${n.id}')">
-        <div style="padding:14px 18px">
+      const expanded=expandedNotes.has(n.id);
+      const tableHtml=(n.tables&&n.tables.length)?n.tables.map(t=>{
+        if(!t.headers||!t.headers.length) return '';
+        return `<div style="margin-top:10px"><div style="font-weight:600;font-size:12px;margin-bottom:5px">${esc(t.title||'Table')}</div>
+          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr>${t.headers.map(h=>`<th style="background:var(--panel2);border:1px solid var(--line2);padding:6px 10px;text-align:left;font-weight:700">${esc(h)}</th>`).join('')}</tr></thead>
+            <tbody>${(t.rows||[]).map(row=>`<tr>${t.headers.map((_,ci)=>`<td style="border:1px solid var(--line2);padding:6px 10px">${esc(row[ci]||'')}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table></div></div>`;
+      }).join(''):'';
+      return `<div class="card" style="padding:0">
+        <div style="padding:14px 18px;cursor:pointer" onclick="openNote('${n.id}')">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:6px">
             <div style="font-weight:700;font-size:15px">${esc(n.title||'Untitled')}</div>
-            <div style="display:flex;gap:6px;flex-shrink:0">
+            <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
               <span class="pill pill-type" style="font-size:10.5px">${esc(n.type||'General')}</span>
               <span class="muted" style="font-size:11.5px;white-space:nowrap">${fmtDate(n.date||n.created)}</span>
+              <button onclick="event.stopPropagation();downloadNotePdf('${n.id}')" title="Download PDF" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:14px;padding:2px 4px">⬇</button>
+              <button onclick="event.stopPropagation();toggleNoteExpand('${n.id}')" title="${expanded?'Collapse':'Expand'}" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:14px;padding:2px 4px">${expanded?'▲':'▼'}</button>
             </div>
           </div>
           ${n.attendees?`<div style="font-size:12px;color:var(--ink3);margin-bottom:5px">👥 ${esc(n.attendees)}</div>`:''}
@@ -4784,8 +4807,12 @@ function vNotes(){
             ${d?`<span class="pill pill-upcoming" style="font-size:10.5px">⬡ ${esc(d.number)} — ${esc(watchName(d.watchId))}</span>`:''}
             ${w?`<span class="pill pill-type" style="font-size:10.5px">⌚ ${esc(w.brand)} ${esc(w.model)}</span>`:''}
           </div>`:''}
-          ${n.body?`<div style="font-size:13px;color:var(--ink2);line-height:1.5">${esc((n.body||'').slice(0,160))}${(n.body||'').length>160?'…':''}</div>`:''}
+          ${n.body?`<div style="font-size:13px;color:var(--ink2);line-height:1.5">${expanded?esc(n.body):esc((n.body||'').slice(0,160))+(n.body||'').length>160?'…':''}</div>`:''}
         </div>
+        ${expanded?`<div style="padding:0 18px 16px;border-top:1px solid var(--line)">
+          ${n.actions?`<div style="margin-top:10px"><div style="font-weight:600;font-size:12px;color:var(--ink3);margin-bottom:3px">ACTION POINTS</div><div style="font-size:13px;white-space:pre-wrap">${esc(n.actions)}</div></div>`:''}
+          ${tableHtml}
+        </div>`:''}
       </div>`;
     }).join('')}
   </div>`:`<div class="card"><div class="empty">No notes yet${noteTypeFilter!=='All'||noteSearch?' matching these filters':''}. Hit + New Note to start.</div></div>`}`;
