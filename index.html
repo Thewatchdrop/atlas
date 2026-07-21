@@ -4753,7 +4753,7 @@ function vSops(){return docList('sops','SOP Library','Every business process, do
 function vKB(){return docList('kb','Knowledge Base','Everything you\'ve learned, searchable.','openKB');}
 
 /* ================= NOTES ================= */
-const NOTE_TYPES=['Meeting','Call','Strategy','Compliance','Supplier','General'];
+const NOTE_TYPES=['Meeting','Call','Strategy','Compliance','Supplier','Project','General'];
 let noteSearch='', noteTypeFilter='All';
 function vNotes(){
   let items=[...DB.notes].sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
@@ -5939,10 +5939,16 @@ function projNotes(p){
   const notes=(p.notes||[]).slice().reverse();
   return `<div style="margin-top:18px">
     <div class="card" style="margin-bottom:16px">
-      <div class="card-h"><h3>Add Note</h3></div>
-      <div style="padding:14px 18px">
-        <textarea id="proj_note_input_${p.id}" placeholder="Type a note, update or decision..." style="width:100%;min-height:80px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 12px;resize:vertical;outline:none;font-family:inherit;font-size:14px"></textarea>
-        <div style="margin-top:8px;display:flex;justify-content:flex-end">
+      <div class="card-h"><h3>Add Note</h3><span class="muted" style="font-size:11.5px">Also saved to the global Notes section</span></div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">
+        <div class="field-row" style="margin:0">
+          <div class="field" style="margin:0"><label>Title</label><input id="proj_note_title_${p.id}" placeholder="e.g. Strategy call, Decision made…"></div>
+          <div class="field" style="margin:0;max-width:160px"><label>Date</label><input id="proj_note_date_${p.id}" type="date" value="${today()}"></div>
+        </div>
+        <div class="field" style="margin:0"><label>Note</label>
+          <textarea id="proj_note_input_${p.id}" placeholder="Type a note, update or decision..." style="width:100%;min-height:80px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 12px;resize:vertical;outline:none;font-family:inherit;font-size:14px"></textarea>
+        </div>
+        <div style="display:flex;justify-content:flex-end">
           <button class="btn btn-gold btn-sm" onclick="addProjNote('${p.id}')">Save Note</button>
         </div>
       </div>
@@ -5951,8 +5957,11 @@ function projNotes(p){
       <div class="card-b">
         ${notes.length?notes.map(n=>`
           <div style="padding:12px 0;border-bottom:1px solid var(--line)">
-            <div style="font-size:11px;color:var(--ink3);margin-bottom:5px">${esc(n.author||'Felix')} · ${n.created?new Date(n.created).toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</div>
-            <div style="font-size:13.5px;white-space:pre-wrap;line-height:1.5">${esc(n.text)}</div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+              <div style="font-weight:700;font-size:14px">${esc(n.title||'Note')}</div>
+              <div style="font-size:11px;color:var(--ink3)">${esc(n.author||'Felix')} · ${fmtDate(n.date||n.created)}</div>
+            </div>
+            <div style="font-size:13.5px;white-space:pre-wrap;line-height:1.5;color:var(--ink2)">${esc(n.text)}</div>
           </div>`).join(''):'<div class="empty">No notes yet.</div>'}
       </div>
     </div>
@@ -6141,11 +6150,20 @@ function delMilestone(projId,msId){
 
 function addProjNote(projId){
   const inp=document.getElementById('proj_note_input_'+projId);
+  const titleEl=document.getElementById('proj_note_title_'+projId);
+  const dateEl=document.getElementById('proj_note_date_'+projId);
   if(!inp||!inp.value.trim()) return;
   const p=projById(projId); if(!p) return;
+  const author=getPresenceName()||(DB.settings&&DB.settings.team?DB.settings.team[0]:'Felix');
+  const title=(titleEl?titleEl.value.trim():'')||'Project Note';
+  const date=(dateEl?dateEl.value:'')||today();
+  const noteId=uid('note');
   p.notes=p.notes||[];
-  p.notes.push({id:uid('note'),text:inp.value.trim(),author:DB.settings&&DB.settings.team?DB.settings.team[0]:'Felix',created:now()});
-  inp.value='';
+  p.notes.push({id:noteId,title,text:inp.value.trim(),author,date,created:now()});
+  // Also save to global DB.notes so it appears in Notes section
+  DB.notes=DB.notes||[];
+  DB.notes.push({id:uid('gn'),title,body:inp.value.trim(),date,author,type:'Project',projectId:projId,created:now()});
+  inp.value=''; if(titleEl) titleEl.value=''; if(dateEl) dateEl.value=today();
   saveDB(); render();
 }
 
@@ -7515,27 +7533,27 @@ function dropAds(d){
           <label>Description / Brief</label>
           <textarea style="min-height:60px" placeholder="Hook, copy direction, notes for Leila…" onchange="updDropAd('${d.id}','${ad.id}','desc',this.value)">${esc(ad.desc||'')}</textarea>
         </div>
-        <!-- Two format slots -->
-        <div style="display:flex;gap:12px;flex-wrap:wrap">
-          <!-- Square 1080x1080 -->
-          <div style="flex:1;min-width:180px">
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">1080 × 1080 (Square)</div>
-            <div style="position:relative;width:100%;aspect-ratio:1;background:var(--panel2);border-radius:10px;border:2px dashed var(--line2);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="document.getElementById('ad_sq_${ad.id}').click()">
+        <!-- Two format slots — fixed compact size, correct aspect ratios -->
+        <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+          <!-- Square 1080x1080 — shown at 160x160 -->
+          <div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">1080 × 1080</div>
+            <div style="position:relative;width:160px;height:160px;background:var(--panel2);border-radius:8px;border:2px dashed var(--line2);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="document.getElementById('ad_sq_${ad.id}').click()">
               ${ad.square
-                ? `<img data-mediaref="${esc(ad.square)}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">
-                   <button onclick="event.stopPropagation();updDropAd('${d.id}','${ad.id}','square','');saveDB();render()" style="position:absolute;top:6px;right:6px;background:rgba(11,18,32,.8);border:none;color:#fff;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:12px">×</button>`
-                : `<div style="text-align:center;color:var(--ink3)"><div style="font-size:22px">＋</div><div style="font-size:11px;margin-top:4px">Upload square</div></div>`}
+                ? `<img data-mediaref="${esc(ad.square)}" style="width:100%;height:100%;object-fit:cover">
+                   <button onclick="event.stopPropagation();updDropAd('${d.id}','${ad.id}','square','');saveDB();render()" style="position:absolute;top:4px;right:4px;background:rgba(11,18,32,.85);border:none;color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center">×</button>`
+                : `<div style="text-align:center;color:var(--ink3)"><div style="font-size:20px">＋</div><div style="font-size:10px;margin-top:3px">Square</div></div>`}
             </div>
             <input id="ad_sq_${ad.id}" type="file" accept="image/*,video/*" style="display:none" onchange="uploadAdAsset(event,'${d.id}','${ad.id}','square')">
           </div>
-          <!-- Vertical 1080x1920 -->
-          <div style="flex:1;min-width:120px;max-width:160px">
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">1080 × 1920 (Vertical)</div>
-            <div style="position:relative;width:100%;aspect-ratio:9/16;background:var(--panel2);border-radius:10px;border:2px dashed var(--line2);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="document.getElementById('ad_vt_${ad.id}').click()">
+          <!-- Vertical 1080x1920 — shown at 90x160 -->
+          <div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">1080 × 1920</div>
+            <div style="position:relative;width:90px;height:160px;background:var(--panel2);border-radius:8px;border:2px dashed var(--line2);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="document.getElementById('ad_vt_${ad.id}').click()">
               ${ad.vertical
-                ? `<img data-mediaref="${esc(ad.vertical)}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">
-                   <button onclick="event.stopPropagation();updDropAd('${d.id}','${ad.id}','vertical','');saveDB();render()" style="position:absolute;top:6px;right:6px;background:rgba(11,18,32,.8);border:none;color:#fff;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:12px">×</button>`
-                : `<div style="text-align:center;color:var(--ink3)"><div style="font-size:22px">＋</div><div style="font-size:11px;margin-top:4px">Vertical</div></div>`}
+                ? `<img data-mediaref="${esc(ad.vertical)}" style="width:100%;height:100%;object-fit:cover">
+                   <button onclick="event.stopPropagation();updDropAd('${d.id}','${ad.id}','vertical','');saveDB();render()" style="position:absolute;top:4px;right:4px;background:rgba(11,18,32,.85);border:none;color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center">×</button>`
+                : `<div style="text-align:center;color:var(--ink3)"><div style="font-size:20px">＋</div><div style="font-size:10px;margin-top:3px">Vertical</div></div>`}
             </div>
             <input id="ad_vt_${ad.id}" type="file" accept="image/*,video/*" style="display:none" onchange="uploadAdAsset(event,'${d.id}','${ad.id}','vertical')">
           </div>
