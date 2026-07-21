@@ -4808,6 +4808,8 @@ function openNote(id){
       </div>
       ${mArea('nt_body','Notes',n.body)}
       ${mInput('nt_actions','Action Points',n.actions)}
+      <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tables<button type="button" class="btn btn-sm btn-ghost" onclick="addNoteTable()">＋ Add Table</button></label>
+      <div id="nt_tables_wrap">${renderNoteTables(n.tables||[])}</div></div>
     </div>
     <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delNote('${id}')">Delete</button>`:''}
       <button class="btn" onclick="closeModal()">Cancel</button>
@@ -4815,10 +4817,21 @@ function openNote(id){
     </div></div>`);
 }
 function saveNote(id){
-  const g=k=>document.getElementById(k).value;
+  const g=k=>document.getElementById(k)?document.getElementById(k).value:'';
+  const tables=[];
+  document.querySelectorAll('.nt-table-block').forEach(block=>{
+    const tid=block.dataset.tid;
+    const title=(block.querySelector('.nt-tbl-title')||{}).value||'';
+    const headers=[...block.querySelectorAll('.nt-tbl-hdr')].map(h=>h.value||'');
+    const rows=[];
+    block.querySelectorAll('.nt-tbl-row').forEach(row=>{
+      rows.push([...row.querySelectorAll('.nt-tbl-cell')].map(c=>c.value||''));
+    });
+    if(headers.length) tables.push({id:tid||uid('tbl'),title,headers,rows});
+  });
   const data={title:g('nt_title')||'Untitled',date:g('nt_date')||today(),type:ddVal('nt_type'),
     attendees:g('nt_attendees'),dropId:ddVal('nt_drop'),watchId:ddVal('nt_watch'),
-    body:g('nt_body'),actions:g('nt_actions')};
+    body:g('nt_body'),actions:g('nt_actions'),tables};
   if(id) Object.assign(DB.notes.find(x=>x.id===id),data);
   else DB.notes.unshift({id:uid('note'),...data,created:now()});
   saveDB();closeModal();toast('Note saved');render();
@@ -7596,6 +7609,63 @@ async function uploadAdAsset(evt, dropId, adId, format){
     toast('Uploaded');
   }catch(e){ alert('Upload failed: '+e.message); }
   evt.target.value='';
+}
+
+/* ===== Note Tables ===== */
+function renderNoteTables(tables){
+  if(!tables||!tables.length) return '<div class="muted" style="font-size:12px;padding:4px 0">No tables yet.</div>';
+  return tables.map(t=>renderNoteTableBlock(t)).join('');
+}
+function renderNoteTableBlock(t){
+  const tid=t.id||uid('tbl');
+  const headers=t.headers&&t.headers.length?t.headers:['Name','Email','Notes'];
+  const rows=t.rows&&t.rows.length?t.rows:[Array(headers.length).fill('')];
+  const thInputs=headers.map((h,i)=>`<th style="padding:4px"><input class="nt-tbl-hdr" value="${esc(h)}" placeholder="Column ${i+1}" style="background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-weight:700;font-size:12px;width:100%;min-width:80px"></th>`).join('');
+  const trRows=rows.map(row=>`<tr class="nt-tbl-row">${headers.map((_,ci)=>`<td style="padding:4px"><input class="nt-tbl-cell" value="${esc(row[ci]||'')}" placeholder="—" style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-size:13px;width:100%;min-width:80px"></td>`).join('')}<td style="padding:4px;width:28px"><button onclick="ntDelRow(this)" style="background:none;border:none;color:var(--ink3);cursor:pointer;font-size:14px;padding:2px 4px">x</button></td></tr>`).join('');
+  return `<div class="nt-table-block" data-tid="${tid}" style="margin-bottom:14px;background:var(--panel);border-radius:10px;padding:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <input class="nt-tbl-title" value="${esc(t.title||'')}" placeholder="Table title..." style="flex:1;background:transparent;border:none;border-bottom:1px solid var(--line2);color:var(--ink);font-weight:700;font-size:13px;padding:2px 4px;outline:none">
+      <button onclick="ntAddCol(this)" class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px">+ Col</button>
+      <button onclick="ntAddRow(this)" class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px">+ Row</button>
+      <button onclick="this.closest('.nt-table-block').remove()" class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px">x</button>
+    </div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr>${thInputs}<th style="width:28px"></th></tr></thead>
+      <tbody>${trRows}</tbody>
+    </table></div>
+    <button onclick="ntAddRow(this)" style="margin-top:6px;background:none;border:none;color:var(--gold2);font-size:12px;cursor:pointer;padding:0">+ Add row</button>
+  </div>`;
+}
+function addNoteTable(){
+  const wrap=document.getElementById('nt_tables_wrap'); if(!wrap) return;
+  const blank={id:uid('tbl'),title:'',headers:['Name','Email','Notes'],rows:[['','','']]};
+  wrap.insertAdjacentHTML('beforeend',renderNoteTableBlock(blank));
+  const ph=wrap.querySelector('.muted');if(ph)ph.remove();
+}
+function ntAddRow(btn){
+  const block=btn.closest('.nt-table-block');
+  const tbody=block.querySelector('tbody');
+  const colCount=block.querySelectorAll('.nt-tbl-hdr').length;
+  const tr=document.createElement('tr');
+  tr.className='nt-tbl-row';
+  tr.innerHTML=Array(colCount).fill(0).map(()=>`<td style="padding:4px"><input class="nt-tbl-cell" placeholder="--" style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-size:13px;width:100%;min-width:80px"></td>`).join('')+`<td style="padding:4px;width:28px"><button onclick="ntDelRow(this)" style="background:none;border:none;color:var(--ink3);cursor:pointer;font-size:14px;padding:2px 4px">x</button></td>`;
+  tbody.appendChild(tr);
+}
+function ntDelRow(btn){ btn.closest('tr').remove(); }
+function ntAddCol(btn){
+  const block=btn.closest('.nt-table-block');
+  const theadRow=block.querySelector('thead tr');
+  const tbody=block.querySelector('tbody');
+  const th=document.createElement('th');
+  th.style.cssText='padding:4px';
+  th.innerHTML=`<input class="nt-tbl-hdr" placeholder="Column" style="background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-weight:700;font-size:12px;width:100%;min-width:80px">`;
+  theadRow.insertBefore(th,theadRow.lastElementChild);
+  tbody.querySelectorAll('.nt-tbl-row').forEach(row=>{
+    const td=document.createElement('td');
+    td.style.cssText='padding:4px';
+    td.innerHTML=`<input class="nt-tbl-cell" placeholder="--" style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-size:13px;width:100%;min-width:80px">`;
+    row.insertBefore(td,row.lastElementChild);
+  });
 }
 
 checkSessionAndBoot();
