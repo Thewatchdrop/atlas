@@ -2676,6 +2676,26 @@ function onDropStatusChange(id,val){ const dropId=id.replace('drop_status_','');
 
 function trkSnapshotStrip(d){
   const t=d.tracker; if(!t) return '';
+  // Vault drops use their own calculation
+  if(d.type==='Vault'){
+    const vn=vaultNumbers(d);
+    const prizes=d.vaultPrizes||[];
+    const watchCost=prizes.filter(p=>p.type==='watch').reduce((a,p)=>a+(Number(p.cost)||0),0);
+    const cashCost=prizes.filter(p=>p.type==='cash').reduce((a,p)=>a+(Number(p.amount)||0),0);
+    const prizeCost=watchCost+cashCost;
+    const ads=Number(t.adsBudget)||0;
+    const fixed=Number(t.fixed)||0;
+    const maxTicketsVal=Number(t.maxTickets)||99999;
+    const soldVal=vn.entries;
+    const fillPct=(soldVal/maxTicketsVal*100).toFixed(1);
+    const status=vn.isProfitable?'PROFITABLE':'LOSS';
+    return `<div class="kpi-row condensed">
+      <div class="kpi"><div class="label">Current %</div><div class="val">${fillPct}%</div><div class="sub">${soldVal} of ${maxTicketsVal} sold</div></div>
+      <div class="kpi"><div class="label">Status</div><div class="val" style="${vn.isProfitable?'color:var(--gold2)':'color:var(--danger)'}">${status}</div>
+        <div class="sub" style="font-weight:700">${prizeCost>0?gbp(prizeCost)+' prizes won':''}</div></div>
+      <div class="kpi"><div class="label">Total Costs</div><div class="val">${gbp(prizeCost+ads+fixed)}</div></div>
+      <div class="kpi"><div class="label">Net Profit</div><div class="val" style="${vn.profit>=0?'color:var(--live)':'color:var(--danger)'}">${gbp(vn.profit)}</div></div>`;
+  }
   const status=trkStatus(t);
   const netProfit=trkNetProfit(t);
   const totalCostsCombined=trkTotalCostsCombined(d,t);
