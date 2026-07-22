@@ -1687,6 +1687,9 @@ function trkKpiRow(d,t){
   const missedRevenue = launchTicketsN*(trkFullPrice(t)-trkLaunchPrice(t)) + couponTicketsN*(trkFullPrice(t)-trkCompPrice(t));
   return `<div class="kpi-row" style="margin:18px 0">
     <div class="kpi"><div class="label">Current %</div><div class="val">${(trkCurrentPct(t)*100).toFixed(1)}%</div><div class="sub">${soldVal} of ${maxTicketsVal} tickets sold</div>
+      <div class="sub" style="font-weight:700;margin-top:4px;color:${breakEvenPct>=100?'var(--live)':breakEvenPct>=75?'var(--gold2)':'var(--danger)'}">
+        ${breakEvenPct>=100?'✓ Break-even reached':'Need ${(100-Math.round(breakEvenPct))}% more to break-even'}
+      </div>
       <div class="cost-breakdown">
         <div class="cb-row"><span>Tickets to Sell Out</span><span>${ticketsToSellOut}</span></div>
         <div class="cb-row"><span>Revenue to Sell Out</span><span>${gbp(revenueToSellOut)}</span></div>
