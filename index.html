@@ -1948,16 +1948,31 @@ function mediaUrl(ref){
   if(ref.startsWith('r2:')) return '/api/media/'+ref.slice(3);
   return ref; // plain pasted link, or legacy m_ handled separately in hydrateMedia
 }
+const _mediaBlobCache={};
 async function hydrateMedia(){
   const els=document.querySelectorAll('img[data-mediaref], video[data-mediaref]');
   for(const el of els){
     const ref=el.dataset.mediaref;
     if(!ref){ el.style.display='none'; continue; }
     if(ref.startsWith('r2:')){
-      el.src = mediaUrl(ref); el.style.display='';
+      // Use blob URL cache to avoid repeated fetches
+      if(_mediaBlobCache[ref]){
+        el.src=_mediaBlobCache[ref]; el.style.display=''; continue;
+      }
+      try{
+        let headers={};
+        if(sb){ const {data}=await sb.auth.getSession(); if(data&&data.session) headers['Authorization']='Bearer '+data.session.access_token; }
+        const res=await fetch(mediaUrl(ref),{headers});
+        if(res.ok){
+          const blob=await res.blob();
+          const url=URL.createObjectURL(blob);
+          _mediaBlobCache[ref]=url;
+          el.src=url; el.style.display='';
+          if(el.tagName==='VIDEO') el.load();
+        } else { el.style.display='none'; }
+      }catch(e){ el.style.display='none'; }
     } else if(ref.startsWith('m_')){
-      // legacy: small files uploaded before R2 was wired up, still stored as base64 in Supabase
-      try{ const r=await dbStorage.get('atlas:media:'+ref); el.src=r.value; el.style.display=''; }
+      try{ const r=await dbStorage.get('atlas:media:'+ref); if(r){el.src=r.value; el.style.display='';} }
       catch(e){ el.style.display='none'; }
     } else { el.src=ref; el.style.display=''; }
   }
@@ -2341,8 +2356,11 @@ function vDashboard(){
   const live=DB.drops.filter(d=>d.status==='Live');
   const upcoming=DB.drops.filter(d=>d.status==='Upcoming');
   const monthRev=DB.drops.filter(inThisMonth).reduce((a,d)=>a+dropNumbers(d).revenue,0);
-  const monthActual=monthTakingsTotals().amount;
-  const revPct=monthRev>0?Math.round(monthActual/monthRev*100):null;
+  const thisMonth=new Date().toISOString().slice(0,7); // YYYY-MM
+  DB.monthlyRevenue=DB.monthlyRevenue||[];
+  const monthEntry=DB.monthlyRevenue.find(r=>r.month===thisMonth);
+  const monthActual=monthEntry?Number(monthEntry.actual)||0:null;
+  const revPct=(monthActual!==null&&monthRev>0)?Math.round(monthActual/monthRev*100):null;
   const revPctColor=revPct===null?'var(--ink3)':revPct>=100?'var(--live)':revPct>=75?'var(--gold2)':'var(--ink3)';
   const monthProfit=DB.drops.filter(inThisMonth).reduce((a,d)=>a+dropNumbers(d).profit,0);
   const weekRev=DB.drops.filter(inThisWeek).reduce((a,d)=>a+dropNumbers(d).revenue,0);
@@ -2352,8 +2370,7 @@ function vDashboard(){
   const dueCp=dueCheckpoints();
   const dueCs=dueContentToday();
   const dueTasks=DB.tasks.filter(t=>!t.done && t.due===today());
-  const needTakings=takingsPromptNeeded();
-  const todayCount=dueCp.length+dueCs.length+dueTasks.length+(needTakings?1:0);
+  const todayCount=dueCp.length+dueCs.length+dueTasks.length;
 
   return `
   <div class="page-head">
@@ -2370,12 +2387,7 @@ function vDashboard(){
         <div class="txt" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}</div>
           <div class="meta">Task${t.assignedTo?' · '+esc(t.assignedTo):''}${t.urgent?' · ⚡ Urgent':''}</div></div>
       </div>`).join('')}
-      ${needTakings?`
-      <div class="row-item">
-        <div class="txt"><div class="t">💳 Yesterday's takings</div>
-          <div class="meta">Log what actually landed from DNA Payments for ${fmtDate(addDays(today(),-1))}</div></div>
-        <button class="btn btn-sm btn-gold" onclick="openDailyTaking('${addDays(today(),-1)}')">＋ Log now</button>
-      </div>`:''}
+
       ${dueCp.map(item=>`
       <div class="row-item">
         <div class="txt"><div class="t">${esc(item.dropNumber)} — ${esc(item.watch)}</div>
@@ -2399,12 +2411,16 @@ function vDashboard(){
     <div class="kpi" style="grid-column:span 2">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <div class="label">Revenue this month</div>
-        ${revPct!==null?`<div class="sub" style="margin:0;font-weight:700;color:${revPctColor}">${revPct}% of forecast</div>`:''}
+        <div style="display:flex;align-items:center;gap:8px">
+          ${revPct!==null?`<span class="sub" style="margin:0;font-weight:700;color:${revPctColor}">${revPct}% of forecast</span>`:''}
+          <button class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px" onclick="openMonthlyRevenueUpload()">⬆ Upload</button>
+        </div>
       </div>
       <div style="display:flex;gap:16px;margin-top:9px;align-items:flex-end">
-        <div style="flex:1;min-width:0">
-          <div class="val gold">${gbp(monthActual)}</div>
-          <div class="sub">Actual · landed</div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openMonthlyRevenueUpload()">
+          ${monthActual!==null
+            ? `<div class="val gold">${gbp(monthActual)}</div><div class="sub">Actual · DNA Payments</div>`
+            : `<div class="val" style="color:var(--ink3);font-size:18px">Not logged</div><div class="sub" style="color:var(--gold2)">Click Upload to add</div>`}
         </div>
         <div style="width:1px;align-self:stretch;background:var(--line2);margin-bottom:4px"></div>
         <div style="flex:1;min-width:0">
@@ -2703,7 +2719,11 @@ function trkSnapshotStrip(d){
   const breakEvenTicketsTotal=trkBreakEvenTickets(t);
   const breakEvenPct = breakEvenTicketsTotal>0 ? (soldVal/breakEvenTicketsTotal*100) : 0;
   return `<div class="kpi-row condensed">
-    <div class="kpi"><div class="label">Current %</div><div class="val">${(trkCurrentPct(t)*100).toFixed(1)}%</div><div class="sub">${soldVal} of ${maxTicketsVal} sold</div></div>
+    <div class="kpi"><div class="label">Current %</div><div class="val">${(trkCurrentPct(t)*100).toFixed(1)}%</div>
+      <div class="sub">${soldVal} of ${maxTicketsVal} sold</div>
+      <div class="sub" style="margin-top:3px;font-weight:700;color:${breakEvenPct>=100?'var(--live)':breakEvenPct>=75?'var(--gold2)':'var(--ink3)'}">
+        ${breakEvenPct>=100?'Break-even reached':'Need '+(100-Math.round(breakEvenPct))+'% more to break-even'}
+      </div></div>
     <div class="kpi"><div class="label">Status</div><div class="val" style="${status!=='PROFITABLE'?'color:var(--danger)':'color:var(--gold2)'}">${status}</div>
       <div class="sub" style="font-weight:700;${breakEvenPct>=100?'color:var(--live)':''}">${breakEvenPct.toFixed(0)}% to break-even</div></div>
     <div class="kpi"><div class="label">Total Costs</div><div class="val">${gbp(totalCostsCombined)}</div></div>
@@ -4680,7 +4700,7 @@ function vAssets(){
   if(libBrand!=='All') filtered=filtered.filter(i=>i.brand===libBrand);
   if(libBrand!=='All' && libModel!=='All') filtered=filtered.filter(i=>i.model===libModel);
   if(libFilter!=='All') filtered=filtered.filter(i=>i.category===libFilter);
-  if(libUseCase==='Posts') filtered=filtered.filter(i=>(i.useCases||[]).includes('Organic Post'));
+  if(libUseCase==='Content') filtered=filtered.filter(i=>(i.useCases||[]).includes('Organic Post'));
   if(libUseCase==='Ads') filtered=filtered.filter(i=>(i.useCases||[]).includes('Paid Ad'));
   if(libCreator!=='All') filtered=filtered.filter(i=>i.creator===libCreator);
   filtered=[...filtered].sort((a,b)=> libSort==='oldest'? (a.created||'').localeCompare(b.created||'') : (b.created||'').localeCompare(a.created||''));
@@ -4706,7 +4726,7 @@ function vAssets(){
   <div class="filters">${brands.map(b=>`<button class="fbtn ${libBrand===b?'active':''}" onclick="libBrand='${esc(b)}';libModel='All';render()">${esc(b)}</button>`).join('')}</div>
   ${models.length>1?`<div class="filters">${models.map(m=>`<button class="fbtn ${libModel===m?'active':''}" onclick="libModel='${esc(m)}';render()">${esc(m)}</button>`).join('')}</div>`:''}
   <div class="filters">${['All',...CONTENT_CATS].map(f=>`<button class="fbtn ${libFilter===f?'active':''}" onclick="libFilter='${esc(f)}';render()">${esc(f)}</button>`).join('')}</div>
-  <div class="filters">${['All','Posts','Ads'].map(f=>`<button class="fbtn ${libUseCase===f?'active':''}" onclick="libUseCase='${f}';render()">${f}</button>`).join('')}</div>`;
+  <div class="filters">${['All','Content','Ads'].map(f=>`<button class="fbtn ${libUseCase===f?'active':''}" onclick="libUseCase='${f}';render()">${f}</button>`).join('')}</div>`;
 
   if(!filtered.length) return head+`<div class="card"><div class="empty">Nothing matches — try clearing a filter or the search.</div></div>`;
 
@@ -6579,9 +6599,11 @@ async function onContentMediaUpload(evt){
       if(isVideo){
         const urlInput=document.getElementById('cn_video_url');
         if(urlInput) urlInput.value=ref;
-        tempDiv.innerHTML=`<video src="${mediaUrl(ref)}" style="width:100%;height:100%;object-fit:cover"></video><span onclick="this.parentNode.remove()" style="position:absolute;top:2px;right:2px;background:rgba(11,18,32,.85);color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer">×</span>`;
+        tempDiv.innerHTML=`<video src="${mediaUrl(ref)}" style="width:100%;height:100%;object-fit:cover" preload="metadata" muted></video><span onclick="this.parentNode.remove()" style="position:absolute;top:2px;right:2px;background:rgba(11,18,32,.85);color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer">×</span>`;
+        const vEl=tempDiv.querySelector('video'); if(vEl) vEl.load();
       } else {
-        tempDiv.innerHTML=`<img src="${mediaUrl(ref)}" style="width:100%;height:100%;object-fit:cover" data-mediaref="${ref}"><span onclick="this.parentNode.remove()" style="position:absolute;top:2px;right:2px;background:rgba(11,18,32,.85);color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer">×</span>`;
+        tempDiv.innerHTML=`<img data-mediaref="${ref}" style="width:100%;height:100%;object-fit:cover"><span onclick="this.parentNode.remove()" style="position:absolute;top:2px;right:2px;background:rgba(11,18,32,.85);color:#fff;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer">×</span>`;
+        setTimeout(hydrateMedia, 50);
         // Store ref in a hidden input list for saving
         const list=document.getElementById('cn_images_list')||(()=>{const i=document.createElement('div');i.id='cn_images_list';i.style.display='none';preview.parentNode.appendChild(i);return i;})();
         const inp=document.createElement('input'); inp.type='hidden'; inp.name='cn_img'; inp.value=ref;
@@ -7693,6 +7715,97 @@ function ntAddCol(btn){
     td.innerHTML=`<input class="nt-tbl-cell" placeholder="--" style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-size:13px;width:100%;min-width:80px">`;
     row.insertBefore(td,row.lastElementChild);
   });
+}
+
+function openMonthlyRevenueUpload(){
+  DB.monthlyRevenue=DB.monthlyRevenue||[];
+  const months=[];
+  // Last 6 months
+  for(let i=0;i<6;i++){
+    const d=new Date(); d.setMonth(d.getMonth()-i);
+    const key=d.toISOString().slice(0,7);
+    const label=d.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+    months.push({key,label});
+  }
+  const rows=months.map(m=>{
+    const entry=DB.monthlyRevenue.find(r=>r.month===m.key);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+      <div style="flex:1;font-size:13px;font-weight:600">${m.label}</div>
+      <input type="number" step="0.01" placeholder="£0.00" value="${entry?entry.actual:''}"
+        id="mr_${m.key}"
+        style="width:130px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:7px 10px;font-size:14px;font-weight:700">
+      ${entry?`<span style="font-size:11px;color:var(--live)">✓ logged</span>`:'<span style="font-size:11px;color:var(--ink3)">not logged</span>'}
+    </div>`;
+  }).join('');
+
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>Monthly Revenue — DNA Payments</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="muted" style="font-size:12.5px;margin-bottom:14px">Enter the total settled amount from your DNA Payments dashboard for each month. This is the gross amount before fees.</div>
+      <div style="margin-bottom:8px">
+        ${rows}
+      </div>
+      <div style="padding-top:12px;border-top:1px solid var(--line)">
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:8px">Or upload a DNA Payments CSV export — we'll sum all transaction amounts automatically.</div>
+        <input type="file" accept=".csv" id="mr_csv_file" style="font-size:12px">
+        <button class="btn btn-sm btn-ghost" style="margin-left:8px" onclick="parseMonthlyRevenueCSV()">Parse CSV</button>
+        <div id="mr_csv_result" class="muted" style="font-size:12px;margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveMonthlyRevenue()">Save</button>
+    </div>
+  </div>`);
+}
+
+function saveMonthlyRevenue(){
+  DB.monthlyRevenue=DB.monthlyRevenue||[];
+  const months=[];
+  for(let i=0;i<6;i++){
+    const d=new Date(); d.setMonth(d.getMonth()-i);
+    months.push(d.toISOString().slice(0,7));
+  }
+  months.forEach(m=>{
+    const el=document.getElementById('mr_'+m); if(!el) return;
+    const val=parseFloat(el.value);
+    if(isNaN(val)||val<=0){ DB.monthlyRevenue=DB.monthlyRevenue.filter(r=>r.month!==m); return; }
+    const existing=DB.monthlyRevenue.find(r=>r.month===m);
+    if(existing) existing.actual=val;
+    else DB.monthlyRevenue.push({month:m,actual:val,updated:now()});
+  });
+  saveDB(); closeModal(); render(); toast('Monthly revenue saved');
+}
+
+function parseMonthlyRevenueCSV(){
+  const file=(document.getElementById('mr_csv_file')||{}).files&&document.getElementById('mr_csv_file').files[0];
+  if(!file){ alert('Select a CSV first'); return; }
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const rows=parseCSV(reader.result);
+    // Find amount column — look for 'amount','total','gross','settlement'
+    const amtCol=rows.headers.find(h=>/amount|total|gross|settlement|net/i.test(h));
+    const dateCol=rows.headers.find(h=>/date|time/i.test(h));
+    if(!amtCol){ document.getElementById('mr_csv_result').textContent='Could not find an amount column. Try entering manually.'; return; }
+    // Sum by month
+    const byMonth={};
+    rows.rows.forEach(row=>{
+      const rawAmt=String(row[amtCol]||'').replace(/[£,\s]/g,'');
+      const amt=parseFloat(rawAmt); if(isNaN(amt)||amt<=0) return;
+      let month=new Date().toISOString().slice(0,7);
+      if(dateCol&&row[dateCol]){
+        const d=new Date(row[dateCol]);
+        if(!isNaN(d)) month=d.toISOString().slice(0,7);
+      }
+      byMonth[month]=(byMonth[month]||0)+amt;
+    });
+    // Fill in fields
+    Object.entries(byMonth).forEach(([m,total])=>{
+      const el=document.getElementById('mr_'+m); if(el) el.value=total.toFixed(2);
+    });
+    const total=Object.values(byMonth).reduce((a,b)=>a+b,0);
+    document.getElementById('mr_csv_result').textContent=`Parsed ${rows.rows.length} rows across ${Object.keys(byMonth).length} month(s). Total: £${total.toFixed(2)}. Review then Save.`;
+  };
+  reader.readAsText(file);
 }
 
 checkSessionAndBoot();
