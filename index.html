@@ -1514,7 +1514,7 @@ function trkNetProfit(t){ return trkGrossProfit(t)-trkVat(t); }
 function trkTicketsToProfit(t){ const fp=trkFullPrice(t); return fp? trkNetProfit(t)/fp : 0; }
 function trkSellOutRevenue(t){ return trkFullPrice(t)*(Number(t.maxTickets)||0); }
 function trkRemainingAdBudget(t){ return (Number(t.adsBudget)||0)-(Number(t.adsSpent)||0); }
-function trkBreakEvenTickets(t){ const avg=trkAvgTicket(t); return avg? Math.ceil(trkCostsInclFees(t)/(avg*0.8)) : 0; }
+function trkBreakEvenTickets(t){ const avg=trkAvgTicket(t); if(!avg) return 0; const feePct=Number(t.paymentFeePct)||0; const netPerTicket=avg/1.2*(1-feePct); return netPerTicket? Math.ceil(trkTotalCostsExclFees(t)/netPerTicket) : 0; }
 function trkRemainingTickets(t){ return (Number(t.maxTickets)||0)-(Number(t.ticketsSoldTotal)||0); }
 function trkBreakEvenPct(t){ const max=Number(t.maxTickets)||0; return max? trkBreakEvenTickets(t)/max : 0; }
 function trkRevenueToSellout(t){ return trkRemainingTickets(t)*trkFullPrice(t); }
@@ -3052,8 +3052,29 @@ function vDropTracker(){
   const d=dropById(trackerDropId);
 
   const head=`<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking per drop — watch cost, discounts, fees, VAT and break-even, all in one place.</div></div>
-    <div class="page-actions"><span class="link muted" onclick="go('drop',trackerDropId)" style="font-size:13px;cursor:pointer">Open Drop Hub →</span></div></div>
-  <div class="filters">${active.map(ld=>`<button class="fbtn ${trackerDropId===ld.id?'active':''}" onclick="trackerDropId='${ld.id}';render()">${esc(ld.number)} — ${esc(watchName(ld.watchId))} <span class="muted" style="font-size:10px">${ld.status}</span></button>`).join('')}</div>`;
+    <div class="page-actions" style="display:flex;gap:10px;align-items:center">
+      <button class="btn btn-sm btn-ghost" onclick="toggleTrackerCalc()" title="Quick calculator">🧮</button>
+      <span class="link muted" onclick="go('drop',trackerDropId)" style="font-size:13px;cursor:pointer">Open Drop Hub →</span>
+    </div></div>
+  <div class="filters">${active.map(ld=>`<button class="fbtn ${trackerDropId===ld.id?'active':''}" onclick="trackerDropId='${ld.id}';render()">${esc(ld.number)} — ${esc(watchName(ld.watchId))} <span class="muted" style="font-size:10px">${ld.status}</span></button>`).join('')}</div>
+  <div id="tracker_calc_widget" style="display:none;position:fixed;right:20px;top:120px;z-index:800;width:220px;background:var(--panel);border:1px solid var(--line2);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.4);overflow:hidden">
+    <div style="background:var(--bg2);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line2)">
+      <span style="font-size:12px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px">Calculator</span>
+      <button onclick="toggleTrackerCalc()" style="background:none;border:none;color:var(--ink3);cursor:pointer;font-size:14px;padding:0 2px">×</button>
+    </div>
+    <div style="padding:10px">
+      <div id="tc_display" style="background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:10px 12px;text-align:right;font-size:20px;font-weight:700;color:var(--ink);min-height:46px;margin-bottom:8px;word-break:break-all;font-family:monospace">0</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px">
+        ${['C','±','%','÷','7','8','9','×','4','5','6','−','1','2','3','＋','0','.','⌫','='].map(k=>`
+          <button onclick="tcKey('${k}')" style="background:${k==='='?'var(--gold)':['÷','×','−','＋'].includes(k)?'rgba(201,162,75,.2)':'var(--bg2)'};
+            color:${k==='='?'#000':['÷','×','−','＋'].includes(k)?'var(--gold2)':'var(--ink)'};
+            border:1px solid var(--line2);border-radius:7px;padding:10px 4px;font-size:${k==='0'?'15':'14'}px;
+            font-weight:600;cursor:pointer;${k==='0'?'grid-column:span 1':''}">
+            ${k}
+          </button>`).join('')}
+      </div>
+    </div>
+  </div>`;
 
   return head+trackerBody(d);
 }
@@ -7844,6 +7865,50 @@ function parseMonthlyRevenueCSV(){
     document.getElementById('mr_csv_result').textContent=`Parsed ${rows.rows.length} rows across ${Object.keys(byMonth).length} month(s). Total: £${total.toFixed(2)}. Review then Save.`;
   };
   reader.readAsText(file);
+}
+
+/* ===== Tracker Quick Calculator ===== */
+let _tcExpr='', _tcResult='0', _tcNewNum=true;
+function toggleTrackerCalc(){
+  const el=document.getElementById('tracker_calc_widget'); if(!el) return;
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+function tcKey(k){
+  const disp=document.getElementById('tc_display'); if(!disp) return;
+  if(k==='C'){ _tcExpr=''; _tcResult='0'; _tcNewNum=true; disp.textContent='0'; return; }
+  if(k==='⌫'){
+    _tcResult=_tcResult.length>1?_tcResult.slice(0,-1):'0';
+    disp.textContent=_tcResult; return;
+  }
+  if(k==='='){
+    try{
+      const expr=(_tcExpr+_tcResult).replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/＋/g,'+');
+      const val=Function('"use strict";return ('+expr+')')();
+      _tcResult=parseFloat(val.toFixed(8)).toString();
+      _tcExpr=''; _tcNewNum=true;
+      disp.textContent=_tcResult;
+    }catch(e){ disp.textContent='Error'; _tcExpr=''; _tcResult='0'; _tcNewNum=true; }
+    return;
+  }
+  if(['÷','×','−','＋'].includes(k)){
+    _tcExpr=(_tcExpr+_tcResult+k); _tcResult=''; _tcNewNum=true;
+    disp.textContent=_tcExpr; return;
+  }
+  if(k==='%'){
+    try{
+      const val=parseFloat(_tcResult)/100;
+      _tcResult=val.toString(); disp.textContent=_tcResult;
+    }catch(e){}
+    return;
+  }
+  if(k==='±'){
+    _tcResult=_tcResult.startsWith('-')?_tcResult.slice(1):('-'+_tcResult);
+    disp.textContent=_tcResult; return;
+  }
+  if(k==='.' && _tcResult.includes('.')) return;
+  if(_tcNewNum){ _tcResult=(k==='.'?'0':'')+(k==='0'?'0':k); _tcNewNum=false; }
+  else { _tcResult=(_tcResult==='0'&&k!=='.')?k:(_tcResult+k); }
+  disp.textContent=_tcResult;
 }
 
 checkSessionAndBoot();
