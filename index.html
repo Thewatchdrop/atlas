@@ -2582,6 +2582,7 @@ function vDrops(){
 
 /* ================= DROP HUB ================= */
 const DROP_TABS=['overview','watch','tasks','marketing','performance','winner','content','ads','scripts','files','timeline','financials','calculator'];
+const VAULT_EXTRA_TABS=['instantwinners'];
 function vDropHub(){
   const d=dropById(route.id);
   if(!d) return `<div class="empty">Drop not found. <span class="link" onclick="go('drops')">Back to drops</span></div>`;
@@ -2610,7 +2611,14 @@ function vDropHub(){
       <button class="btn btn-sm btn-danger" onclick="delDrop('${d.id}')">Delete</button>
     </div>
   </div>
-  <div class="tabs">${DROP_TABS.map(t=>`<div class="tab ${t===tab?'active':''}" onclick="go('drop','${d.id}','${t}')">${cap(t)}</div>`).join('')}</div>
+  <div class="tabs">${[...DROP_TABS,...(d.type==='Vault'?VAULT_EXTRA_TABS:[])].map(t=>{
+    let label=cap(t);
+    if(t==='instantwinners'){
+      const cnt=(d.instantWinners||[]).length;
+      label=`Instant Winners${cnt?` <span style="background:var(--gold);color:#0B1220;border-radius:10px;padding:1px 7px;font-size:10.5px;font-weight:700;margin-left:4px">${cnt}</span>`:''}`;
+    }
+    return `<div class="tab ${t===tab?'active':''}" onclick="go('drop','${d.id}','${t}')">${label}</div>`;
+  }).join('')}</div>
   <div id="hubtab">${dropTab(d,tab)}</div>`;
 }
 function dropTab(d,tab){
@@ -2627,6 +2635,7 @@ function dropTab(d,tab){
   if(tab==='calculator') return dropCalculator(d);
   if(tab==='scripts') return dropScripts(d);
   if(tab==='ads') return dropAds(d);
+  if(tab==='instantwinners') return dropInstantWinners(d);
 }
 function dropWatchTab(d){
   if(!d.watchId) return `<div class="empty">No watch linked to this drop yet. <span class="link" onclick="go('drop','${d.id}','overview')">Pick one in Overview →</span></div>`;
@@ -3405,6 +3414,169 @@ function addVaultPrize(dropId){
 function delVaultPrize(dropId,prizeId){
   const d=dropById(dropId); if(!d) return;
   d.vaultPrizes=(d.vaultPrizes||[]).filter(p=>p.id!==prizeId);
+  saveDB(); render();
+}
+
+/* ================= VAULT INSTANT WINNERS ================= */
+function dropInstantWinners(d){
+  d.instantWinners=d.instantWinners||[];
+  const winners=d.instantWinners;
+
+  // Summary counts
+  const watchWinners  = winners.filter(w=>w.prizeType==='watch');
+  const cashWinners   = winners.filter(w=>w.prizeType==='cash');
+  const creditWinners = winners.filter(w=>w.prizeType==='credit');
+  const dispatched    = winners.filter(w=>w.dispatched);
+  const cashPaid      = winners.filter(w=>w.prizeType==='cash'&&w.bankDone);
+  const reviewSent    = winners.filter(w=>w.reviewSent);
+
+  const wRows = winners.slice().reverse().map(w=>{
+    const isWatch  = w.prizeType==='watch';
+    const isCash   = w.prizeType==='cash';
+    const isCredit = w.prizeType==='credit';
+    const pillType = isWatch?'pill-done':isCash?'pill-live':'pill-type';
+    const statusPill = w.dispatched?'pill-done':w.bankDone?'pill-live':'pill-upcoming';
+    const statusLabel = isWatch?(w.dispatched?'Dispatched':'Awaiting dispatch'):isCash?(w.bankDone?'Paid':'Awaiting payment'):isCredit?(w.dispatched?'Issued':'Pending'):'Awaiting';
+
+    return `
+    <div class="row-item" style="align-items:flex-start;gap:10px;padding:14px 16px;flex-wrap:wrap" id="iw_row_${w.id}">
+      <span class="pill ${pillType}" style="font-size:10px;text-transform:capitalize;flex-shrink:0;margin-top:2px">${w.prizeType}</span>
+      <div class="txt" style="flex:1;min-width:200px">
+        <div class="t" style="font-weight:700;font-size:13.5px">${esc(w.name||'Unknown')}</div>
+        <div class="meta" style="margin-top:3px">${esc(w.prize||'—')} ${w.prizeValue?`· <span style="color:var(--gold2);font-weight:600">${isCash?'£'+Number(w.prizeValue).toLocaleString():isCredit?'£'+Number(w.prizeValue).toLocaleString()+' credit':''}</span>`:''}
+          ${w.email?`<span style="margin-left:8px">✉ ${esc(w.email)}</span>`:''}
+          ${w.date?`<span style="margin-left:8px;color:var(--ink3)">${fmtDate(w.date)}</span>`:''}
+        </div>
+        ${isCash&&!w.bankDone?`
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.7px">Sort Code</label>
+            <input value="${esc(w.sortCode||'')}" placeholder="00-00-00" style="width:110px;background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:7px;padding:7px 10px;font-size:13px"
+              onchange="updIW('${d.id}','${w.id}','sortCode',this.value)">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.7px">Account No.</label>
+            <input value="${esc(w.accountNo||'')}" placeholder="12345678" style="width:120px;background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:7px;padding:7px 10px;font-size:13px"
+              onchange="updIW('${d.id}','${w.id}','accountNo',this.value)">
+          </div>
+          <button class="btn btn-sm btn-gold" onclick="markIWBankDone('${d.id}','${w.id}')" title="Mark bank transfer sent">✓ Mark Paid</button>
+        </div>`:''}
+        ${isCash&&w.bankDone?`<div style="margin-top:6px;font-size:11.5px;color:var(--live)">✓ Bank transfer sent${w.sortCode?` · ${esc(w.sortCode)}`:''} ${w.accountNo?`· ${esc(w.accountNo)}`:''}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px;align-items:flex-end;flex-shrink:0">
+        <span class="pill ${statusPill}" style="font-size:10.5px">${statusLabel}</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          ${!w.reviewSent?`<button class="btn btn-sm" onclick="markIWReview('${d.id}','${w.id}')" title="Mark review request sent" style="font-size:11px">⭐ Ask for Review</button>`:`<span style="font-size:11px;color:var(--ink3)">⭐ Review asked</span>`}
+          ${isWatch&&!w.dispatched?`<button class="btn btn-sm btn-gold" onclick="markIWDispatched('${d.id}','${w.id}')" style="font-size:11px">📦 Mark Dispatched</button>`:''}
+          ${isCredit&&!w.dispatched?`<button class="btn btn-sm btn-gold" onclick="markIWDispatched('${d.id}','${w.id}')" style="font-size:11px">✓ Mark Issued</button>`:''}
+          <button class="btn btn-sm btn-danger" onclick="delIW('${d.id}','${w.id}')" style="font-size:11px">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+  <!-- Summary strip -->
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+    <div class="kpi" style="flex:1;min-width:120px"><div class="label">Total Winners</div><div class="val">${winners.length}</div><div class="sub">${watchWinners.length} watches · ${cashWinners.length} cash · ${creditWinners.length} credit</div></div>
+    <div class="kpi" style="flex:1;min-width:120px"><div class="label">Dispatched / Issued</div><div class="val" style="color:var(--live)">${dispatched.length}</div><div class="sub">of ${watchWinners.length+creditWinners.length} watch & credit</div></div>
+    <div class="kpi" style="flex:1;min-width:120px"><div class="label">Cash Paid</div><div class="val" style="color:var(--live)">${cashPaid.length}</div><div class="sub">of ${cashWinners.length} cash winners</div></div>
+    <div class="kpi" style="flex:1;min-width:120px"><div class="label">Reviews Asked</div><div class="val" style="color:var(--gold2)">${reviewSent.length}</div><div class="sub">of ${winners.length} total</div></div>
+  </div>
+
+  <!-- Add winner form -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-h"><h3>＋ Log Instant Winner</h3><span class="muted" style="font-size:11.5px">Record each winner as they come in</span></div>
+    <div class="modal-b" style="max-height:none">
+      <div class="field-row">
+        <div class="field"><label>Prize Type</label>
+          <select id="iw_type_${d.id}" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px" onchange="onIWTypeChange('${d.id}')">
+            <option value="watch">Watch</option>
+            <option value="cash">Cash</option>
+            <option value="credit">Credit</option>
+          </select>
+        </div>
+        <div class="field"><label>Winner Name</label><input id="iw_name_${d.id}" placeholder="Full name…"></div>
+        <div class="field"><label>Email</label><input id="iw_email_${d.id}" placeholder="email@…" type="email"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Prize / Watch Model</label><input id="iw_prize_${d.id}" placeholder="e.g. Tudor BB58 Blue, £500 Cash, £20 Credit…"></div>
+        <div class="field" id="iw_val_wrap_${d.id}"><label id="iw_val_lbl_${d.id}">Prize Value (£)</label><input id="iw_val_${d.id}" type="number" placeholder="0"></div>
+        <div class="field"><label>Date Won</label><input id="iw_date_${d.id}" type="date" value="${today()}"></div>
+      </div>
+    </div>
+    <div style="padding:0 18px 14px;display:flex;justify-content:flex-end">
+      <button class="btn btn-gold" onclick="addIW('${d.id}')">＋ Log Winner</button>
+    </div>
+  </div>
+
+  <!-- Winners list -->
+  <div class="card">
+    <div class="card-h">
+      <h3>Instant Winners — ${winners.length} logged</h3>
+      <span class="muted" style="font-size:12px">${watchWinners.length} watch · ${cashWinners.length} cash · ${creditWinners.length} credit</span>
+    </div>
+    <div class="card-b" style="padding:0">
+      ${wRows||'<div class="empty" style="padding:20px">No instant winners logged yet. Add the first one above.</div>'}
+    </div>
+  </div>`;
+}
+
+function onIWTypeChange(dropId){
+  const sel=document.getElementById('iw_type_'+dropId);
+  const wrap=document.getElementById('iw_val_wrap_'+dropId);
+  const lbl=document.getElementById('iw_val_lbl_'+dropId);
+  if(!sel||!wrap) return;
+  const type=sel.value;
+  if(type==='watch'){ wrap.style.display='none'; }
+  else if(type==='cash'){ wrap.style.display=''; lbl.textContent='Cash Amount (£)'; }
+  else { wrap.style.display=''; lbl.textContent='Credit Value (£)'; }
+}
+
+function addIW(dropId){
+  const d=dropById(dropId); if(!d) return;
+  const type=(document.getElementById('iw_type_'+dropId)||{}).value||'watch';
+  const name=(document.getElementById('iw_name_'+dropId)||{}).value||'';
+  const email=(document.getElementById('iw_email_'+dropId)||{}).value||'';
+  const prize=(document.getElementById('iw_prize_'+dropId)||{}).value||'';
+  const val=Number((document.getElementById('iw_val_'+dropId)||{}).value)||0;
+  const date=(document.getElementById('iw_date_'+dropId)||{}).value||today();
+  if(!name){ alert('Enter winner name'); return; }
+  if(!prize){ alert('Enter prize description'); return; }
+  d.instantWinners=d.instantWinners||[];
+  d.instantWinners.push({id:uid('iw'),type,prizeType:type,name,email,prize,prizeValue:val,date,dispatched:false,bankDone:false,reviewSent:false,sortCode:'',accountNo:'',created:now()});
+  saveDB(); render();
+}
+
+function updIW(dropId,winnerId,field,value){
+  const d=dropById(dropId); if(!d) return;
+  const w=(d.instantWinners||[]).find(x=>x.id===winnerId); if(!w) return;
+  w[field]=value; saveDB();
+}
+
+function markIWDispatched(dropId,winnerId){
+  const d=dropById(dropId); if(!d) return;
+  const w=(d.instantWinners||[]).find(x=>x.id===winnerId); if(!w) return;
+  w.dispatched=true; saveDB(); render();
+}
+
+function markIWBankDone(dropId,winnerId){
+  const d=dropById(dropId); if(!d) return;
+  const w=(d.instantWinners||[]).find(x=>x.id===winnerId); if(!w) return;
+  if(!w.sortCode&&!w.accountNo){ if(!confirm('No bank details entered — mark as paid anyway?')) return; }
+  w.bankDone=true; w.dispatched=true; saveDB(); render();
+}
+
+function markIWReview(dropId,winnerId){
+  const d=dropById(dropId); if(!d) return;
+  const w=(d.instantWinners||[]).find(x=>x.id===winnerId); if(!w) return;
+  w.reviewSent=true; saveDB(); render();
+}
+
+function delIW(dropId,winnerId){
+  const d=dropById(dropId); if(!d) return;
+  if(!confirm('Remove this winner record?')) return;
+  d.instantWinners=(d.instantWinners||[]).filter(x=>x.id!==winnerId);
   saveDB(); render();
 }
 
