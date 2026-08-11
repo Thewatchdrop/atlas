@@ -1638,7 +1638,7 @@ function vContentSchedule(){
 
               </div>
             </div>`).join('')}
-        </div>`;
+        </td>`;
       }).join('')}
     </div>` : `<div class="card"><div class="empty">No checklist items for this drop type yet.</div></div>`;
   } else if(template.length){
@@ -2101,6 +2101,7 @@ function refreshGallery(key){
   const linked=watchLinkedGalleryItems[key]||[];
   grid.innerHTML=(watchMediaDraft[key]||[]).map((it,i)=>galleryItemHTML(it,i,accept)).join('')+linked.map(c=>linkedGalleryItemHTML(c,accept)).join('');
   hydrateMedia();
+  setTimeout(planUpdateNowBar,100);
 }
 function addGalleryLink(key){
   const el=document.getElementById('gal_'+key+'_url'); const val=el.value.trim();
@@ -3026,7 +3027,7 @@ function dropTimeline(d){
 }
 
 /* ================= DROP TRACKER (per-drop finance tracker, mirrors D33 spreadsheet tab) ================= */
-let trackerDropId=null;
+let trackerDropId=null, trackerStatusFilter='All';
 function trkFld(d,label,field,type='number'){
   const val=d.tracker[field];
   return `<div class="field"><label>${label}</label><input type="${type}" value="${esc(val)}" onchange="updTracker('${d.id}','${field}',this.value)"></div>`;
@@ -3086,7 +3087,10 @@ function vDropTracker(){
   const active=DB.drops.filter(d=>!['Closed','Complete'].includes(d.status));
   if(!active.length) return `<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking for every drop that isn't finished yet.</div></div></div>
     <div class="card"><div class="empty">No active drops right now — trackers appear here automatically for Draft, Upcoming and Live drops. Finished ones are still viewable under <span class="link" onclick="go('pastdrops')">Past Drops</span>.</div></div>`;
-  if(!trackerDropId || !active.find(d=>d.id===trackerDropId)) trackerDropId=active[0].id;
+  const visibleDrops=active.filter(d=>trackerStatusFilter==='All'||d.status===trackerStatusFilter);
+  if(!visibleDrops.length&&trackerStatusFilter!=='All'){trackerStatusFilter='All';}
+  const visible2=active.filter(d=>trackerStatusFilter==='All'||d.status===trackerStatusFilter);
+  if(!trackerDropId||!visible2.find(d=>d.id===trackerDropId)) trackerDropId=(visible2[0]||active[0]).id;
   const d=dropById(trackerDropId);
 
   const head=`<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking per drop — watch cost, discounts, fees, VAT and break-even, all in one place.</div></div>
@@ -3094,7 +3098,22 @@ function vDropTracker(){
       <button class="btn btn-sm btn-ghost" onclick="toggleTrackerCalc()" title="Quick calculator">🧮</button>
       <span class="link muted" onclick="go('drop',trackerDropId)" style="font-size:13px;cursor:pointer">Open Drop Hub →</span>
     </div></div>
-  <div class="filters">${active.map(ld=>`<button class="fbtn ${trackerDropId===ld.id?'active':''}" onclick="trackerDropId='${ld.id}';render()">${esc(ld.number)} — ${esc(watchName(ld.watchId))} <span class="muted" style="font-size:10px">${ld.status}</span></button>`).join('')}</div>
+  <div class="filters" style="margin-bottom:4px">
+    ${['All','Live','Upcoming','Draft'].map(s=>{
+      const cnt=s==='All'?active.length:active.filter(d=>d.status===s).length;
+      const color=s==='Live'?'var(--live)':s==='Upcoming'?'var(--blue)':s==='Draft'?'var(--ink3)':'';
+      return `<button class="fbtn ${trackerStatusFilter===s?'active':''}" onclick="trackerStatusFilter='${s}';render()" style="${trackerStatusFilter===s&&color?'border-color:'+color+';color:'+color:''}">
+        ${s==='Live'?'🟢 ':s==='Upcoming'?'🔵 ':s==='Draft'?'⚪ ':''}${s} · ${cnt}
+      </button>`;
+    }).join('')}
+  </div>
+  <div class="filters">${active.filter(ld=>trackerStatusFilter==='All'||ld.status===trackerStatusFilter).map(ld=>{
+    const statusColor=ld.status==='Live'?'var(--live)':ld.status==='Upcoming'?'var(--blue)':'var(--ink3)';
+    return `<button class="fbtn ${trackerDropId===ld.id?'active':''}" onclick="trackerDropId='${ld.id}';render()" style="${trackerDropId===ld.id?'border-color:'+statusColor:''}">
+      ${esc(ld.number)} — ${esc(watchName(ld.watchId))}
+      <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${statusColor}20;color:${statusColor};margin-left:4px;font-weight:700">${ld.status}</span>
+    </button>`;
+  }).join('')}</div>
   <div id="tracker_calc_widget" style="display:none;position:fixed;right:20px;top:120px;z-index:800;width:220px;background:var(--panel);border:1px solid var(--line2);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.4);overflow:hidden">
     <div style="background:var(--bg2);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line2)">
       <span style="font-size:12px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px">Calculator</span>
@@ -8372,16 +8391,16 @@ function vPlanning(){
     const nowH=new Date().getHours()+(new Date().getMinutes()>=30?0.5:0);
     const isNowHour = Math.abs(nowH-h)<0.5 && days.includes(today());
     const isHalfHr = h%1!==0;
-    gridRows += `<div style="display:grid;grid-template-columns:52px ${gridCols};min-height:${SLOT_H}px;border-bottom:1px solid ${isHalfHr?'rgba(255,255,255,.04)':'var(--line)'}">
-      <div style="font-size:10px;color:var(--ink3);padding:4px 6px;text-align:right;border-right:1px solid var(--line2);${isNowHour?'color:var(--gold2);font-weight:700':''}">${timeLabel}</div>
+    gridRows += `<tr style="border-bottom:1px solid ${isHalfHr?'rgba(255,255,255,.04)':'var(--line)'}">
+      <td style="font-size:10px;color:${isNowHour?'var(--danger)':'var(--ink3)'};padding:4px 6px;text-align:right;border-right:1px solid var(--line2);min-height:${SLOT_H}px;vertical-align:top;width:52px;font-weight:${isNowHour?'700':'400'}">${timeLabel}</td>
       ${days.map(d=>{
-        // Tasks scheduled in this hour
         const slotTasks = DB.tasks.filter(t=>t.scheduledDate===d && t.scheduledHour===h);
         const slotH = Math.floor(h); const slotMin = h%1?30:0;
         const dayName=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()];
         const recurTasks = (!isHalfHr)?(DB.tasks||[]).filter(t=>t.recurring&&t.recurringHour===Math.floor(h)&&(t.recurringDays||[]).includes(dayName)):[];
-        return `<div class="plan-slot" data-day="${d}" data-hour="${h}"
-          style="border-right:1px solid var(--line2);padding:2px 4px;position:relative;min-height:${SLOT_H}px;background:${isNowHour&&d===today()?'rgba(201,162,75,.04)':'transparent'}"
+        return `<td class="plan-slot" data-day="${d}" data-hour="${h}"
+          style="border-right:1px solid var(--line2);padding:2px 4px;position:relative;min-height:${SLOT_H}px;
+            vertical-align:top;background:${isNowHour&&d===today()?'rgba(220,38,38,.06)':'transparent'}"
           onmousedown="planDrawStart(event,'${d}',${h})"
           ondragover="event.preventDefault();this.style.background='rgba(201,162,75,.12)'"
           ondragleave="this.style.background=''"
@@ -8442,7 +8461,7 @@ function vPlanning(){
             </div>`).join('')}
         </div>`;
       }).join('')}
-    </div>`;
+    </tr>`;
   });
 
   return `<div class="page-head"><div><h2>Planning</h2><div class="desc">Time block your day — drag tasks into slots.</div></div>
@@ -8457,7 +8476,7 @@ function vPlanning(){
       <button class="btn btn-sm btn-ghost" onclick="planDay=today();render()">Today</button>
     </div></div>
   ${planDaySummaryMode ? planDaySummaryView(planDay, myName) : ''}
-  <div style="display:flex;gap:16px;height:calc(100vh - 160px);overflow:hidden;${planDaySummaryMode?'display:none':''}">
+  <div style="display:flex;gap:16px;height:calc(100vh - 165px);overflow:hidden;${planDaySummaryMode?'display:none':''}">
     <!-- Task list panel -->
     <div style="width:240px;flex-shrink:0;display:flex;flex-direction:column;gap:0">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line2)">
@@ -8466,12 +8485,25 @@ function vPlanning(){
       <div style="overflow-y:auto;flex:1;padding-right:4px">${taskList}</div>
     </div>
     <!-- Time grid -->
-    <div style="flex:1;overflow-y:auto;border:1px solid var(--line2);border-radius:12px;" id="plan_grid">
-      <div style="display:grid;grid-template-columns:52px ${gridCols};position:sticky;top:0;z-index:2">
-        <div style="background:var(--bg2);border-bottom:1px solid var(--line2);border-right:1px solid var(--line2)"></div>
-        ${dayHeaders}
+    <div style="flex:1;overflow-y:auto;border:1px solid var(--line2);border-radius:12px;position:relative" id="plan_grid">
+      <!-- Live time bar -->
+      <div id="plan_now_bar" style="position:absolute;left:52px;right:0;height:2px;background:var(--danger);z-index:10;pointer-events:none;transition:top .5s linear">
+        <div style="position:absolute;left:-6px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--danger)"></div>
       </div>
-      ${gridRows}
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+        <thead style="position:sticky;top:0;z-index:5;background:var(--bg2)">
+          <tr>
+            <th style="width:52px;border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);background:var(--bg2)"></th>
+            ${days.map(d=>`<th style="text-align:center;padding:8px 4px;font-size:12px;font-weight:700;
+              color:${d===today()?'var(--gold2)':'var(--ink)'};
+              border-bottom:1px solid var(--line2);border-right:1px solid var(--line2);
+              background:${d===today()?'rgba(201,162,75,.08)':'var(--bg2)'};width:${100/days.length}%">
+              ${planDayLabel(d)}${d===today()?'<span style="margin-left:5px;font-size:9px;color:var(--gold2);text-transform:uppercase;letter-spacing:.6px">Today</span>':''}
+            </th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${gridRows}</tbody>
+      </table>
     </div>
   </div>`;
 }
@@ -8696,6 +8728,22 @@ function planDaySummaryView(day, name){
     ).join('')}
   </div>`;
 }
+
+function planUpdateNowBar(){
+  const bar=document.getElementById('plan_now_bar'); if(!bar) return;
+  const grid=document.getElementById('plan_grid'); if(!grid) return;
+  const now=new Date();
+  const h=now.getHours()+(now.getMinutes()/60);
+  const SLOT_H=28;
+  const startH=5;
+  const HEADER_H=41; // sticky header height approx
+  const top=HEADER_H+(h-startH)*SLOT_H*2; // *2 because 2 slots per hour at 28px each
+  bar.style.top=Math.max(HEADER_H,top)+'px';
+}
+// Update every 30 seconds
+setInterval(planUpdateNowBar,30000);
+// Call after render
+document.addEventListener('DOMContentLoaded',()=>setTimeout(planUpdateNowBar,200));
 
 checkSessionAndBoot();
 </script>
