@@ -8355,7 +8355,7 @@ function vPlanning(){
 
   // Unscheduled tasks — mine, not done, no scheduled date/time for these days
   const scheduled = new Set(DB.tasks.filter(t=>t.scheduledDate).map(t=>t.id));
-  const unscheduled = DB.tasks.filter(t=>!t.done && (t.assignedTo===myName||!t.assignedTo) && !t.scheduledDate);
+  const unscheduled = DB.tasks.filter(t=>!t.done && (t.assignedTo===myName||!t.assignedTo) && !t.scheduledDate && !t.recurring);
 
   // Colour by category
   const taskColor = t => t.category==='Admin'?'var(--blue)':t.category==='Content'?'var(--purple)':'var(--gold2)';
