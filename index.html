@@ -8446,9 +8446,11 @@ function vPlanning(){
   });
 
   return `<div class="page-head"><div><h2>Planning</h2><div class="desc">Time block your day — drag tasks into slots.</div></div>
-    <div class="page-actions" style="display:flex;gap:8px;align-items:center">
-      <button class="fbtn ${planView==='day'?'active':''}" onclick="planView='day';render()">Day</button>
-      <button class="fbtn ${planView==='week'?'active':''}" onclick="planView='week';render()">Week</button>
+    <div class="page-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="fbtn ${planView==='day'&&!planDaySummaryMode?'active':''}" onclick="planView='day';planDaySummaryMode=false;render()">Day</button>
+      <button class="fbtn ${planView==='week'&&!planDaySummaryMode?'active':''}" onclick="planView='week';planDaySummaryMode=false;render()">Week</button>
+      <button class="fbtn ${planDaySummaryMode?'active':''}" onclick="planDaySummaryMode=!planDaySummaryMode;render()">📋 Summary</button>
+      <div style="width:1px;height:20px;background:var(--line2)"></div>
       <button class="btn btn-sm btn-ghost" onclick="planDay=planAddDays(planDay,-1);render()">‹</button>
       <span style="font-size:13px;font-weight:600;color:var(--ink)">${planView==='day'?planDayLabel(planDay):'Week of '+planDayLabel(planWeekDays(planDay)[0])}</span>
       <button class="btn btn-sm btn-ghost" onclick="planDay=planAddDays(planDay,1);render()">›</button>
@@ -8464,7 +8466,7 @@ function vPlanning(){
       <div style="overflow-y:auto;flex:1;padding-right:4px">${taskList}</div>
     </div>
     <!-- Time grid -->
-    <div style="flex:1;overflow-y:auto;border:1px solid var(--line2);border-radius:12px;overflow:hidden">
+    <div style="flex:1;overflow-y:auto;border:1px solid var(--line2);border-radius:12px;" id="plan_grid">
       <div style="display:grid;grid-template-columns:52px ${gridCols};position:sticky;top:0;z-index:2">
         <div style="background:var(--bg2);border-bottom:1px solid var(--line2);border-right:1px solid var(--line2)"></div>
         ${dayHeaders}
