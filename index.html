@@ -1362,7 +1362,7 @@ function migrate(){
     t.urgent=!!t.urgent;
     t.personRef=t.personRef||'';
     t.notes=t.notes||''; t.file=t.file||'';
-    t.repeat=t.repeat||'None'; t.recurring=t.recurring||false; t.recurringDays=t.recurringDays||[]; t.recurringTime=t.recurringTime||''; t.recurringHour=t.recurringHour||null;
+    t.repeat=t.repeat||'None'; t.recurring=t.recurring||false; t.recurringDays=t.recurringDays||[]; t.recurringTime=t.recurringTime||''; t.recurringHour=t.recurringHour||null; t.recurringType=t.recurringType||''; t.recurringColor=t.recurringColor||'#CA8A04';
     t.watchId=t.watchId||'';
   });
   const CAT_MIGRATE={'Ideas':'Social Content','Evergreen':'Evergreen Content','Educational':'Educational Content',
@@ -3912,10 +3912,18 @@ function openTask(id){
                 ${day}
               </button>`).join('')}
           </div>
+          <div class="field-row" style="margin:0 0 12px">
+            <div class="field" style="margin:0">
+              <label>At time</label>
+              <input id="tk_recur_time" type="time" value="${esc(t.recurringTime||'09:00')}"
+                style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px;width:100%">
+            </div>
+          </div>
           <div class="field" style="margin:0">
-            <label>At time</label>
-            <input id="tk_recur_time" type="time" value="${esc(t.recurringTime||'09:00')}"
-              style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px;width:100%">
+            <label>Task colour / type</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px" id="tk_recur_type_btns">
+              <button type="button" class="btn btn-sm tk-recur-type ${(t.recurringType||'')=='Email'?'active-recur-type':''}" data-type="Email" data-color="#3B82F6" onclick="selectRecurType(this)" style="${(t.recurringType||'')=='Email'?'background:#3B82F6;color:#fff;border-color:#3B82F6':'background:#3B82F620;border:2px solid #3B82F6;color:#3B82F6'};font-size:11px;padding:4px 8px">Email</button><button type="button" class="btn btn-sm tk-recur-type ${(t.recurringType||'')=='SMS/Text'?'active-recur-type':''}" data-type="SMS/Text" data-color="#22C55E" onclick="selectRecurType(this)" style="${(t.recurringType||'')=='SMS/Text'?'background:#22C55E;color:#fff;border-color:#22C55E':'background:#22C55E20;border:2px solid #22C55E;color:#22C55E'};font-size:11px;padding:4px 8px">SMS/Text</button><button type="button" class="btn btn-sm tk-recur-type ${(t.recurringType||'')=='Post'?'active-recur-type':''}" data-type="Post" data-color="#A855F7" onclick="selectRecurType(this)" style="${(t.recurringType||'')=='Post'?'background:#A855F7;color:#fff;border-color:#A855F7':'background:#A855F720;border:2px solid #A855F7;color:#A855F7'};font-size:11px;padding:4px 8px">Post</button><button type="button" class="btn btn-sm tk-recur-type ${(t.recurringType||'')=='Drop Setup'?'active-recur-type':''}" data-type="Drop Setup" data-color="#F97316" onclick="selectRecurType(this)" style="${(t.recurringType||'')=='Drop Setup'?'background:#F97316;color:#fff;border-color:#F97316':'background:#F9731620;border:2px solid #F97316;color:#F97316'};font-size:11px;padding:4px 8px">Drop Setup</button><button type="button" class="btn btn-sm tk-recur-type ${(t.recurringType||'')=='Meeting'?'active-recur-type':''}" data-type="Meeting" data-color="#EF4444" onclick="selectRecurType(this)" style="${(t.recurringType||'')=='Meeting'?'background:#EF4444;color:#fff;border-color:#EF4444':'background:#EF444420;border:2px solid #EF4444;color:#EF4444'};font-size:11px;padding:4px 8px">Meeting</button><button type="button" class="btn btn-sm tk-recur-type ${(t.recurringType||'')=='Admin'?'active-recur-type':''}" data-type="Admin" data-color="#6B7280" onclick="selectRecurType(this)" style="${(t.recurringType||'')=='Admin'?'background:#6B7280;color:#fff;border-color:#6B7280':'background:#6B728020;border:2px solid #6B7280;color:#6B7280'};font-size:11px;padding:4px 8px">Admin</button><button type="button" class="btn btn-sm tk-recur-type ${(t.recurringType||'')=='Content'?'active-recur-type':''}" data-type="Content" data-color="#EC4899" onclick="selectRecurType(this)" style="${(t.recurringType||'')=='Content'?'background:#EC4899;color:#fff;border-color:#EC4899':'background:#EC489920;border:2px solid #EC4899;color:#EC4899'};font-size:11px;padding:4px 8px">Content</button><button type="button" class="btn btn-sm tk-recur-type ${(t.recurringType||'')=='Other'?'active-recur-type':''}" data-type="Other" data-color="#CA8A04" onclick="selectRecurType(this)" style="${(t.recurringType||'')=='Other'?'background:#CA8A04;color:#fff;border-color:#CA8A04':'background:#CA8A0420;border:2px solid #CA8A04;color:#CA8A04'};font-size:11px;padding:4px 8px">Other</button>
+            </div>
           </div>
         </div>
       </div>
@@ -3977,6 +3985,13 @@ function toggleRecurBtn(){
 function toggleRecurDay(btn){
   btn.classList.toggle('btn-gold');
 }
+function selectRecurType(btn){
+  const color=btn.dataset.color||'var(--gold)';
+  document.querySelectorAll('.tk-recur-type').forEach(b=>{
+    b.style.background=b.dataset.color+'20'; b.style.color=b.dataset.color; b.style.borderColor=b.dataset.color;
+  });
+  btn.style.background=color; btn.style.color='#fff'; btn.style.borderColor=color;
+}
 function saveTask(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t)return;
   t.title=document.getElementById('tk_title').value||t.title;
@@ -4000,6 +4015,9 @@ function saveTask(id){
   t.recurring = recurBtn&&recurBtn.dataset.on==='1';
   if(t.recurring){
     t.recurringDays=[...document.querySelectorAll('.tk-recur-day.btn-gold')].map(b=>b.dataset.day);
+    const activeType=document.querySelector('.tk-recur-type[style*="color: rgb(255"],.tk-recur-type[style*="color:#fff"]');
+    t.recurringType=(activeType?activeType.dataset.type:'')||t.recurringType||'';
+    t.recurringColor=(activeType?activeType.dataset.color:'')||t.recurringColor||'#CA8A04';
     t.recurringTime=document.getElementById('tk_recur_time')?document.getElementById('tk_recur_time').value:'09:00';
     t.recurringHour=t.recurringTime?parseInt(t.recurringTime.split(':')[0]):9;
   } else {
@@ -8369,9 +8387,18 @@ function vPlanning(){
               <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
               <span onclick="event.stopPropagation();planUnschedule('${t.id}')" style="opacity:.7;cursor:pointer;flex-shrink:0">×</span>
             </div>`).join('')}
-          ${recurTasks.map(t=>`
-            <div style="background:var(--panel2);border:1px dashed var(--line2);border-radius:5px;padding:3px 7px;font-size:10px;color:var(--ink3);margin-bottom:2px;opacity:.7"
-              title="Recurring: ${esc(t.title)}">↻ ${esc(t.title)}</div>`).join('')}
+          ${recurTasks.map(t=>{
+            const rc=t.recurringColor||'#CA8A04';
+            const rt=t.recurringType||'';
+            return `<div onclick="openTask('${t.id}')"
+              style="background:${rc};color:#fff;border-radius:5px;padding:4px 8px;font-size:11px;font-weight:700;
+                margin-bottom:2px;cursor:pointer;display:flex;align-items:center;gap:5px;
+                border-left:3px solid rgba(255,255,255,.4)">
+              <span style="opacity:.8;font-size:10px">↻</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(t.title)}</span>
+              ${rt?`<span style="font-size:9px;opacity:.75;background:rgba(0,0,0,.2);border-radius:3px;padding:1px 4px">${esc(rt)}</span>`:''}
+            </div>`;
+          }).join('')}
         </div>`;
       }).join('')}
     </div>`;
