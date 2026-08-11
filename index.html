@@ -8381,23 +8381,35 @@ function vPlanning(){
           ondrop="planDrop(event,'${d}',${h});this.style.background=''">
           ${slotTasks.map(t=>{
             const mins=t.estMins||60;
-            const bh=Math.max(28,Math.round((mins/60)*SLOT_H));
+            const bh=Math.max(36,Math.round((mins/60)*SLOT_H));
+            const isDone=t.done;
             return `<div
               class="plan-block" data-task-id="${t.id}"
               draggable="true"
-              ondragstart="planDragTask='${t.id}';event.dataTransfer.setData('text/plain','${t.id}');event.dataTransfer.effectAllowed='move';event.stopPropagation()"
+              onmousedown="event.stopPropagation()"
+              ondragstart="planDragTask='${t.id}';event.dataTransfer.setData('text/plain','${t.id}');event.dataTransfer.effectAllowed='move'"
               ondragend="planDragTask=null"
-              style="background:${taskColor(t)};color:#fff;border-radius:6px;padding:4px 8px 10px;font-size:11px;font-weight:600;
-                margin-bottom:2px;position:relative;height:${bh}px;box-sizing:border-box;overflow:hidden;cursor:grab;user-select:none">
+              style="background:${isDone?'var(--panel2)':taskColor(t)};color:${isDone?'var(--ink3)':'#fff'};
+                border-radius:6px;padding:4px 8px 12px;font-size:11px;font-weight:600;
+                margin-bottom:2px;position:relative;height:${bh}px;box-sizing:border-box;overflow:hidden;
+                cursor:grab;user-select:none;${isDone?'opacity:.6;text-decoration:line-through':''}">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
                 <span onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}</span>
-                <span onclick="event.stopPropagation();planUnschedule('${t.id}')" style="opacity:.7;cursor:pointer;flex-shrink:0;font-size:13px;line-height:1">×</span>
+                <div style="display:flex;gap:3px;flex-shrink:0">
+                  <span onclick="event.stopPropagation();planMarkDone('${t.id}')"
+                    title="${isDone?'Mark undone':'Mark done'}"
+                    style="cursor:pointer;font-size:11px;opacity:.8;background:rgba(0,0,0,.2);border-radius:3px;padding:0 4px;line-height:16px">
+                    ${isDone?'↺':'✓'}
+                  </span>
+                  <span onclick="event.stopPropagation();planUnschedule('${t.id}')" style="opacity:.7;cursor:pointer;font-size:13px;line-height:1">×</span>
+                </div>
               </div>
               ${mins&&mins!==60?`<div style="font-size:9px;opacity:.7;margin-top:2px">${planFmtEst(mins)}</div>`:''}
-              <div onmousedown="planResizeStart(event,'${t.id}')"
-                style="position:absolute;bottom:0;left:0;right:0;height:10px;cursor:ns-resize;
-                  background:rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center">
-                <div style="width:24px;height:2px;background:rgba(255,255,255,.6);border-radius:1px"></div>
+              <div class="plan-resize-handle"
+                onmousedown="event.stopPropagation();planResizeStart(event,'${t.id}')"
+                style="position:absolute;bottom:0;left:0;right:0;height:12px;cursor:ns-resize;
+                  background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center">
+                <div style="width:28px;height:2px;background:rgba(255,255,255,.7);border-radius:2px"></div>
               </div>
             </div>`;
           }).join('')}
@@ -8478,6 +8490,11 @@ function planUnschedule(taskId){
   delete t.scheduledDate; delete t.scheduledHour;
   saveDB(); render();
 }
+function planMarkDone(taskId){
+  const t=DB.tasks.find(x=>x.id===taskId); if(!t) return;
+  t.done=!t.done;
+  saveDB(); render();
+}
 
 // Add est time slider to task modal — patch into openTask
 const _origOpenTask = typeof openTask==='function'?openTask:null;
@@ -8502,7 +8519,7 @@ function planResizeMove(e){
   t.estMins=newMins;
   const block=document.querySelector('.plan-block[data-task-id="'+_planResizing.taskId+'"]');
   if(block){
-    block.style.height=Math.max(28,Math.round((newMins/SLOT_H)*SLOT_H))+'px';
+    block.style.height=Math.max(36,Math.round((newMins/60)*56))+'px';
     const lbl=block.querySelector('div[style*="font-size:9px"]');
     if(lbl) lbl.textContent=planFmtEst(newMins);
   }
@@ -8521,7 +8538,7 @@ let _planDraw=null;
 
 function planDrawStart(e, day, hour){
   if(e.button!==0) return; // left click only
-  if(e.target.closest('.plan-block,.plan-resize-handle,.sticky-drag')) return;
+  if(e.target.closest('.plan-block,.plan-resize-handle')) return;
   if(planDragTask) return; // don't draw while dragging a task
   e.preventDefault();
   _planDraw={day, startHour:hour, endHour:hour};
