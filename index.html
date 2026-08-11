@@ -8469,6 +8469,7 @@ function vPlanning(){
       <button class="fbtn ${planView==='day'&&!planDaySummaryMode?'active':''}" onclick="planView='day';planDaySummaryMode=false;render()">Day</button>
       <button class="fbtn ${planView==='week'&&!planDaySummaryMode?'active':''}" onclick="planView='week';planDaySummaryMode=false;render()">Week</button>
       <button class="fbtn ${planDaySummaryMode?'active':''}" onclick="planDaySummaryMode=!planDaySummaryMode;render()">📋 Summary</button>
+      <button class="btn btn-sm btn-ghost" onclick="planPrint('${planDay}')" title="Print daily schedule">🖨 Print</button>
       <div style="width:1px;height:20px;background:var(--line2)"></div>
       <button class="btn btn-sm btn-ghost" onclick="planDay=planAddDays(planDay,-1);render()">‹</button>
       <span style="font-size:13px;font-weight:600;color:var(--ink)">${planView==='day'?planDayLabel(planDay):'Week of '+planDayLabel(planWeekDays(planDay)[0])}</span>
@@ -8744,6 +8745,119 @@ function planUpdateNowBar(){
 setInterval(planUpdateNowBar,30000);
 // Call after render
 document.addEventListener('DOMContentLoaded',()=>setTimeout(planUpdateNowBar,200));
+
+/* ===== Planning Print ===== */
+function planPrint(day){
+  const d=day||planDay;
+  const myName=getPresenceName()||'Felix';
+  const dayName=new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  // Scheduled tasks for the day
+  const scheduled=DB.tasks.filter(t=>t.scheduledDate===d).sort((a,b)=>(a.scheduledHour||0)-(b.scheduledHour||0));
+  // Recurring tasks for this weekday
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()];
+  const recur=DB.tasks.filter(t=>t.recurring&&(t.recurringDays||[]).includes(dow)).sort((a,b)=>(a.recurringHour||0)-(b.recurringHour||0));
+  // Live drops
+  const liveDrops=DB.drops.filter(x=>x.status==='Live');
+  const upcomingDrops=DB.drops.filter(x=>x.status==='Upcoming');
+  // Unscheduled tasks assigned to me
+  const unscheduled=DB.tasks.filter(t=>!t.done&&!t.scheduledDate&&(t.assignedTo===myName||!t.assignedTo));
+
+  function fmtH(h){ if(h==null) return ''; const hr=Math.floor(h); const min=h%1?'30':'00'; return `${hr===12?12:hr>12?hr-12:hr}:${min}${hr<12?'am':'pm'}`; }
+  function estStr(m){ if(!m) return ''; return m<60?m+'min':Math.floor(m/60)+(m%60?'h '+m%60+'m':'hr'); }
+
+  // Merge scheduled + recurring into a timeline
+  const allSlots={};
+  recur.forEach(t=>{ const k=t.recurringHour||0; if(!allSlots[k]) allSlots[k]=[]; allSlots[k].push({...t,isRecur:true}); });
+  scheduled.forEach(t=>{ const k=t.scheduledHour||0; if(!allSlots[k]) allSlots[k]=[]; allSlots[k].push(t); });
+
+  const timelineRows=Object.keys(allSlots).sort((a,b)=>Number(a)-Number(b)).map(h=>{
+    const items=allSlots[h];
+    return items.map(t=>`<tr>
+      <td style="width:55px;padding:5px 8px;font-size:11px;color:#555;vertical-align:top;white-space:nowrap;border-bottom:1px solid #eee">${fmtH(Number(h))}</td>
+      <td style="padding:5px 8px;border-bottom:1px solid #eee;vertical-align:top">
+        <div style="display:flex;align-items:flex-start;gap:6px">
+          <div style="width:3px;min-height:18px;background:${t.isRecur?'#CA8A04':'#3B82F6'};border-radius:2px;flex-shrink:0;margin-top:2px"></div>
+          <div>
+            <div style="font-size:13px;font-weight:600;${t.done?'text-decoration:line-through;color:#aaa':''}">${t.title||''}</div>
+            <div style="font-size:10px;color:#888">${t.isRecur?'↻ Recurring':''}${t.isRecur&&t.recurringType?' · '+t.recurringType:''}${t.estMins?' · '+estStr(t.estMins):''}${t.dropId?' · '+((DB.drops.find(x=>x.id===t.dropId)||{}).number||''):''}</div>
+          </div>
+        </div>
+        <div style="margin-top:4px;padding-left:9px"><input type="checkbox" ${t.done?'checked':''}> &nbsp;<span style="font-size:11px;color:#999">Done</span></div>
+      </td>
+    </tr>`).join('');
+  }).join('');
+
+  const liveHtml=liveDrops.map(d=>{
+    const n=dropNumbers(d);
+    return `<tr>
+      <td style="padding:4px 8px;font-weight:700;font-size:12px;border-bottom:1px solid #eee">${d.number}</td>
+      <td style="padding:4px 8px;font-size:12px;border-bottom:1px solid #eee">${watchName(d.watchId)}</td>
+      <td style="padding:4px 8px;font-size:12px;border-bottom:1px solid #eee;text-align:right">${n.entries}/${n.pool} (${n.fillPct}%)</td>
+      <td style="padding:4px 8px;font-size:12px;border-bottom:1px solid #eee;text-align:right">${n.profit>=0?'+':''}£${Math.round(n.profit).toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+
+  const upcomingHtml=upcomingDrops.map(d=>`<tr>
+    <td style="padding:4px 8px;font-size:11px;border-bottom:1px solid #eee">${d.number}</td>
+    <td style="padding:4px 8px;font-size:11px;border-bottom:1px solid #eee">${watchName(d.watchId)}</td>
+    <td style="padding:4px 8px;font-size:11px;border-bottom:1px solid #eee">${d.launch?'Launch: '+d.launch:''}</td>
+  </tr>`).join('');
+
+  const unschHtml=unscheduled.slice(0,15).map(t=>`<tr>
+    <td style="padding:4px 8px;font-size:11px;border-bottom:1px solid #eee;vertical-align:top">
+      <input type="checkbox"> &nbsp;${t.title||''}
+      ${t.estMins?'<span style="color:#999;font-size:10px"> · '+estStr(t.estMins)+'</span>':''}
+    </td>
+  </tr>`).join('');
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Daily Schedule — ${dayName}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, Arial, sans-serif; font-size: 13px; color: #111; padding: 16px; max-width: 210mm; }
+    h1 { font-size: 18px; font-weight: 800; margin-bottom: 2px; }
+    h2 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #555; margin: 16px 0 6px; border-bottom: 2px solid #111; padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; }
+    .logo { font-size: 10px; color: #999; margin-bottom: 12px; }
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; }
+    @media print { body { padding: 8px; } @page { margin: 8mm; size: A4; } }
+  </style>
+  </head><body>
+  <div class="logo">The Watch Drop · Atlas</div>
+  <h1>${dayName}</h1>
+  <div style="font-size:11px;color:#777;margin-bottom:4px">Printed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
+
+  ${timelineRows?`<h2>📅 Today's Schedule</h2>
+  <table>${timelineRows}</table>`:'<div style="color:#999;font-size:12px;margin:12px 0">No tasks scheduled today</div>'}
+
+  ${unschHtml?`<h2>📋 Unscheduled Tasks</h2><table>${unschHtml}</table>`:''}
+
+  ${liveHtml?`<h2>🟢 Live Drops</h2>
+  <table>
+    <thead><tr>
+      <th style="padding:4px 8px;font-size:10px;text-align:left;color:#555">Drop</th>
+      <th style="padding:4px 8px;font-size:10px;text-align:left;color:#555">Watch</th>
+      <th style="padding:4px 8px;font-size:10px;text-align:right;color:#555">Fill</th>
+      <th style="padding:4px 8px;font-size:10px;text-align:right;color:#555">P&L</th>
+    </tr></thead>
+    <tbody>${liveHtml}</tbody>
+  </table>`:''}
+
+  ${upcomingHtml?`<h2>🔵 Upcoming</h2><table>${upcomingHtml}</table>`:''}
+
+  <div style="margin-top:20px;border-top:1px dashed #ccc;padding-top:8px">
+    <h2 style="border:none;font-size:11px">Notes</h2>
+    <div style="height:60px;border-bottom:1px solid #ddd;margin-bottom:8px"></div>
+    <div style="height:60px;border-bottom:1px solid #ddd"></div>
+  </div>
+  </body></html>`;
+
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),500);
+}
 
 checkSessionAndBoot();
 </script>
