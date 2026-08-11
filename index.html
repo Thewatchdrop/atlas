@@ -1362,7 +1362,7 @@ function migrate(){
     t.urgent=!!t.urgent;
     t.personRef=t.personRef||'';
     t.notes=t.notes||''; t.file=t.file||'';
-    t.repeat=t.repeat||'None';
+    t.repeat=t.repeat||'None'; t.recurring=t.recurring||false; t.recurringDays=t.recurringDays||[]; t.recurringTime=t.recurringTime||''; t.recurringHour=t.recurringHour||null;
     t.watchId=t.watchId||'';
   });
   const CAT_MIGRATE={'Ideas':'Social Content','Evergreen':'Evergreen Content','Educational':'Educational Content',
@@ -2550,7 +2550,7 @@ function taskRow(t){
     <div class="tick ${t.done?'done':''}" onclick="event.stopPropagation();toggleTask('${t.id}')">${t.done?'✓':''}</div>
     <span class="ttype-dot" style="background:${ty.color}" title="${esc(t.type)}">${ty.ico}</span>
     ${t.urgent?'<span title="Urgent" style="font-size:13px">⚡</span>':''}
-    <div class="txt ${t.done?'done':''}" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}${t.repeat==='Weekly'?' 🔁':''}${t.notes?' 📝':''}${t.file?' 📎':''}</div>
+    <div class="txt ${t.done?'done':''}" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}${t.recurring?' 🔁':''}${t.notes?' 📝':''}${t.file?' 📎':''}</div>
       <div class="meta">${d?`<span class="link" onclick="event.stopPropagation();go('drop','${d.id}')" style="cursor:pointer;color:var(--gold2)">${esc(d.number)}</span> · `:''}${w?`<span style="color:var(--gold2)">⌚ ${esc(w.brand)} ${esc(w.model)}</span> · `:''}${t.time?esc(t.time)+' · ':''}${t.due<today()&&!t.done?'<span style="color:var(--danger)">Overdue · </span>':''}${fmtDate(t.due)}${t.assignedTo?' · '+esc(t.assignedTo):''}${personLabel?' · '+esc(personLabel):''}</div></div>
     <span class="btn-danger btn-sm" onclick="event.stopPropagation();delTask('${t.id}')" style="opacity:.5">✕</span>
   </div>`;
@@ -3895,7 +3895,30 @@ function openTask(id){
         <div class="field"><label>Due date</label><input id="tk_due" type="date" value="${esc(t.due)}"></div>
         <div class="field"><label>Time (optional)</label><input id="tk_time" type="time" value="${esc(t.time||'')}"></div>
       </div>
-      <div class="field"><label>Repeat</label>${dd('tk_repeat',['None','Weekly'], t.repeat||'None')}</div>
+      <div class="field">
+        <label style="display:flex;align-items:center;justify-content:space-between">
+          Recurring
+          <button type="button" id="tk_recur_toggle" class="btn btn-sm ${t.recurring?'btn-gold':''}" data-on="${t.recurring?'1':'0'}"
+            onclick="toggleRecurBtn()" style="font-size:11px;padding:4px 10px">
+            🔁 ${t.recurring?'On':'Off'}
+          </button>
+        </label>
+        <div id="tk_recur_wrap" style="${t.recurring?'':'display:none'};margin-top:10px;background:var(--panel);border-radius:10px;padding:12px">
+          <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">Repeat every week on</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+            ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day=>`
+              <button type="button" class="btn btn-sm tk-recur-day ${(t.recurringDays||[]).includes(day)?'btn-gold':''}"
+                data-day="${day}" onclick="toggleRecurDay(this)" style="min-width:44px">
+                ${day}
+              </button>`).join('')}
+          </div>
+          <div class="field" style="margin:0">
+            <label>At time</label>
+            <input id="tk_recur_time" type="time" value="${esc(t.recurringTime||'09:00')}"
+              style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px;width:100%">
+          </div>
+        </div>
+      </div>
       <div class="field"><label>Linked drop</label>${dd('tk_drop',[{value:'',label:'—'},...DB.drops.map(d=>({value:d.id,label:d.number}))], t.dropId||'')}</div>
       <div class="field"><label>Linked project</label>${dd('tk_project',[{value:'',label:'— None —'},...(DB.projects||[]).map(p=>({value:p.id,label:p.name}))], t.projectId||'')}</div>
       <div class="field" id="tk_person_field" style="${currentType==='Prize Delivery'?'':'display:none'}"><label>Linked customer/winner</label>${dd('tk_person',[{value:'',label:'— none —'},
@@ -3941,6 +3964,19 @@ function onTaskTypeChange(id,val){
   if(wrap) wrap.style.display = (val==='Prize Delivery') ? '' : 'none';
 }
 // category stored on save via hidden state
+function toggleRecurBtn(){
+  const btn=document.getElementById('tk_recur_toggle');
+  const wrap=document.getElementById('tk_recur_wrap');
+  if(!btn||!wrap) return;
+  const on=btn.dataset.on==='1';
+  btn.dataset.on=on?'0':'1';
+  btn.classList.toggle('btn-gold',!on);
+  btn.textContent='🔁 '+(on?'Off':'On');
+  wrap.style.display=on?'none':'';
+}
+function toggleRecurDay(btn){
+  btn.classList.toggle('btn-gold');
+}
 function saveTask(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t)return;
   t.title=document.getElementById('tk_title').value||t.title;
@@ -3956,8 +3992,19 @@ function saveTask(id){
   t.projectId=ddVal('tk_project')||'';
   t.personRef = (t.type==='Prize Delivery') ? ddVal('tk_person') : '';
   t.notes=document.getElementById('tk_notes').value;
+  const estEl=document.getElementById('tk_est');
+  if(estEl) t.estMins=[0,15,30,45,60,90,120,180,240,480][parseInt(estEl.value)]||0;
   t.file=mediaVal('tk_file');
-  t.repeat=ddVal('tk_repeat');
+  // Recurring
+  const recurBtn=document.getElementById('tk_recur_toggle');
+  t.recurring = recurBtn&&recurBtn.dataset.on==='1';
+  if(t.recurring){
+    t.recurringDays=[...document.querySelectorAll('.tk-recur-day.btn-gold')].map(b=>b.dataset.day);
+    t.recurringTime=document.getElementById('tk_recur_time')?document.getElementById('tk_recur_time').value:'09:00';
+    t.recurringHour=t.recurringTime?parseInt(t.recurringTime.split(':')[0]):9;
+  } else {
+    t.recurringDays=[]; t.recurringTime=''; t.recurringHour=null;
+  }
   const ub=document.getElementById('tk_urgent'); t.urgent = ub? ub.dataset.val==='1' : !!t.urgent;
   saveDB();closeModal();toast('Task saved');render();
 }
@@ -6235,37 +6282,162 @@ function projMilestones(p){
 }
 
 function projNotes(p){
-  const notes=(p.notes||[]).slice().reverse();
-  return `<div style="margin-top:18px">
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-h"><h3>Add Note</h3><span class="muted" style="font-size:11.5px">Also saved to the global Notes section</span></div>
-      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">
-        <div class="field-row" style="margin:0">
-          <div class="field" style="margin:0"><label>Title</label><input id="proj_note_title_${p.id}" placeholder="e.g. Strategy call, Decision made…"></div>
-          <div class="field" style="margin:0;max-width:160px"><label>Date</label><input id="proj_note_date_${p.id}" type="date" value="${today()}"></div>
-        </div>
-        <div class="field" style="margin:0"><label>Note</label>
-          <textarea id="proj_note_input_${p.id}" placeholder="Type a note, update or decision..." style="width:100%;min-height:80px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 12px;resize:vertical;outline:none;font-family:inherit;font-size:14px"></textarea>
-        </div>
-        <div style="display:flex;justify-content:flex-end">
-          <button class="btn btn-gold btn-sm" onclick="addProjNote('${p.id}')">Save Note</button>
+  p.stickies = p.stickies||[];
+  const COLORS=[
+    {name:'yellow',bg:'#FEF9C3',border:'#CA8A04',text:'#713F12'},
+    {name:'blue',bg:'#DBEAFE',border:'#3B82F6',text:'#1E3A5F'},
+    {name:'green',bg:'#DCFCE7',border:'#16A34A',text:'#14532D'},
+    {name:'pink',bg:'#FCE7F3',border:'#DB2777',text:'#831843'},
+    {name:'orange',bg:'#FFEDD5',border:'#EA580C',text:'#7C2D12'},
+    {name:'purple',bg:'#F3E8FF',border:'#9333EA',text:'#581C87'},
+  ];
+  const stickyCards = p.stickies.map(s=>{
+    const col=COLORS.find(c=>c.name===s.color)||COLORS[0];
+    return `<div class="sticky-note" id="sticky_${s.id}"
+      style="position:absolute;left:${s.x||20}px;top:${s.y||20}px;width:${s.w||200}px;
+        background:${col.bg};border:2px solid ${col.border};color:${col.text};
+        border-radius:10px;padding:0;box-shadow:2px 4px 12px rgba(0,0,0,.15);
+        box-sizing:border-box;z-index:1;min-height:${s.h||160}px">
+      <div class="sticky-drag" onmousedown="stickyDragStart(event,'${s.id}','${p.id}')"
+        style="background:${col.border};padding:6px 10px;display:flex;align-items:center;justify-content:space-between;cursor:grab;border-radius:8px 8px 0 0">
+        <span style="font-size:10px;font-weight:700;color:#fff;opacity:.9;text-transform:uppercase;letter-spacing:.5px">${esc(s.author||'')} · ${fmtDate(s.date||s.created)}</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          ${COLORS.map(c=>`<span onclick="event.stopPropagation();stickySetColor('${s.id}','${p.id}','${c.name}')" style="width:11px;height:11px;border-radius:50%;background:${c.bg};border:2px solid ${c.border};cursor:pointer;display:inline-block;flex-shrink:0"></span>`).join('')}
+          <span onclick="event.stopPropagation();stickyDelete('${s.id}','${p.id}')" style="color:#fff;cursor:pointer;font-size:15px;line-height:1;margin-left:4px;opacity:.8">×</span>
         </div>
       </div>
+      <div style="padding:10px">
+        <textarea onblur="stickyUpdate('${s.id}','${p.id}',this.value)"
+          style="width:100%;min-height:${Math.max(80,(s.h||160)-56)}px;background:transparent;border:none;outline:none;
+            color:${col.text};font-size:13px;line-height:1.55;resize:none;font-family:inherit;box-sizing:border-box"
+          placeholder="Type your note…">${esc(s.text||'')}</textarea>
+      </div>
+      <!-- Resize handle -->
+      <div onmousedown="stickyResizeStart(event,'${s.id}','${p.id}')"
+        style="position:absolute;bottom:0;right:0;width:16px;height:16px;cursor:se-resize;
+          display:flex;align-items:center;justify-content:center;opacity:.4;font-size:10px">↘</div>
+    </div>`;
+  }).join('');
+
+  return `<div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0 10px">
+      <div class="muted" style="font-size:12.5px">${p.stickies.length} note${p.stickies.length===1?'':'s'} · click the canvas to add · drag to move</div>
+      <button class="btn btn-gold btn-sm" onclick="stickyAdd('${p.id}')">＋ Add Note</button>
     </div>
-    <div class="card"><div class="card-h"><h3>Notes Log</h3></div>
-      <div class="card-b">
-        ${notes.length?notes.map(n=>`
-          <div style="padding:12px 0;border-bottom:1px solid var(--line)">
-            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
-              <div style="font-weight:700;font-size:14px">${esc(n.title||'Note')}</div>
-              <div style="font-size:11px;color:var(--ink3)">${esc(n.author||'Felix')} · ${fmtDate(n.date||n.created)}</div>
-            </div>
-            <div style="font-size:13.5px;white-space:pre-wrap;line-height:1.5;color:var(--ink2)">${esc(n.text)}</div>
-          </div>`).join(''):'<div class="empty">No notes yet.</div>'}
-      </div>
+    <div id="sticky_canvas_${p.id}"
+      style="position:relative;width:100%;height:640px;background:repeating-linear-gradient(var(--line) 0 1px,transparent 1px 28px),repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 28px);
+        background-color:var(--panel);border:1px solid var(--line2);border-radius:14px;overflow:auto"
+      onclick="stickyCanvasClick(event,'${p.id}')">
+      ${p.stickies.length?stickyCards:`<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:var(--ink3);pointer-events:none">
+        <div style="font-size:36px">📝</div>
+        <div style="font-size:13px;margin-top:8px">Click anywhere on the board to add a sticky note</div>
+      </div>`}
     </div>
   </div>`;
 }
+
+let _stickyDrag=null, _stickyResize=null;
+
+function stickyCanvasClick(e, projId){
+  if(e.target.closest('.sticky-note')) return;
+  const canvas=e.currentTarget;
+  const rect=canvas.getBoundingClientRect();
+  const x=e.clientX-rect.left+canvas.scrollLeft;
+  const y=e.clientY-rect.top+canvas.scrollTop;
+  stickyAdd(projId, Math.max(10,x-100), Math.max(10,y-75));
+}
+
+function stickyAdd(projId, x=30, y=30){
+  const p=projById(projId); if(!p) return;
+  p.stickies=p.stickies||[];
+  const cols=['yellow','blue','green','pink','orange','purple'];
+  p.stickies.push({id:uid('sk'),text:'',color:cols[p.stickies.length%cols.length],
+    x:Math.round(x),y:Math.round(y),w:200,h:160,
+    author:getPresenceName()||'Felix',date:today(),created:now()});
+  saveDB(); render();
+}
+
+function stickyUpdate(sid, pid, text){
+  const p=projById(pid); if(!p) return;
+  const s=(p.stickies||[]).find(x=>x.id===sid); if(!s) return;
+  s.text=text; queueSave();
+}
+
+function stickyDelete(sid, pid){
+  const p=projById(pid); if(!p) return;
+  if(!confirm('Remove this note?')) return;
+  p.stickies=(p.stickies||[]).filter(x=>x.id!==sid);
+  saveDB(); render();
+}
+
+function stickySetColor(sid, pid, color){
+  const p=projById(pid); if(!p) return;
+  const s=(p.stickies||[]).find(x=>x.id===sid); if(!s) return;
+  s.color=color; saveDB(); render();
+}
+
+function stickyDragStart(e, sid, pid){
+  e.preventDefault();
+  const el=document.getElementById('sticky_'+sid); if(!el) return;
+  const canvas=el.closest('[id^="sticky_canvas_"]'); if(!canvas) return;
+  const cr=canvas.getBoundingClientRect();
+  const er=el.getBoundingClientRect();
+  _stickyDrag={sid,pid,canvas,offX:e.clientX-er.left,offY:e.clientY-er.top};
+  el.style.zIndex=50; el.style.boxShadow='4px 8px 24px rgba(0,0,0,.3)';
+  document.addEventListener('mousemove',stickyDragMove);
+  document.addEventListener('mouseup',stickyDragEnd);
+}
+function stickyDragMove(e){
+  if(!_stickyDrag) return;
+  const el=document.getElementById('sticky_'+_stickyDrag.sid); if(!el) return;
+  const canvas=_stickyDrag.canvas;
+  const cr=canvas.getBoundingClientRect();
+  const x=Math.max(0,e.clientX-cr.left-_stickyDrag.offX+canvas.scrollLeft);
+  const y=Math.max(0,e.clientY-cr.top-_stickyDrag.offY+canvas.scrollTop);
+  el.style.left=x+'px'; el.style.top=y+'px';
+}
+function stickyDragEnd(){
+  if(!_stickyDrag) return;
+  const el=document.getElementById('sticky_'+_stickyDrag.sid);
+  if(el){
+    el.style.zIndex=1; el.style.boxShadow='2px 4px 12px rgba(0,0,0,.15)';
+    const p=projById(_stickyDrag.pid);
+    const s=p?(p.stickies||[]).find(x=>x.id===_stickyDrag.sid):null;
+    if(s){ s.x=parseInt(el.style.left)||0; s.y=parseInt(el.style.top)||0; queueSave(); }
+  }
+  document.removeEventListener('mousemove',stickyDragMove);
+  document.removeEventListener('mouseup',stickyDragEnd);
+  _stickyDrag=null;
+}
+
+function stickyResizeStart(e, sid, pid){
+  e.preventDefault(); e.stopPropagation();
+  const el=document.getElementById('sticky_'+sid); if(!el) return;
+  _stickyResize={sid,pid,startX:e.clientX,startY:e.clientY,
+    startW:el.offsetWidth,startH:el.offsetHeight};
+  document.addEventListener('mousemove',stickyResizeMove);
+  document.addEventListener('mouseup',stickyResizeEnd);
+}
+function stickyResizeMove(e){
+  if(!_stickyResize) return;
+  const el=document.getElementById('sticky_'+_stickyResize.sid); if(!el) return;
+  const w=Math.max(150,_stickyResize.startW+(e.clientX-_stickyResize.startX));
+  const h=Math.max(120,_stickyResize.startH+(e.clientY-_stickyResize.startY));
+  el.style.width=w+'px'; el.style.minHeight=h+'px';
+}
+function stickyResizeEnd(){
+  if(!_stickyResize) return;
+  const el=document.getElementById('sticky_'+_stickyResize.sid);
+  if(el){
+    const p=projById(_stickyResize.pid);
+    const s=p?(p.stickies||[]).find(x=>x.id===_stickyResize.sid):null;
+    if(s){ s.w=el.offsetWidth; s.h=el.offsetHeight; queueSave(); }
+  }
+  document.removeEventListener('mousemove',stickyResizeMove);
+  document.removeEventListener('mouseup',stickyResizeEnd);
+  _stickyResize=null;
+}
+
 
 
 // Track selected drop per project for content tab
@@ -8184,7 +8356,8 @@ function vPlanning(){
       ${days.map(d=>{
         // Tasks scheduled in this hour
         const slotTasks = DB.tasks.filter(t=>t.scheduledDate===d && t.scheduledHour===h && !t.done);
-        const recurTasks = (DB.tasks||[]).filter(t=>t.recurring&&t.recurringTime&&parseInt(t.recurringTime)===h);
+        const dayName=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()];
+        const recurTasks = (DB.tasks||[]).filter(t=>t.recurring&&t.recurringHour===h&&(t.recurringDays||[]).includes(dayName));
         return `<div class="plan-slot" data-day="${d}" data-hour="${h}"
           style="border-right:1px solid var(--line2);padding:2px 4px;position:relative;min-height:${SLOT_H}px;background:${isNowHour&&d===today()?'rgba(201,162,75,.04)':'transparent'}"
           ondragover="event.preventDefault();this.style.background='rgba(201,162,75,.12)'"
