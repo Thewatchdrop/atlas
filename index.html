@@ -1635,10 +1635,7 @@ function vContentSchedule(){
               <div style="flex:1;min-width:0">
                 <div style="font-size:12.5px;${item.done?'text-decoration:line-through;color:var(--ink3)':''}">${esc(item.title)}</div>
                 <div class="muted" style="font-size:10.5px;margin-bottom:4px">${item.time} · <span style="color:${CS_CHANNEL_COLOR[item.channel]}">${item.channel}</span></div>
-                <select style="font-size:10.5px;padding:2px 4px;background:var(--bg2);border:1px solid var(--line2);border-radius:5px;color:var(--ink2)" onchange="updContentItemAssignee('${liveOfType.id}','${item.id}',this.value)">
-                  <option value="" ${!item.assignee?'selected':''}>Unassigned</option>
-                  ${teamList().map(p=>`<option value="${esc(p)}" ${item.assignee===p?'selected':''}>${esc(p)}</option>`).join('')}
-                </select>
+
               </div>
             </div>`).join('')}
         </div>`;
