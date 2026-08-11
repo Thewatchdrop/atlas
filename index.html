@@ -8375,15 +8375,32 @@ function vPlanning(){
         const recurTasks = (DB.tasks||[]).filter(t=>t.recurring&&t.recurringHour===h&&(t.recurringDays||[]).includes(dayName));
         return `<div class="plan-slot" data-day="${d}" data-hour="${h}"
           style="border-right:1px solid var(--line2);padding:2px 4px;position:relative;min-height:${SLOT_H}px;background:${isNowHour&&d===today()?'rgba(201,162,75,.04)':'transparent'}"
+          onmousedown="planDrawStart(event,'${d}',${h})"
           ondragover="event.preventDefault();this.style.background='rgba(201,162,75,.12)'"
           ondragleave="this.style.background=''"
           ondrop="planDrop(event,'${d}',${h});this.style.background=''">
-          ${slotTasks.map(t=>`
-            <div style="background:${taskColor(t)};color:#fff;border-radius:5px;padding:3px 7px;font-size:11px;font-weight:600;margin-bottom:2px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:4px"
-              onclick="openTask('${t.id}')" title="${esc(t.title)}">
-              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
-              <span onclick="event.stopPropagation();planUnschedule('${t.id}')" style="opacity:.7;cursor:pointer;flex-shrink:0">×</span>
-            </div>`).join('')}
+          ${slotTasks.map(t=>{
+            const mins=t.estMins||60;
+            const bh=Math.max(28,Math.round((mins/60)*SLOT_H));
+            return `<div
+              class="plan-block" data-task-id="${t.id}"
+              draggable="true"
+              ondragstart="planDragTask='${t.id}';event.dataTransfer.setData('text/plain','${t.id}');event.dataTransfer.effectAllowed='move';event.stopPropagation()"
+              ondragend="planDragTask=null"
+              style="background:${taskColor(t)};color:#fff;border-radius:6px;padding:4px 8px 10px;font-size:11px;font-weight:600;
+                margin-bottom:2px;position:relative;height:${bh}px;box-sizing:border-box;overflow:hidden;cursor:grab;user-select:none">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
+                <span onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}</span>
+                <span onclick="event.stopPropagation();planUnschedule('${t.id}')" style="opacity:.7;cursor:pointer;flex-shrink:0;font-size:13px;line-height:1">×</span>
+              </div>
+              ${mins&&mins!==60?`<div style="font-size:9px;opacity:.7;margin-top:2px">${planFmtEst(mins)}</div>`:''}
+              <div onmousedown="planResizeStart(event,'${t.id}')"
+                style="position:absolute;bottom:0;left:0;right:0;height:10px;cursor:ns-resize;
+                  background:rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center">
+                <div style="width:24px;height:2px;background:rgba(255,255,255,.6);border-radius:1px"></div>
+              </div>
+            </div>`;
+          }).join('')}
           ${recurTasks.map(t=>{
             const rc=t.recurringColor||'#CA8A04';
             const rt=t.recurringType||'';
@@ -8396,6 +8413,14 @@ function vPlanning(){
               ${rt?`<span style="font-size:9px;opacity:.75;background:rgba(0,0,0,.2);border-radius:3px;padding:1px 4px">${esc(rt)}</span>`:''}
             </div>`;
           }).join('')}
+          ${(DB.planTimeBlocks||[]).filter(b=>b.date===d&&b.startHour===h).map(b=>`
+            <div style="background:var(--panel2);border:2px dashed var(--line2);border-radius:5px;padding:4px 8px;font-size:11px;
+              color:var(--ink3);font-weight:600;display:flex;align-items:center;justify-content:space-between;
+              height:${Math.max(28,(b.endHour-b.startHour+1)*SLOT_H-6)}px;box-sizing:border-box">
+              <span>🚫 ${esc(b.label)}</span>
+              <span onclick="DB.planTimeBlocks=DB.planTimeBlocks.filter(x=>x.id!=='${b.id}');saveDB();render()"
+                style="cursor:pointer;opacity:.6;font-size:13px">×</span>
+            </div>`).join('')}
         </div>`;
       }).join('')}
     </div>`;
@@ -8456,6 +8481,150 @@ function planUnschedule(taskId){
 
 // Add est time slider to task modal — patch into openTask
 const _origOpenTask = typeof openTask==='function'?openTask:null;
+
+/* ===== Plan block drag move + resize ===== */
+let _planResizing=null;
+function planResizeStart(e, taskId){
+  e.preventDefault(); e.stopPropagation();
+  const t=DB.tasks.find(x=>x.id===taskId); if(!t) return;
+  _planResizing={taskId, startY:e.clientY, startMins:t.estMins||60};
+  document.addEventListener('mousemove',planResizeMove);
+  document.addEventListener('mouseup',planResizeEnd);
+  document.body.style.userSelect='none';
+}
+function planResizeMove(e){
+  if(!_planResizing) return;
+  const t=DB.tasks.find(x=>x.id===_planResizing.taskId); if(!t) return;
+  const SLOT_H=56;
+  const dy=e.clientY-_planResizing.startY;
+  const deltaMins=Math.round((dy/SLOT_H)*60/15)*15;
+  const newMins=Math.max(15,Math.min(480,_planResizing.startMins+deltaMins));
+  t.estMins=newMins;
+  const block=document.querySelector('.plan-block[data-task-id="'+_planResizing.taskId+'"]');
+  if(block){
+    block.style.height=Math.max(28,Math.round((newMins/SLOT_H)*SLOT_H))+'px';
+    const lbl=block.querySelector('div[style*="font-size:9px"]');
+    if(lbl) lbl.textContent=planFmtEst(newMins);
+  }
+}
+function planResizeEnd(){
+  if(!_planResizing) return;
+  document.removeEventListener('mousemove',planResizeMove);
+  document.removeEventListener('mouseup',planResizeEnd);
+  document.body.style.userSelect='';
+  queueSave();
+  _planResizing=null;
+}
+
+/* ===== Plan draw-to-create ===== */
+let _planDraw=null;
+
+function planDrawStart(e, day, hour){
+  if(e.button!==0) return; // left click only
+  if(e.target.closest('.plan-block,.plan-resize-handle,.sticky-drag')) return;
+  if(planDragTask) return; // don't draw while dragging a task
+  e.preventDefault();
+  _planDraw={day, startHour:hour, endHour:hour};
+  // Create overlay element
+  const grid=document.getElementById('plan_grid');
+  if(!grid) return;
+  const overlay=document.createElement('div');
+  overlay.id='plan_draw_overlay';
+  overlay.style.cssText='position:fixed;pointer-events:none;background:rgba(99,179,237,.25);border:2px solid #63B3ED;border-radius:6px;z-index:50';
+  document.body.appendChild(overlay);
+  planDrawUpdateOverlay(e);
+  document.addEventListener('mousemove',planDrawMove);
+  document.addEventListener('mouseup',planDrawEnd);
+}
+
+function planDrawMove(e){
+  if(!_planDraw) return;
+  // Find which slot we're over
+  const els=document.elementsFromPoint(e.clientX,e.clientY);
+  const slot=els.find(el=>el.classList&&el.classList.contains('plan-slot'));
+  if(slot){
+    const h=parseInt(slot.dataset.hour);
+    if(!isNaN(h)) _planDraw.endHour=Math.max(_planDraw.startHour,h);
+  }
+  planDrawUpdateOverlay(e);
+}
+
+function planDrawUpdateOverlay(e){
+  const overlay=document.getElementById('plan_draw_overlay');
+  if(!overlay||!_planDraw) return;
+  // Find start slot and end slot elements
+  const startEl=document.querySelector(`.plan-slot[data-day="${_planDraw.day}"][data-hour="${_planDraw.startHour}"]`);
+  const endEl=document.querySelector(`.plan-slot[data-day="${_planDraw.day}"][data-hour="${_planDraw.endHour}"]`);
+  if(!startEl||!endEl) return;
+  const sr=startEl.getBoundingClientRect();
+  const er=endEl.getBoundingClientRect();
+  overlay.style.left=sr.left+'px';
+  overlay.style.top=sr.top+'px';
+  overlay.style.width=sr.width+'px';
+  overlay.style.height=(er.bottom-sr.top)+'px';
+}
+
+function planDrawEnd(e){
+  document.removeEventListener('mousemove',planDrawMove);
+  document.removeEventListener('mouseup',planDrawEnd);
+  const overlay=document.getElementById('plan_draw_overlay');
+  if(overlay) overlay.remove();
+  if(!_planDraw) return;
+  const {day, startHour, endHour}=_planDraw;
+  _planDraw=null;
+  const durationMins=(endHour-startHour+1)*60;
+  // Show choice popup near mouse
+  planShowCreatePopup(e.clientX, e.clientY, day, startHour, durationMins);
+}
+
+function planShowCreatePopup(x, y, day, hour, durationMins){
+  const old=document.getElementById('plan_create_popup'); if(old) old.remove();
+  const pop=document.createElement('div');
+  pop.id='plan_create_popup';
+  pop.style.cssText=`position:fixed;left:${Math.min(x,window.innerWidth-220)}px;top:${Math.min(y,window.innerHeight-160)}px;
+    z-index:200;background:var(--panel);border:1px solid var(--line2);border-radius:12px;
+    box-shadow:0 8px 32px rgba(0,0,0,.4);padding:14px;width:210px`;
+  const timeLabel=`${hour<12?hour:hour===12?12:hour-12}${hour<12?'am':'pm'}`;
+  const estLabel=durationMins>=60?(durationMins/60)+'hr':durationMins+'min';
+  pop.innerHTML=`
+    <div style="font-size:12px;font-weight:700;color:var(--ink3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.6px">
+      ${timeLabel} · ${estLabel}
+    </div>
+    <button onclick="planCreateTask('${day}',${hour},${durationMins})" class="btn btn-gold" style="width:100%;margin-bottom:8px;justify-content:center">
+      ＋ New Task
+    </button>
+    <button onclick="planCreateTimeOff('${day}',${hour},${durationMins})" class="btn" style="width:100%;justify-content:center;background:var(--bg2)">
+      🚫 Block time off
+    </button>
+    <button onclick="document.getElementById('plan_create_popup').remove()" style="width:100%;margin-top:6px;background:none;border:none;color:var(--ink3);cursor:pointer;font-size:12px;padding:4px">Cancel</button>
+  `;
+  document.body.appendChild(pop);
+  // Click outside to close
+  setTimeout(()=>document.addEventListener('click',function _(ev){
+    if(!pop.contains(ev.target)){ pop.remove(); document.removeEventListener('click',_); }
+  }),100);
+}
+
+function planCreateTask(day, hour, durationMins){
+  const pop=document.getElementById('plan_create_popup'); if(pop) pop.remove();
+  const t={id:uid('t'),title:'New task',dropId:'',due:day,done:false,category:'Task',
+    type:'Admin',projectId:'',assignedTo:getPresenceName()||teamList()[0],
+    time:hour+':00',urgent:false,personRef:'',notes:'',file:'',repeat:'None',
+    estMins:durationMins,scheduledDate:day,scheduledHour:Number(hour),
+    recurring:false,recurringDays:[],recurringTime:'',recurringHour:null,
+    recurringType:'',recurringColor:'#CA8A04',created:now()};
+  DB.tasks.unshift(t); saveDB();
+  openTask(t.id); // open straight to edit
+}
+
+function planCreateTimeOff(day, hour, durationMins){
+  const pop=document.getElementById('plan_create_popup'); if(pop) pop.remove();
+  DB.planTimeBlocks=DB.planTimeBlocks||[];
+  const label=prompt('Label (e.g. Lunch, Break):','Lunch')||'Time off';
+  DB.planTimeBlocks.push({id:uid('tb'),date:day,startHour:Number(hour),
+    endHour:Number(hour)+Math.round(durationMins/60)-1,label,created:now()});
+  saveDB(); render();
+}
 
 checkSessionAndBoot();
 </script>
