@@ -2203,6 +2203,7 @@ const NAV=[
     {k:'pastdrops',label:'Past Drops',ico:'▨',count:()=>DB.drops.filter(d=>['Closed','Complete'].includes(d.status)).length},
     {k:'tasks',label:'Tasks',ico:'☑',count:()=>DB.tasks.filter(t=>!t.done).length},
     {k:'calendar',label:'Calendar',ico:'▩'},
+    {k:'planning',label:'Planning',ico:'◈'},
   ]},
   {group:'Projects',items:[
     {k:'projects',label:'All Projects',ico:'◈',count:()=>(DB.projects||[]).filter(p=>p.status==='Active'||p.status==='Planning').length},
@@ -2271,7 +2272,7 @@ function renderNav(){
 function render(){
   renderNav();
   const c=document.getElementById('content');
-  const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,scripts:vAllScripts,
+  const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,planning:vPlanning,scripts:vAllScripts,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
     content:vContent,assets:vAssets,ideas:vIdeas,graphics:vGraphics,sops:vSops,kb:vKB,notes:vNotes,
     projects:vProjects,project:vProject};
@@ -3861,7 +3862,7 @@ function toggleUrgentBtn(){
   b.textContent = (!on? '⚡ Urgent':'⚡ Mark urgent');
 }
 function newTask(){
-  const t={id:uid('t'),title:'New task',dropId:'',due:today(),done:false,category:'Task',type:'Admin',projectId:'',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()};
+  const t={id:uid('t'),title:'New task',dropId:'',due:today(),done:false,category:'Task',type:'Admin',projectId:'',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',estMins:0,scheduledDate:'',scheduledHour:null,created:now()};
   DB.tasks.unshift(t); saveDB(); openTask(t.id);
 }
 function taskTypeOptions(cat){
@@ -3901,6 +3902,15 @@ function openTask(id){
         ...DB.winners.map(w=>({value:'win_'+w.id,label:`🏆 ${w.name||'Unnamed winner'}`})),
         ...DB.customers.map(c=>({value:'cust_'+c.id,label:`${c.name||'Unnamed customer'}`}))], t.personRef||'')}</div>
       ${fileField('tk_file','Attachment (optional)',t.file)}
+      <div class="field">
+        <label>Estimated time — <span id="tk_est_label" style="color:var(--gold2);font-weight:700">${planFmtEst(t.estMins)||'Not set'}</span></label>
+        <input id="tk_est" type="range" min="0" max="8" step="1" value="${[0,15,30,45,60,90,120,180,240,480].indexOf(t.estMins||0)<0?0:[0,15,30,45,60,90,120,180,240,480].indexOf(t.estMins||0)}"
+          oninput="const v=[0,15,30,45,60,90,120,180,240,480][parseInt(this.value)];document.getElementById('tk_est_label').textContent=v?planFmtEst(v):'Not set'"
+          style="width:100%;margin-top:6px;accent-color:var(--gold)">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--ink3);margin-top:3px">
+          <span>Not set</span><span>15m</span><span>30m</span><span>45m</span><span>1h</span><span>1.5h</span><span>2h</span><span>3h</span><span>4h</span><span>All day</span>
+        </div>
+      </div>
       <div class="field"><label>Priority</label>
         <button type="button" id="tk_urgent" class="btn btn-sm ${t.urgent?'btn-gold':''}" data-val="${t.urgent?'1':'0'}" onclick="toggleUrgentBtn()">⚡ ${t.urgent?'Urgent':'Mark urgent'}</button>
       </div>
@@ -8114,6 +8124,141 @@ function tcKey(k){
   else { _tcResult=(_tcResult==='0'&&k!=='.')?k:(_tcResult+k); }
   disp.textContent=_tcResult;
 }
+
+/* ================= PLANNING / TIME BLOCK ================= */
+let planView='day', planDay=today(), planDragTask=null;
+
+const PLAN_HOURS = Array.from({length:18},(_,i)=>i+5); // 5am to 10pm
+const PLAN_EST_OPTIONS = [
+  {label:'15 min',mins:15},{label:'30 min',mins:30},{label:'45 min',mins:45},
+  {label:'1 hr',mins:60},{label:'1.5 hr',mins:90},{label:'2 hr',mins:120},
+  {label:'3 hr',mins:180},{label:'4 hr',mins:240},{label:'All day',mins:480}
+];
+
+function planDayLabel(d){ return new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); }
+function planAddDays(d,n){ const dt=new Date(d+'T12:00:00'); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); }
+function planWeekDays(d){ const dow=new Date(d+'T12:00:00').getDay(); const mon=planAddDays(d,-(dow===0?6:dow-1)); return Array.from({length:5},(_,i)=>planAddDays(mon,i)); }
+
+function vPlanning(){
+  DB.tasks=DB.tasks||[];
+  const myName=getPresenceName()||'Felix';
+  const days = planView==='day'?[planDay]:planWeekDays(planDay);
+
+  // Unscheduled tasks — mine, not done, no scheduled date/time for these days
+  const scheduled = new Set(DB.tasks.filter(t=>t.scheduledDate).map(t=>t.id));
+  const unscheduled = DB.tasks.filter(t=>!t.done && (t.assignedTo===myName||!t.assignedTo) && !t.scheduledDate);
+
+  // Colour by category
+  const taskColor = t => t.category==='Admin'?'var(--blue)':t.category==='Content'?'var(--purple)':'var(--gold2)';
+
+  // Build task list panel
+  const taskList = unscheduled.length
+    ? unscheduled.map(t=>`
+        <div class="plan-task" draggable="true"
+          ondragstart="planDragTask='${t.id}';event.dataTransfer.effectAllowed='move'"
+          ondragend="planDragTask=null"
+          style="background:var(--panel);border:1px solid var(--line2);border-left:3px solid ${taskColor(t)};border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:grab">
+          <div style="font-size:13px;font-weight:600;color:var(--ink)">${esc(t.title)}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:3px;display:flex;gap:6px;align-items:center">
+            ${t.estMins?`<span style="background:var(--bg2);border-radius:4px;padding:1px 6px">${planFmtEst(t.estMins)}</span>`:'<span style="color:var(--warn);font-size:10px">no estimate</span>'}
+            ${t.dropId?`<span style="color:var(--gold2)">${esc((dropById(t.dropId)||{}).number||'')}</span>`:''}
+          </div>
+        </div>`).join('')
+    : '<div class="muted" style="font-size:12.5px;padding:8px 0">All tasks scheduled ✓</div>';
+
+  // Build time grid
+  const gridCols = days.length===1?'1fr':`repeat(${days.length},1fr)`;
+  const SLOT_H = 56; // px per hour
+
+  const dayHeaders = days.map(d=>`
+    <div style="text-align:center;padding:8px 4px;font-size:12px;font-weight:700;color:${d===today()?'var(--gold2)':'var(--ink)'};border-bottom:1px solid var(--line2);background:${d===today()?'rgba(201,162,75,.08)':'var(--bg2)'}">
+      ${planDayLabel(d)}${d===today()?'<span style="margin-left:5px;font-size:9px;color:var(--gold2);text-transform:uppercase;letter-spacing:.6px">Today</span>':''}
+    </div>`).join('');
+
+  let gridRows = '';
+  PLAN_HOURS.forEach(h=>{
+    const timeLabel=`${h===12?12:h>12?h-12:h}${h<12?'am':h===12?'pm':'pm'}`;
+    const isNowHour = new Date().getHours()===h && days.includes(today());
+    gridRows += `<div style="display:grid;grid-template-columns:52px ${gridCols};min-height:${SLOT_H}px;border-bottom:1px solid var(--line)">
+      <div style="font-size:10px;color:var(--ink3);padding:4px 6px;text-align:right;border-right:1px solid var(--line2);${isNowHour?'color:var(--gold2);font-weight:700':''}">${timeLabel}</div>
+      ${days.map(d=>{
+        // Tasks scheduled in this hour
+        const slotTasks = DB.tasks.filter(t=>t.scheduledDate===d && t.scheduledHour===h && !t.done);
+        const recurTasks = (DB.tasks||[]).filter(t=>t.recurring&&t.recurringTime&&parseInt(t.recurringTime)===h);
+        return `<div class="plan-slot" data-day="${d}" data-hour="${h}"
+          style="border-right:1px solid var(--line2);padding:2px 4px;position:relative;min-height:${SLOT_H}px;background:${isNowHour&&d===today()?'rgba(201,162,75,.04)':'transparent'}"
+          ondragover="event.preventDefault();this.style.background='rgba(201,162,75,.12)'"
+          ondragleave="this.style.background=''"
+          ondrop="planDrop(event,'${d}',${h});this.style.background=''">
+          ${slotTasks.map(t=>`
+            <div style="background:${taskColor(t)};color:#fff;border-radius:5px;padding:3px 7px;font-size:11px;font-weight:600;margin-bottom:2px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:4px"
+              onclick="openTask('${t.id}')" title="${esc(t.title)}">
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
+              <span onclick="event.stopPropagation();planUnschedule('${t.id}')" style="opacity:.7;cursor:pointer;flex-shrink:0">×</span>
+            </div>`).join('')}
+          ${recurTasks.map(t=>`
+            <div style="background:var(--panel2);border:1px dashed var(--line2);border-radius:5px;padding:3px 7px;font-size:10px;color:var(--ink3);margin-bottom:2px;opacity:.7"
+              title="Recurring: ${esc(t.title)}">↻ ${esc(t.title)}</div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>`;
+  });
+
+  return `<div class="page-head"><div><h2>Planning</h2><div class="desc">Time block your day — drag tasks into slots.</div></div>
+    <div class="page-actions" style="display:flex;gap:8px;align-items:center">
+      <button class="fbtn ${planView==='day'?'active':''}" onclick="planView='day';render()">Day</button>
+      <button class="fbtn ${planView==='week'?'active':''}" onclick="planView='week';render()">Week</button>
+      <button class="btn btn-sm btn-ghost" onclick="planDay=planAddDays(planDay,-1);render()">‹</button>
+      <span style="font-size:13px;font-weight:600;color:var(--ink)">${planView==='day'?planDayLabel(planDay):'Week of '+planDayLabel(planWeekDays(planDay)[0])}</span>
+      <button class="btn btn-sm btn-ghost" onclick="planDay=planAddDays(planDay,1);render()">›</button>
+      <button class="btn btn-sm btn-ghost" onclick="planDay=today();render()">Today</button>
+    </div></div>
+  <div style="display:flex;gap:16px;height:calc(100vh - 160px);overflow:hidden">
+    <!-- Task list panel -->
+    <div style="width:240px;flex-shrink:0;display:flex;flex-direction:column;gap:0">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line2)">
+        Unscheduled (${unscheduled.length})
+      </div>
+      <div style="overflow-y:auto;flex:1;padding-right:4px">${taskList}</div>
+    </div>
+    <!-- Time grid -->
+    <div style="flex:1;overflow-y:auto;border:1px solid var(--line2);border-radius:12px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:52px ${gridCols};position:sticky;top:0;z-index:2">
+        <div style="background:var(--bg2);border-bottom:1px solid var(--line2);border-right:1px solid var(--line2)"></div>
+        ${dayHeaders}
+      </div>
+      ${gridRows}
+    </div>
+  </div>`;
+}
+
+function planFmtEst(mins){
+  if(!mins) return '';
+  if(mins<60) return mins+'min';
+  if(mins%60===0) return (mins/60)+'hr';
+  return Math.floor(mins/60)+'hr '+(mins%60)+'min';
+}
+
+function planDrop(event, day, hour){
+  event.preventDefault();
+  const taskId = planDragTask||event.dataTransfer.getData('text/plain');
+  if(!taskId) return;
+  const t=DB.tasks.find(x=>x.id===taskId); if(!t) return;
+  t.scheduledDate=day;
+  t.scheduledHour=Number(hour);
+  t.due=day; // also set the due date
+  saveDB(); render();
+  toast(`${t.title} → ${planDayLabel(day)} at ${hour<12?hour+'am':hour===12?'12pm':(hour-12)+'pm'}`);
+}
+
+function planUnschedule(taskId){
+  const t=DB.tasks.find(x=>x.id===taskId); if(!t) return;
+  delete t.scheduledDate; delete t.scheduledHour;
+  saveDB(); render();
+}
+
+// Add est time slider to task modal — patch into openTask
+const _origOpenTask = typeof openTask==='function'?openTask:null;
 
 checkSessionAndBoot();
 </script>
