@@ -2414,7 +2414,7 @@ function vDashboard(){
     <div class="page-actions" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button>
       <button class="btn btn-sm" onclick="newTask()">＋ Task</button>
-      <button class="btn btn-sm" onclick="go('ideas');setTimeout(()=>document.getElementById('new_idea_input')?.focus(),100)">＋ Idea</button>
+      <button class="btn btn-sm" onclick="go('ideas')">＋ Idea</button>
       <button class="btn btn-sm" onclick="newProject()">＋ Project</button>
       <button class="btn btn-sm" onclick="go('watches');setTimeout(()=>openWatch(),100)">＋ Watch</button>
       <button class="btn btn-sm" onclick="go('winners');setTimeout(()=>openWinner(),100)">＋ Winner</button>
@@ -2422,7 +2422,7 @@ function vDashboard(){
   </div>
 
   <div class="card">
-    <div class="card-h"><h3>📋 ${planDayLabel(today())}</h3>
+    <div class="card-h"><h3>📋 Today</h3>
       <span class="link muted" onclick="go('planning')" style="font-size:12.5px;cursor:pointer">Open Planning →</span>
     </div>
     <div style="display:flex;gap:0">
@@ -2433,42 +2433,33 @@ function vDashboard(){
           const sched=DB.tasks.filter(t=>t.scheduledDate===today()&&!t.done).sort((a,b)=>(a.scheduledHour||0)-(b.scheduledHour||0)).slice(0,5);
           const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
           const recur=DB.tasks.filter(t=>t.recurring&&(t.recurringDays||[]).includes(dow)&&!t.done).slice(0,3);
-          const all=[...recur.map(t=>({...t,_recur:true})),...sched];
+          const all=[...recur.map(t=>({...t,_r:true})),...sched];
           if(!all.length) return '<div class="muted" style="font-size:12px;padding:4px 0">Nothing scheduled — open Planning to block your day</div>';
           return all.slice(0,7).map(t=>{
-            const h=t._recur?t.recurringHour:t.scheduledHour;
-            const timeStr=h!=null?(h<12?h+'am':h===12?'12pm':(h-12)+'pm'):'';
-            const col=t._recur?'var(--gold2)':'var(--blue)';
-            return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">
-              <div style="width:3px;height:26px;background:${col};border-radius:2px;flex-shrink:0"></div>
-              <div style="flex:1;min-width:0">
-                <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</div>
-                <div style="font-size:10px;color:var(--ink3)">${timeStr}${t._recur?' · ↻':''}</div>
-              </div>
-            </div>`;
+            const h=t._r?t.recurringHour:t.scheduledHour;
+            const ts=h!=null?(h<12?h+'am':h===12?'12pm':(h-12)+'pm'):'';
+            return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)"><div style="width:3px;height:26px;background:'+(t._r?'var(--gold2)':'var(--blue)')+';border-radius:2px;flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t.title)+'</div><div style="font-size:10px;color:var(--ink3)">'+ts+(t._r?' · ↻':'')+'</div></div></div>';
           }).join('');
         })()}
       </div>
-      <div style="width:175px;flex-shrink:0;display:flex;flex-direction:column">
+      <div style="width:170px;flex-shrink:0;display:flex;flex-direction:column">
         ${(()=>{
           const myName=getPresenceName()||'Felix';
           const unsch=DB.tasks.filter(t=>!t.done&&!t.scheduledDate&&!t.recurring&&(t.assignedTo===myName||!t.assignedTo));
-          const toSchedule=unsch.filter(t=>t.estMins>0);
-          const needEst=unsch.filter(t=>!t.estMins);
-          const overdue=DB.tasks.filter(t=>!t.done&&t.due&&t.due<today());
-          return [
-            {label:'To schedule',n:toSchedule.length,color:'var(--blue)',sub:'ready to place'},
-            {label:'Need estimate',n:needEst.length,color:'var(--warn)',sub:'no time set'},
-            {label:'Overdue',n:overdue.length,color:overdue.length?'var(--danger)':'var(--live)',sub:'past due date'},
-          ].map((s,i)=>`<div onclick="go('planning')" style="flex:1;padding:10px 12px;cursor:pointer;${i<2?'border-bottom:1px solid var(--line2)':''}">
-            <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);font-weight:700">${s.label}</div>
-            <div style="font-size:22px;font-weight:800;color:${s.color};line-height:1.2">${s.n}</div>
-            <div style="font-size:10px;color:var(--ink3)">${s.sub}</div>
-          </div>`).join('');
+          const rows=[
+            {label:'To schedule',n:unsch.filter(t=>t.estMins>0).length,color:'var(--blue)',sub:'ready to place'},
+            {label:'Need estimate',n:unsch.filter(t=>!t.estMins).length,color:'var(--warn)',sub:'no time set'},
+            {label:'Overdue',n:DB.tasks.filter(t=>!t.done&&t.due&&t.due<today()).length,color:DB.tasks.filter(t=>!t.done&&t.due&&t.due<today()).length?'var(--danger)':'var(--live)',sub:'past due'},
+          ];
+          return rows.map((s,i)=>{
+            const border=i<2?'border-bottom:1px solid var(--line2)':'';
+            return '<div onclick="go(\'planning\')" style="flex:1;padding:10px 12px;cursor:pointer;'+border+'"><div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);font-weight:700">'+s.label+'</div><div style="font-size:22px;font-weight:800;color:'+s.color+';line-height:1.2">'+s.n+'</div><div style="font-size:10px;color:var(--ink3)">'+s.sub+'</div></div>';
+          }).join('');;
         })()}
       </div>
     </div>
   </div>
+
   <div class="kpi-row">
     <div class="kpi"><div class="label">Live Drops</div><div class="val green">${live.length}</div><div class="sub">${upcoming.length} upcoming</div></div>
     <div class="kpi" style="grid-column:span 2">
@@ -3605,14 +3596,7 @@ function addIW(dropId){
   d.instantWinners=d.instantWinners||[];
   const iwId=uid('iw');
   d.instantWinners.push({id:iwId,type,prizeType:type,name,email,prize,prizeValue:val,date,dispatched:false,bankDone:false,reviewSent:false,sortCode:'',accountNo:'',created:now()});
-  if(type==='Watch'){
-    DB.winners=DB.winners||[];
-    DB.winners.push({id:uid('win'),name,email,phone:'',instagram:'',address:'',postcode:'',location:'',
-      trackingNumber:'',dispatched:false,deliveryInPerson:false,dropId:d.id,
-      reviewRequested:false,reviewGiven:false,review:'',
-      notes:'Vault instant win · '+prize+(val?' · £'+val:''),
-      instantWinId:iwId,created:now(),reviewTaskCreated:false});
-  }
+  if(type==='Watch'){DB.winners=DB.winners||[];DB.winners.push({id:uid('win'),name,email,phone:'',instagram:'',address:'',postcode:'',location:'',trackingNumber:'',dispatched:false,deliveryInPerson:false,dropId:d.id,reviewRequested:false,reviewGiven:false,review:'',notes:'Vault instant win · '+prize+(val?' · £'+val:''),instantWinId:iwId,created:now(),reviewTaskCreated:false});}
   saveDB(); render();
 }
 
@@ -7274,98 +7258,77 @@ const _origOpenTask = typeof openTask==='function'?openTask:null;
 
 /* ================= TEMPLATE GALLERY ================= */
 let tplSeries='Main', tplType='Email';
-
 const TPL_SERIES=['Main','Weekend','TAG','Vault'];
-const TPL_TYPES=['Email','Ad — Square','Ad — Vertical'];
-
+const TPL_TYPES=['Email','Ad Square','Ad Vertical'];
 function vTemplates(){
   DB.templates=DB.templates||[];
   const filtered=DB.templates.filter(t=>t.series===tplSeries&&t.type===tplType);
-
   const seriesTabs=TPL_SERIES.map(s=>`<button class="fbtn ${tplSeries===s?'active':''}" onclick="tplSeries='${s}';render()">${s}</button>`).join('');
   const typeTabs=TPL_TYPES.map(t=>`<button class="fbtn ${tplType===t?'active':''}" onclick="tplType='${t}';render()">${t}</button>`).join('');
-
-  const isSquare=tplType==='Ad — Square';
-  const isVert=tplType==='Ad — Vertical';
-  const cardAspect=isVert?'aspect-ratio:9/16;max-width:120px':isSquare?'aspect-ratio:1;max-width:200px':'aspect-ratio:16/9';
-
-  const cards=filtered.length?filtered.map(t=>`
-    <div style="background:var(--panel);border:1px solid var(--line2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
-      <!-- Thumbnail -->
-      <div style="${cardAspect};width:100%;background:var(--panel2);position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
-        ${t.thumbnail
-          ? `<img data-mediaref="${esc(t.thumbnail)}" style="width:100%;height:100%;object-fit:cover">`
-          : `<div style="text-align:center;color:var(--ink3);padding:16px"><div style="font-size:28px">▦</div><div style="font-size:11px;margin-top:4px">No preview</div></div>`}
+  const isVert=tplType==='Ad Vertical', isSq=tplType==='Ad Square';
+  const cards=filtered.length?filtered.map(t=>{
+    const asp=isVert?'width:120px;height:213px':isSq?'width:180px;height:180px':'width:100%;height:160px';
+    return `<div style="background:var(--panel);border:1px solid var(--line2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;${isVert?'width:140px':''}">
+      <div style="${asp};background:var(--panel2);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
+        ${t.thumbnail?`<img data-mediaref="${esc(t.thumbnail)}" style="width:100%;height:100%;object-fit:cover">`:`<div style="text-align:center;color:var(--ink3)"><div style="font-size:24px">▦</div><div style="font-size:10px;margin-top:4px">No preview</div></div>`}
       </div>
-      <!-- Info -->
       <div style="padding:10px 12px;flex:1;display:flex;flex-direction:column;gap:6px">
-        <div style="font-size:13px;font-weight:700;color:var(--ink)">${esc(t.name||'Untitled')}</div>
+        <div style="font-size:13px;font-weight:700">${esc(t.name||'Untitled')}</div>
         ${t.notes?`<div style="font-size:11px;color:var(--ink3)">${esc(t.notes)}</div>`:''}
         <div style="display:flex;gap:6px;margin-top:auto;padding-top:6px;flex-wrap:wrap">
-          ${t.canvaLink?`<a href="${esc(t.canvaLink)}" target="_blank" class="btn btn-sm btn-gold" style="font-size:11px;text-decoration:none">Open in Canva →</a>`:''}
+          ${t.canvaLink?`<a href="${esc(t.canvaLink)}" target="_blank" class="btn btn-sm btn-gold" style="font-size:11px;text-decoration:none">Open Canva →</a>`:''}
           <button class="btn btn-sm" onclick="editTemplate('${t.id}')">Edit</button>
           <button class="btn btn-sm btn-danger" onclick="delTemplate('${t.id}')">✕</button>
         </div>
       </div>
-    </div>`).join('')
-    :'<div class="muted" style="padding:20px 0">No templates yet for ${tplSeries} ${tplType} — add one below.</div>';
-
-  return `<div class="page-head"><div><h2>Template Gallery</h2>
-      <div class="desc">Canva templates organised by drop series and format.</div></div>
+    </div>`;
+  }).join(''):'<div class="muted" style="padding:20px 0">No templates yet — add one.</div>';
+  return `<div class="page-head"><div><h2>Template Gallery</h2><div class="desc">Canva templates by series and format.</div></div>
     <div class="page-actions"><button class="btn btn-gold" onclick="addTemplate()">＋ Add Template</button></div></div>
   <div class="filters">${seriesTabs}</div>
   <div class="filters">${typeTabs}</div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(${isVert?'140px':isSquare?'200px':'280px'},1fr));gap:16px;margin-top:4px">
-    ${cards}
-  </div>`;
+  <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:4px">${cards}</div>`;
 }
-
 function addTemplate(id){
   DB.templates=DB.templates||[];
-  const t=id?DB.templates.find(x=>x.id===id):{};
-  const isEdit=!!id;
-  openModal(`<div class="modal wide"><div class="modal-h"><h3>${isEdit?'Edit':'Add'} Template</h3><span class="x" onclick="closeModal()">×</span></div>
+  const t=id?DB.templates.find(x=>x.id===id)||{}:{};
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Edit':'Add'} Template</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
       <div class="field-row">
-        <div class="field"><label>Name</label><input id="tpl_name" value="${esc(t.name||'')}" placeholder="e.g. Launch Email Main"></div>
-        <div class="field"><label>Series</label><select id="tpl_series" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px">
+        <div class="field"><label>Name</label><input id="tpl_name" value="${esc(t.name||'')}"></div>
+        <div class="field"><label>Series</label><select id="tpl_series" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px">
           ${TPL_SERIES.map(s=>`<option value="${s}" ${(t.series||tplSeries)===s?'selected':''}>${s}</option>`).join('')}
         </select></div>
-        <div class="field"><label>Type</label><select id="tpl_type" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px">
+        <div class="field"><label>Type</label><select id="tpl_type" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px">
           ${TPL_TYPES.map(s=>`<option value="${s}" ${(t.type||tplType)===s?'selected':''}>${s}</option>`).join('')}
         </select></div>
       </div>
-      <div class="field"><label>Canva Folder / Template Link</label><input id="tpl_canva" value="${esc(t.canvaLink||'')}" placeholder="https://www.canva.com/design/..."></div>
-      <div class="field"><label>Preview Image <span class="muted" style="text-transform:none;font-weight:400;font-size:10px">— screenshot from Canva works great</span></label>
+      <div class="field"><label>Canva Link</label><input id="tpl_canva" value="${esc(t.canvaLink||'')}"></div>
+      <div class="field"><label>Preview Image</label>
         <div style="display:flex;gap:10px;align-items:flex-start;margin-top:6px">
-          ${t.thumbnail?`<img data-mediaref="${esc(t.thumbnail)}" id="tpl_thumb_preview" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--line2)">`:'<div id="tpl_thumb_preview"></div>'}
-          <label class="btn btn-sm btn-ghost" style="cursor:pointer">Upload Preview<input type="file" accept="image/*" style="display:none" onchange="uploadTplThumb(event,'${id||''}')"></label>
+          ${t.thumbnail?`<img data-mediaref="${esc(t.thumbnail)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--line2)">`:''}
+          <label class="btn btn-sm btn-ghost" style="cursor:pointer">Upload<input type="file" accept="image/*" style="display:none" onchange="uploadTplThumb(event,'${id||''}')"></label>
         </div>
         <input type="hidden" id="tpl_thumb" value="${esc(t.thumbnail||'')}">
       </div>
-      <div class="field"><label>Notes (optional)</label><input id="tpl_notes" value="${esc(t.notes||'')}" placeholder="What this template is for…"></div>
+      <div class="field"><label>Notes</label><input id="tpl_notes" value="${esc(t.notes||'')}"></div>
     </div>
-    <div class="modal-f">${isEdit?`<button class="btn btn-danger" onclick="delTemplate('${id}')">Delete</button>`:''}
+    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delTemplate('${id}')">Delete</button>`:''}
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn btn-gold" onclick="saveTemplate('${id||''}')">Save</button>
-    </div>
-  </div>`);
+    </div></div>`);
   setTimeout(hydrateMedia,50);
 }
 function editTemplate(id){ addTemplate(id); }
-
-async function uploadTplThumb(evt, tplId){
+async function uploadTplThumb(evt,tplId){
   const file=evt.target.files[0]; if(!file) return;
   try{
     const ref=await storeMedia(file);
     document.getElementById('tpl_thumb').value=ref;
-    const prev=document.getElementById('tpl_thumb_preview');
-    if(prev){ prev.setAttribute('data-mediaref',ref); prev.tagName==='IMG'?prev.setAttribute('data-mediaref',ref):prev.outerHTML=`<img id="tpl_thumb_preview" data-mediaref="${ref}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--line2)">`; }
-    setTimeout(hydrateMedia,50); toast('Preview uploaded');
-  }catch(e){ alert('Upload failed: '+e.message); }
+    setTimeout(hydrateMedia,50); toast('Uploaded');
+  }catch(e){ alert('Upload failed'); }
   evt.target.value='';
 }
-
 function saveTemplate(id){
   DB.templates=DB.templates||[];
   const name=document.getElementById('tpl_name').value.trim()||'Untitled';
@@ -7374,16 +7337,11 @@ function saveTemplate(id){
   const canvaLink=document.getElementById('tpl_canva').value.trim();
   const thumbnail=document.getElementById('tpl_thumb').value;
   const notes=document.getElementById('tpl_notes').value.trim();
-  if(id){
-    const t=DB.templates.find(x=>x.id===id);
-    if(t) Object.assign(t,{name,series,type,canvaLink,thumbnail,notes});
-  } else {
-    DB.templates.push({id:uid('tpl'),name,series,type,canvaLink,thumbnail,notes,created:now()});
-  }
+  if(id){const t=DB.templates.find(x=>x.id===id);if(t)Object.assign(t,{name,series,type,canvaLink,thumbnail,notes});}
+  else DB.templates.push({id:uid('tpl'),name,series,type,canvaLink,thumbnail,notes,created:now()});
   tplSeries=series; tplType=type;
   saveDB(); closeModal(); render();
 }
-
 function delTemplate(id){
   if(!confirm('Delete this template?')) return;
   DB.templates=(DB.templates||[]).filter(x=>x.id!==id);
@@ -7392,21 +7350,3 @@ function delTemplate(id){
 
 checkSessionAndBoot();
 </script>
-  ${(dueCp.length||dueCs.length)?`<div class="card" style="border-color:var(--warn)">
-    <div class="card-h"><h3>⚡ Action needed</h3></div>
-    <div class="card-b">
-      ${dueCp.map(item=>`<div class="row-item">
-        <div class="txt"><div class="t">${esc(item.dropNumber)} — ${esc(item.watch)}</div>
-          <div class="meta">Checkpoint · ${esc(item.cp.label)}</div></div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="number" placeholder="Tickets" style="width:90px" onchange="fillCheckpointQuick('${item.dropId}','${item.cp.id}',this.value)">
-          <button class="btn btn-sm" onclick="openTrackerFor('${item.dropId}')">Open tracker →</button>
-        </div>
-      </div>`).join('')}
-      ${dueCs.map(({d,item})=>`<div class="row-item">
-        <div class="tick" onclick="event.stopPropagation();toggleContentItem('${d.id}','${item.id}')"></div>
-        <div class="txt" onclick="go('contentSchedule')"><div class="t">${esc(item.title)}</div>
-          <div class="meta">Content · ${esc(d.number)} · ${item.time} · ${item.channel}</div></div>
-      </div>`).join('')}
-    </div>
-  </div>`:''}
