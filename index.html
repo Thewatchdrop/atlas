@@ -2413,30 +2413,73 @@ function vDashboard(){
     <div class="page-actions"><button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button></div>
   </div>
 
-  ${todayCount?`<div class="card" style="border-color:var(--warn)">
-    <div class="card-h"><h3>📋 Today — ${todayCount}</h3></div>
+  <!-- Planning snapshot widget -->
+  <div class="card">
+    <div class="card-h"><h3>📋 ${planDayLabel(today())}</h3>
+      <span class="link muted" onclick="go('planning')" style="font-size:12.5px;cursor:pointer">Open Planning →</span>
+    </div>
+    <div style="display:flex;gap:0">
+      <!-- Scheduled today -->
+      <div style="flex:1;padding:12px 14px;border-right:1px solid var(--line2)">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:8px;font-weight:700">Scheduled today</div>
+        ${(()=>{
+          const myName=getPresenceName()||'Felix';
+          const sched=DB.tasks.filter(t=>t.scheduledDate===today()&&!t.done).sort((a,b)=>(a.scheduledHour||0)-(b.scheduledHour||0)).slice(0,5);
+          const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
+          const recur=DB.tasks.filter(t=>t.recurring&&(t.recurringDays||[]).includes(dow)&&!t.done).slice(0,3);
+          const all=[...recur.map(t=>({...t,_recur:true})),...sched];
+          if(!all.length) return '<div class="muted" style="font-size:12px;padding:4px 0">Nothing scheduled — open Planning to block your day</div>';
+          return all.slice(0,7).map(t=>{
+            const h=t._recur?t.recurringHour:t.scheduledHour;
+            const timeStr=h!=null?(h<12?h+'am':h===12?'12pm':(h-12)+'pm'):'';
+            const col=t._recur?'var(--gold2)':'var(--blue)';
+            return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">
+              <div style="width:3px;height:26px;background:${col};border-radius:2px;flex-shrink:0"></div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</div>
+                <div style="font-size:10px;color:var(--ink3)">${timeStr}${t._recur?' · ↻':''}</div>
+              </div>
+            </div>`;
+          }).join('');
+        })()}
+      </div>
+      <!-- Task stats -->
+      <div style="width:180px;flex-shrink:0;display:flex;flex-direction:column;border-left:1px solid var(--line2)">
+        ${(()=>{
+          const myName=getPresenceName()||'Felix';
+          const unsch=DB.tasks.filter(t=>!t.done&&!t.scheduledDate&&!t.recurring&&(t.assignedTo===myName||!t.assignedTo));
+          const toSchedule=unsch.filter(t=>t.estMins>0);
+          const needEst=unsch.filter(t=>!t.estMins);
+          const overdue=DB.tasks.filter(t=>!t.done&&t.due&&t.due<today());
+          return [
+            {label:'To schedule',n:toSchedule.length,color:'var(--blue)',sub:'ready to place'},
+            {label:'Need estimate',n:needEst.length,color:'var(--warn)',sub:'no time set'},
+            {label:'Overdue',n:overdue.length,color:overdue.length?'var(--danger)':'var(--live)',sub:'past due date'},
+          ].map((s,i)=>`<div onclick="go('planning')" style="flex:1;padding:10px 12px;cursor:pointer;${i<2?'border-bottom:1px solid var(--line2)':''}">
+            <div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);font-weight:700">${s.label}</div>
+            <div style="font-size:22px;font-weight:800;color:${s.color};line-height:1.2">${s.n}</div>
+            <div style="font-size:10px;color:var(--ink3)">${s.sub}</div>
+          </div>`).join('');
+        })()}
+      </div>
+    </div>
+  </div>
+  <!-- Checkpoints still shown if needed -->
+  ${(dueCp.length||dueCs.length)?`<div class="card" style="border-color:var(--warn)">
+    <div class="card-h"><h3>⚡ Action needed</h3></div>
     <div class="card-b">
-      ${dueTasks.map(t=>`
-      <div class="row-item">
-        <div class="tick" onclick="event.stopPropagation();toggleTask('${t.id}')"></div>
-        <div class="txt" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}</div>
-          <div class="meta">Task${t.assignedTo?' · '+esc(t.assignedTo):''}${t.urgent?' · ⚡ Urgent':''}</div></div>
-      </div>`).join('')}
-
-      ${dueCp.map(item=>`
-      <div class="row-item">
+      ${dueCp.map(item=>`<div class="row-item">
         <div class="txt"><div class="t">${esc(item.dropNumber)} — ${esc(item.watch)}</div>
-          <div class="meta">Checkpoint · ${esc(item.cp.label)} — enter today's tickets sold</div></div>
+          <div class="meta">Checkpoint · ${esc(item.cp.label)}</div></div>
         <div style="display:flex;gap:8px;align-items:center">
           <input type="number" placeholder="Tickets" style="width:90px" onchange="fillCheckpointQuick('${item.dropId}','${item.cp.id}',this.value)">
           <button class="btn btn-sm" onclick="openTrackerFor('${item.dropId}')">Open tracker →</button>
         </div>
       </div>`).join('')}
-      ${dueCs.map(({d,item})=>`
-      <div class="row-item">
+      ${dueCs.map(({d,item})=>`<div class="row-item">
         <div class="tick" onclick="event.stopPropagation();toggleContentItem('${d.id}','${item.id}')"></div>
         <div class="txt" onclick="go('contentSchedule')"><div class="t">${esc(item.title)}</div>
-          <div class="meta">Content · ${esc(d.number)} — ${esc(watchName(d.watchId))} · ${item.time} · ${item.channel}</div></div>
+          <div class="meta">Content · ${esc(d.number)} · ${item.time} · ${item.channel}</div></div>
       </div>`).join('')}
     </div>
   </div>`:''}
@@ -3592,9 +3635,25 @@ function addIW(dropId){
   if(!name){ alert('Enter winner name'); return; }
   if(!prize){ alert('Enter prize description'); return; }
   d.instantWinners=d.instantWinners||[];
-  d.instantWinners.push({id:uid('iw'),type,prizeType:type,name,email,prize,prizeValue:val,date,dispatched:false,bankDone:false,reviewSent:false,sortCode:'',accountNo:'',created:now()});
+  const iwId=uid('iw');
+  d.instantWinners.push({id:iwId,type,prizeType:type,name,email,prize,prizeValue:val,date,dispatched:false,bankDone:false,reviewSent:false,sortCode:'',accountNo:'',created:now()});
+  // If watch won — also create a proper Winner record so it shows in main Winners tab
+  if(type==='Watch'){
+    DB.winners=DB.winners||[];
+    DB.winners.push({
+      id:uid('win'),name,email,phone:'',instagram:'',
+      address:'',postcode:'',location:'',
+      trackingNumber:'',dispatched:false,deliveryInPerson:false,
+      dropId:d.id,
+      reviewRequested:false,reviewGiven:false,review:'',
+      notes:'Vault instant win · '+esc2(prize)+(val?' · £'+val:''),
+      instantWinId:iwId,
+      created:now(),reviewTaskCreated:false
+    });
+  }
   saveDB(); render();
 }
+function esc2(s){ return String(s||'').replace(/[<>"'&]/g,c=>({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c])); }
 
 function updIW(dropId,winnerId,field,value){
   const d=dropById(dropId); if(!d) return;
@@ -4270,9 +4329,9 @@ function vWinners(){
   ${DB.winners.length?`<div class="card"><table class="tbl">
     <thead><tr><th>Name</th><th>Drop</th><th>Watch</th><th>Contact</th><th>Instagram</th><th>Status</th></tr></thead>
     <tbody>${DB.winners.map(w=>{const d=w.dropId?dropById(w.dropId):null;return `<tr onclick="openWinner('${w.id}')">
-      <td class="strong">${esc(w.name)}</td>
+      <td class="strong">${esc(w.name)}${w.instantWinId?'<span class="pill pill-live" style="font-size:9px;margin-left:4px">VAULT</span>':''}</td>
       <td>${d?`<span class="link" onclick="event.stopPropagation();go('drop','${d.id}')" style="color:var(--gold2);cursor:pointer">${esc(d.number)}</span>`:'—'}</td>
-      <td>${d&&d.watchId?`<span class="link" onclick="event.stopPropagation();go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)" style="color:var(--ink2);cursor:pointer">${esc(watchName(d.watchId))}</span>`:'—'}</td>
+      <td>${d&&d.watchId?`<span class="link" onclick="event.stopPropagation();go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)" style="color:var(--ink2);cursor:pointer">${esc(watchName(d.watchId))}</span>`:w.notes?`<span style="color:var(--ink3);font-size:11px">${esc((w.notes||'').split('·')[1]||'').trim()}</span>`:'—'}</td>
       <td class="muted">${esc(w.phone||w.email||'—')}</td><td class="muted">${esc(w.instagram||'—')}</td>
       <td><span class="pill ${w.dispatched?'pill-done':'pill-upcoming'}">${w.dispatched?'Dispatched':'Awaiting'}</span></td></tr>`;}).join('')}</tbody>
   </table></div>`:`<div class="card"><div class="empty">No winners recorded yet.</div></div>`}`;
