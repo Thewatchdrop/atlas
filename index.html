@@ -3068,7 +3068,8 @@ function vDropTracker(){
   if(!active.length) return `<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking for every drop that isn't finished yet.</div></div></div>
     <div class="card"><div class="empty">No active drops right now — trackers appear here automatically for Draft, Upcoming and Live drops. Finished ones are still viewable under <span class="link" onclick="go('pastdrops')">Past Drops</span>.</div></div>`;
   const vis=active.filter(d=>trackerStatusFilter==='All'||d.status===trackerStatusFilter);
-  if(!trackerDropId||!vis.find(d=>d.id===trackerDropId)) trackerDropId=(vis[0]||active[0]).id;
+  const visFall=vis.length?vis:active;
+  if(!trackerDropId||!visFall.find(d=>d.id===trackerDropId)) trackerDropId=visFall.length?visFall[0].id:null;
   const d=dropById(trackerDropId);
 
   const head=`<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking per drop — watch cost, discounts, fees, VAT and break-even, all in one place.</div></div>
@@ -7058,21 +7059,6 @@ function changeVaultPrice(dropId, newPrice){
 }
 
 /* ================= GRAPHICS GENERATOR ================= */
-let ggState = {
-  headline:'ENDING SOON!', brand:'OMEGA', model:'Speedmaster',
-  edition:'Michael Schumacher', editionLabel:'SPECIAL EDITION',
-  valueLabel:'VALUE', valueAmount:'£5,000',
-  showTrust:true, trustLabel:'Trustpilot', stars:5, starColor:'#00B67A',
-  discount:'20% OFF', showPrice:true, oldPrice:'£19.99', newPrice:'£15.99',
-  imgSrc:null,
-  photoSize:64, photoX:0, photoY:6, photoRot:0, photoOpacity:100, dim:0,
-  fit:'contain', layer:'behind', showGround:true,
-  W:1080, H:1350, modelColor:'#ffffff', showLogo:true, logoText:'THE\nWATCH\nDROP'
-};
-let ggAspect = null;
-let ggTab = 'launch';
-const ggEl = id => document.getElementById(id);
-
 /* ================= PLANNING / TIME BLOCK ================= */
 let planView='day', planDay=today(), planDragTask=null, planDaySummaryMode=false;
 
