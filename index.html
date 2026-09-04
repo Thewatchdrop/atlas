@@ -1762,31 +1762,24 @@ function trkKpiRow(d,t){
   </div>`;
 }
 function buildCheckpointTemplate(d){
-  if(d.type==='Free Drop') return []; // no sales tracking needed for free drops
+  if(d.type==='Free Drop') return [];
   const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const launch=new Date((d.launch||today())+'T00:00:00');
   const cps=[];
-  const pushEvening=(offsetDays)=>{
+  const push=(offsetDays,label)=>{
     const dt=new Date(launch); dt.setDate(dt.getDate()+offsetDays);
-    cps.push({id:uid('cp'), label:`${dayNames[dt.getDay()]} 8:30pm`, date:localISODate(dt), ticketsSold:0, filled:false, locked:true});
-  };
-  const pushFinalDay=(offsetDays)=>{
-    const dt=new Date(launch); dt.setDate(dt.getDate()+offsetDays);
-    const label=dayNames[dt.getDay()]; const dateStr=localISODate(dt);
-    cps.push({id:uid('cp'), label:`${label} 6pm`, date:dateStr, ticketsSold:0, filled:false, locked:true});
+    cps.push({id:uid('cp'), label:`${dayNames[dt.getDay()]} ${label}`, date:localISODate(dt), ticketsSold:0, filled:false, locked:true});
   };
   if(d.type==='Weekend Drop'){
-    // Fri 5:30pm launch (tracked at 8:30pm) -> Sun 8:30pm draw, 2-day span
-    pushEvening(1); // Saturday 8:30pm
-    pushFinalDay(2); // Sunday — intraday
+    push(1,'8:30pm'); push(2,'8:30pm');
   } else if(d.type==='Tech Drop'){
-    // Sun 5:30pm launch (tracked at 8:30pm) -> Tue 8:30pm draw, 2-day span
-    pushEvening(1); // Monday 8:30pm
-    pushFinalDay(2); // Tuesday — intraday
+    push(1,'8:30pm'); push(2,'8:30pm');
   } else {
-    // Main Drop and Vault: Wed 8:30pm -> next Wed 8:30pm, 7-day span
-    for(let i=1;i<=6;i++) pushEvening(i); // Thu..Tue 8:30pm
-    pushFinalDay(7); // final Wed — intraday
+    // Main Drop: Thu–Tue at 8:30pm, then Wed every hour from 8am to 8:30pm
+    for(let i=1;i<=6;i++) push(i,'8:30pm'); // Thu 8:30pm … Tue 8:30pm
+    // Draw day (Wed) — hourly from 8am
+    const hours=['8:00am','9:00am','10:00am','11:00am','12:00pm','1:00pm','2:00pm','3:00pm','4:00pm','5:00pm','6:00pm','7:00pm','8:00pm','8:30pm'];
+    hours.forEach(h=>push(7,h));
   }
   return cps;
 }
@@ -3085,6 +3078,15 @@ function updTrackerPct(dropId,field,val){
   d.tracker=d.tracker||{}; d.tracker[field]=(Number(val)||0)/100;
   queueSave(); render();
 }
+function regenCheckpoints(dropId){
+  if(!confirm('Rebuild checkpoints from template? This will clear all existing checkpoint data.')) return;
+  const d=dropById(dropId); if(!d) return;
+  d.tracker=d.tracker||{};
+  d.tracker.checkpoints=buildCheckpointTemplate(d);
+  d.tracker.checkpointsGeneratedV2=true;
+  d.tracker.checkpointsCollapsedV1=true;
+  saveDB(); render(); toast('Checkpoints rebuilt ✅');
+}
 function addCheckpoint(dropId){
   const d=dropById(dropId); if(!d) return;
   d.tracker.checkpoints=d.tracker.checkpoints||[];
@@ -3259,7 +3261,7 @@ function trackerBody(d){
   }).join('');
   const cpTotal=trkCheckpointTotal(t), cpPct=maxT?(cpTotal/maxT*100):0;
   const paceChart = cps.length? barChart(cps.map(cp=>({label:cp.label.replace(/\s*\d+(am|pm)$/i,'').trim().slice(0,3),value:Number(cp.ticketsSold)||0,display:Number(cp.ticketsSold)||0}))) : '';
-  const dailyData=`<div class="card"><div class="card-h"><h3>Daily Data</h3><button class="btn btn-sm btn-gold" onclick="addCheckpoint('${d.id}')">＋ Add Checkpoint</button></div><div class="modal-b" style="max-height:none">
+  const dailyData=`<div class="card"><div class="card-h"><h3>Daily Data</h3><div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" onclick="regenCheckpoints('${d.id}')" title="Rebuild from template">↺ Regenerate</button><button class="btn btn-sm btn-gold" onclick="addCheckpoint('${d.id}')">＋ Add</button></div></div><div class="modal-b" style="max-height:none">
     ${paceChart?`<div class="muted" style="font-size:11px;margin-bottom:-4px">Pace — tickets sold at each checkpoint</div>${paceChart}`:''}
     <table class="tbl"><thead><tr><th>Checkpoint</th><th>Tickets Sold</th><th>Total %</th><th></th></tr></thead>
     <tbody>${cpRows||'<tr><td colspan=4 class="empty">No checkpoints logged yet.</td></tr>'}</tbody>
