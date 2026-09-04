@@ -1635,10 +1635,7 @@ function vContentSchedule(){
               <div style="flex:1;min-width:0">
                 <div style="font-size:12.5px;${item.done?'text-decoration:line-through;color:var(--ink3)':''}">${esc(item.title)}</div>
                 <div class="muted" style="font-size:10.5px;margin-bottom:4px">${item.time} · <span style="color:${CS_CHANNEL_COLOR[item.channel]}">${item.channel}</span></div>
-                <select style="font-size:10.5px;padding:2px 4px;background:var(--bg2);border:1px solid var(--line2);border-radius:5px;color:var(--ink2)" onchange="updContentItemAssignee('${liveOfType.id}','${item.id}',this.value)">
-                  <option value="" ${!item.assignee?'selected':''}>Unassigned</option>
-                  ${teamList().map(p=>`<option value="${esc(p)}" ${item.assignee===p?'selected':''}>${esc(p)}</option>`).join('')}
-                </select>
+
               </div>
             </div>`).join('')}
         </div>`;
@@ -2224,7 +2221,7 @@ const NAV=[
   {group:'Content',items:[
     {k:'content',label:'New Content',ico:'✎',count:()=>DB.content.length},
     {k:'scripts',label:'Scripts',ico:'▷',count:()=>DB.drops.reduce((a,d)=>a+(d.scripts||[]).length,0)},
-    {k:'templates',label:'Template Gallery',ico:'▦',count:()=>(DB.templates||[]).length},
+    {k:'graphics',label:'Graphics Generator',ico:'❖'},
     {k:'contentSchedule',label:'Content Schedule',ico:'▦',count:()=>dueContentToday().length},
     {k:'assets',label:'Asset Library',ico:'▣',count:()=>DB.assets.length},
     {k:'ideas',label:'Idea Inbox',ico:'✧',count:()=>DB.ideas.length},
@@ -2272,12 +2269,13 @@ function renderNav(){
 function render(){
   renderNav();
   const c=document.getElementById('content');
-  const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,planning:vPlanning,scripts:vAllScripts,templates:vTemplates,
+  const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,planning:vPlanning,scripts:vAllScripts,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
-    content:vContent,assets:vAssets,ideas:vIdeas,sops:vSops,kb:vKB,notes:vNotes,
+    content:vContent,assets:vAssets,ideas:vIdeas,graphics:vGraphics,sops:vSops,kb:vKB,notes:vNotes,
     projects:vProjects,project:vProject};
   c.innerHTML = (V[route.view]||vDashboard)();
   hydrateMedia();
+  if(route.view==='graphics') ggBoot();
 }
 
 /* ================= TASK BOARD (dashboard) ================= */
@@ -2411,54 +2409,36 @@ function vDashboard(){
   return `
   <div class="page-head">
     <div><h2>Good ${greet()}, Felix</h2><div class="desc">${new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</div></div>
-    <div class="page-actions" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button>
-      <button class="btn btn-sm" onclick="newTask()">＋ Task</button>
-      <button class="btn btn-sm" onclick="go('ideas')">＋ Idea</button>
-      <button class="btn btn-sm" onclick="newProject()">＋ Project</button>
-      <button class="btn btn-sm" onclick="go('watches');setTimeout(()=>openWatch(),100)">＋ Watch</button>
-      <button class="btn btn-sm" onclick="go('winners');setTimeout(()=>openWinner(),100)">＋ Winner</button>
-    </div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button></div>
   </div>
 
-  <div class="card">
-    <div class="card-h"><h3>📋 Today</h3>
-      <span class="link muted" onclick="go('planning')" style="font-size:12.5px;cursor:pointer">Open Planning →</span>
+  ${todayCount?`<div class="card" style="border-color:var(--warn)">
+    <div class="card-h"><h3>📋 Today — ${todayCount}</h3></div>
+    <div class="card-b">
+      ${dueTasks.map(t=>`
+      <div class="row-item">
+        <div class="tick" onclick="event.stopPropagation();toggleTask('${t.id}')"></div>
+        <div class="txt" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}</div>
+          <div class="meta">Task${t.assignedTo?' · '+esc(t.assignedTo):''}${t.urgent?' · ⚡ Urgent':''}</div></div>
+      </div>`).join('')}
+
+      ${dueCp.map(item=>`
+      <div class="row-item">
+        <div class="txt"><div class="t">${esc(item.dropNumber)} — ${esc(item.watch)}</div>
+          <div class="meta">Checkpoint · ${esc(item.cp.label)} — enter today's tickets sold</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="number" placeholder="Tickets" style="width:90px" onchange="fillCheckpointQuick('${item.dropId}','${item.cp.id}',this.value)">
+          <button class="btn btn-sm" onclick="openTrackerFor('${item.dropId}')">Open tracker →</button>
+        </div>
+      </div>`).join('')}
+      ${dueCs.map(({d,item})=>`
+      <div class="row-item">
+        <div class="tick" onclick="event.stopPropagation();toggleContentItem('${d.id}','${item.id}')"></div>
+        <div class="txt" onclick="go('contentSchedule')"><div class="t">${esc(item.title)}</div>
+          <div class="meta">Content · ${esc(d.number)} — ${esc(watchName(d.watchId))} · ${item.time} · ${item.channel}</div></div>
+      </div>`).join('')}
     </div>
-    <div style="display:flex;gap:0">
-      <div style="flex:1;padding:12px 14px;border-right:1px solid var(--line2)">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:8px;font-weight:700">Scheduled today</div>
-        ${(()=>{
-          const myName=getPresenceName()||'Felix';
-          const sched=DB.tasks.filter(t=>t.scheduledDate===today()&&!t.done).sort((a,b)=>(a.scheduledHour||0)-(b.scheduledHour||0)).slice(0,5);
-          const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
-          const recur=DB.tasks.filter(t=>t.recurring&&(t.recurringDays||[]).includes(dow)&&!t.done).slice(0,3);
-          const all=[...recur.map(t=>({...t,_r:true})),...sched];
-          if(!all.length) return '<div class="muted" style="font-size:12px;padding:4px 0">Nothing scheduled — open Planning to block your day</div>';
-          return all.slice(0,7).map(t=>{
-            const h=t._r?t.recurringHour:t.scheduledHour;
-            const ts=h!=null?(h<12?h+'am':h===12?'12pm':(h-12)+'pm'):'';
-            return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)"><div style="width:3px;height:26px;background:'+(t._r?'var(--gold2)':'var(--blue)')+';border-radius:2px;flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t.title)+'</div><div style="font-size:10px;color:var(--ink3)">'+ts+(t._r?' · ↻':'')+'</div></div></div>';
-          }).join('');
-        })()}
-      </div>
-      <div style="width:170px;flex-shrink:0;display:flex;flex-direction:column">
-        ${(()=>{
-          const myName=getPresenceName()||'Felix';
-          const unsch=DB.tasks.filter(t=>!t.done&&!t.scheduledDate&&!t.recurring&&(t.assignedTo===myName||!t.assignedTo));
-          const rows=[
-            {label:'To schedule',n:unsch.filter(t=>t.estMins>0).length,color:'var(--blue)',sub:'ready to place'},
-            {label:'Need estimate',n:unsch.filter(t=>!t.estMins).length,color:'var(--warn)',sub:'no time set'},
-            {label:'Overdue',n:DB.tasks.filter(t=>!t.done&&t.due&&t.due<today()).length,color:DB.tasks.filter(t=>!t.done&&t.due&&t.due<today()).length?'var(--danger)':'var(--live)',sub:'past due'},
-          ];
-          return rows.map((s,i)=>{
-            const border=i<2?'border-bottom:1px solid var(--line2)':'';
-            return '<div onclick="go(\'planning\')" style="flex:1;padding:10px 12px;cursor:pointer;'+border+'"><div style="font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);font-weight:700">'+s.label+'</div><div style="font-size:22px;font-weight:800;color:'+s.color+';line-height:1.2">'+s.n+'</div><div style="font-size:10px;color:var(--ink3)">'+s.sub+'</div></div>';
-          }).join('');;
-        })()}
-      </div>
-    </div>
-  </div>
+  </div>`:''}
 
   <div class="kpi-row">
     <div class="kpi"><div class="label">Live Drops</div><div class="val green">${live.length}</div><div class="sub">${upcoming.length} upcoming</div></div>
@@ -3046,7 +3026,7 @@ function dropTimeline(d){
 }
 
 /* ================= DROP TRACKER (per-drop finance tracker, mirrors D33 spreadsheet tab) ================= */
-let trackerDropId=null, trackerStatusFilter='All';
+let trackerDropId=null;
 function trkFld(d,label,field,type='number'){
   const val=d.tracker[field];
   return `<div class="field"><label>${label}</label><input type="${type}" value="${esc(val)}" onchange="updTracker('${d.id}','${field}',this.value)"></div>`;
@@ -3106,8 +3086,7 @@ function vDropTracker(){
   const active=DB.drops.filter(d=>!['Closed','Complete'].includes(d.status));
   if(!active.length) return `<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking for every drop that isn't finished yet.</div></div></div>
     <div class="card"><div class="empty">No active drops right now — trackers appear here automatically for Draft, Upcoming and Live drops. Finished ones are still viewable under <span class="link" onclick="go('pastdrops')">Past Drops</span>.</div></div>`;
-  const visible2=active.filter(d=>trackerStatusFilter==='All'||d.status===trackerStatusFilter);
-  if(!trackerDropId||!visible2.find(d=>d.id===trackerDropId)) trackerDropId=(visible2[0]||active[0]).id;
+  if(!trackerDropId || !active.find(d=>d.id===trackerDropId)) trackerDropId=active[0].id;
   const d=dropById(trackerDropId);
 
   const head=`<div class="page-head"><div><h2>Drop Tracker</h2><div class="desc">Deep finance tracking per drop — watch cost, discounts, fees, VAT and break-even, all in one place.</div></div>
@@ -3594,9 +3573,7 @@ function addIW(dropId){
   if(!name){ alert('Enter winner name'); return; }
   if(!prize){ alert('Enter prize description'); return; }
   d.instantWinners=d.instantWinners||[];
-  const iwId=uid('iw');
-  d.instantWinners.push({id:iwId,type,prizeType:type,name,email,prize,prizeValue:val,date,dispatched:false,bankDone:false,reviewSent:false,sortCode:'',accountNo:'',created:now()});
-  if(type==='Watch'){DB.winners=DB.winners||[];DB.winners.push({id:uid('win'),name,email,phone:'',instagram:'',address:'',postcode:'',location:'',trackingNumber:'',dispatched:false,deliveryInPerson:false,dropId:d.id,reviewRequested:false,reviewGiven:false,review:'',notes:'Vault instant win · '+prize+(val?' · £'+val:''),instantWinId:iwId,created:now(),reviewTaskCreated:false});}
+  d.instantWinners.push({id:uid('iw'),type,prizeType:type,name,email,prize,prizeValue:val,date,dispatched:false,bankDone:false,reviewSent:false,sortCode:'',accountNo:'',created:now()});
   saveDB(); render();
 }
 
@@ -4274,9 +4251,9 @@ function vWinners(){
   ${DB.winners.length?`<div class="card"><table class="tbl">
     <thead><tr><th>Name</th><th>Drop</th><th>Watch</th><th>Contact</th><th>Instagram</th><th>Status</th></tr></thead>
     <tbody>${DB.winners.map(w=>{const d=w.dropId?dropById(w.dropId):null;return `<tr onclick="openWinner('${w.id}')">
-      <td class="strong">${esc(w.name)}${w.instantWinId?'<span class="pill pill-live" style="font-size:9px;margin-left:4px">VAULT</span>':''}</td>
+      <td class="strong">${esc(w.name)}</td>
       <td>${d?`<span class="link" onclick="event.stopPropagation();go('drop','${d.id}')" style="color:var(--gold2);cursor:pointer">${esc(d.number)}</span>`:'—'}</td>
-      <td>${d&&d.watchId?`<span class="link" onclick="event.stopPropagation();go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)" style="color:var(--ink2);cursor:pointer">${esc(watchName(d.watchId))}</span>`:w.notes?`<span style="color:var(--ink3);font-size:11px">${esc((w.notes||'').split('·')[1]||'').trim()}</span>`:'—'}</td>
+      <td>${d&&d.watchId?`<span class="link" onclick="event.stopPropagation();go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)" style="color:var(--ink2);cursor:pointer">${esc(watchName(d.watchId))}</span>`:'—'}</td>
       <td class="muted">${esc(w.phone||w.email||'—')}</td><td class="muted">${esc(w.instagram||'—')}</td>
       <td><span class="pill ${w.dispatched?'pill-done':'pill-upcoming'}">${w.dispatched?'Dispatched':'Awaiting'}</span></td></tr>`;}).join('')}</tbody>
   </table></div>`:`<div class="card"><div class="empty">No winners recorded yet.</div></div>`}`;
@@ -7111,10 +7088,1237 @@ let ggAspect = null;
 let ggTab = 'launch';
 const ggEl = id => document.getElementById(id);
 
-/* ================= PLANNING / TIME BLOCK ================= */
-let planView='day', planDay=today(), planDragTask=null;
+function vGraphics(){
+  const tabs=[['launch','Launch Post'],['email','Email'],['post','Post / Ad']];
+  return `<div class="page-head"><div><h2>Graphics Generator</h2><div class="desc">Branded drop graphics — pick a template, edit everything, drop in photos, download high-res.</div></div></div>
+  <div class="tabs" style="margin-bottom:18px">${tabs.map(([k,l])=>`<div class="tab ${ggTab===k?'active':''}" onclick="ggSetTab('${k}')">${l}</div>`).join('')}</div>
+  ${ggTab==='email'?ggEmailMarkup():ggTab==='post'?gpPostMarkup():ggLaunchMarkup()}`;
+}
+function ggLaunchMarkup(){
+  return `<div id="ggRoot">
+    <div id="ggControls">
+      <div class="gg-group">
+        <div class="gg-title">Content</div>
+        <div class="gg-fld"><label>Top banner</label><input type="text" id="gg_headline"></div>
+        <div class="gg-fld"><label>Brand</label><input type="text" id="gg_brand"></div>
+        <div class="gg-fld"><label>Model (script)</label><input type="text" id="gg_model"></div>
+        <div class="gg-fld"><label>Edition line</label><input type="text" id="gg_edition"></div>
+        <div class="gg-fld"><label>Small label</label><input type="text" id="gg_editionLabel"></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Value &amp; Trust</div>
+        <div class="gg-row"><div class="gg-fld"><label>Value label</label><input type="text" id="gg_valueLabel"></div>
+          <div class="gg-fld"><label>Amount</label><input type="text" id="gg_valueAmount"></div></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gg_showTrust"><span class="gg-switch"></span><span class="gg-tl">Show trust badge</span></label></div>
+        <div class="gg-fld"><label>Badge label</label><input type="text" id="gg_trustLabel"></div>
+        <div class="gg-fld"><label>Stars <span class="gg-rv" id="gg_starsVal">5</span></label><input type="range" id="gg_stars" min="1" max="5" step="1"></div>
+        <div class="gg-fld"><label>Star colour</label><div class="gg-sw" id="gg_starSwatches">
+          <div class="gg-swatch" data-c="#00B67A" style="background:#00B67A" title="Trustpilot green"></div>
+          <div class="gg-swatch" data-c="#C9A24B" style="background:#C9A24B" title="Gold"></div>
+          <div class="gg-swatch" data-c="#FFFFFF" style="background:#FFFFFF" title="White"></div>
+        </div></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Offer</div>
+        <div class="gg-fld"><label>Discount headline</label><input type="text" id="gg_discount"></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gg_showPrice"><span class="gg-switch"></span><span class="gg-tl">Show price box</span></label></div>
+        <div class="gg-row"><div class="gg-fld"><label>Was</label><input type="text" id="gg_oldPrice"></div>
+          <div class="gg-fld"><label>Now</label><input type="text" id="gg_newPrice"></div></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">📷 Photo &amp; positioning</div>
+        <div class="gg-fld"><label class="gg-up" for="gg_photoInput">📷 <span id="gg_photoName">Upload watch photo</span></label>
+          <input type="file" id="gg_photoInput" accept="image/*" style="display:none"></div>
+        <div class="gg-fld"><label>Quick position</label><div class="gg-chips" id="gg_posPresets">
+          <div class="gg-chip" data-p="centre">Centre</div><div class="gg-chip" data-p="fill">Fill background</div>
+          <div class="gg-chip" data-p="top">Top</div><div class="gg-chip" data-p="bottom">Bottom</div>
+          <div class="gg-chip" data-p="left">Left</div><div class="gg-chip" data-p="right">Right</div>
+          <div class="gg-chip" data-p="reset">Reset</div></div></div>
+        <div class="gg-fld"><label>Layer</label><div class="gg-chips" id="gg_layerChips">
+          <div class="gg-chip" data-l="behind">Behind text</div><div class="gg-chip" data-l="front">In front of text</div></div></div>
+        <div class="gg-fld"><label>Fit</label><div class="gg-chips" id="gg_fitChips">
+          <div class="gg-chip" data-f="contain">Contain</div><div class="gg-chip" data-f="cover">Cover / fill</div></div></div>
+        <div class="gg-fld"><label>Size <span class="gg-rv" id="gg_photoSizeVal"></span></label><input type="range" id="gg_photoSize" min="20" max="240" step="1"></div>
+        <div class="gg-fld"><label>Horizontal <span class="gg-rv" id="gg_photoXVal"></span></label><input type="range" id="gg_photoX" min="-100" max="100" step="1"></div>
+        <div class="gg-fld"><label>Vertical <span class="gg-rv" id="gg_photoYVal"></span></label><input type="range" id="gg_photoY" min="-100" max="100" step="1"></div>
+        <div class="gg-fld"><label>Rotation <span class="gg-rv" id="gg_photoRotVal"></span></label><input type="range" id="gg_photoRot" min="-45" max="45" step="1"></div>
+        <div class="gg-fld"><label>Opacity <span class="gg-rv" id="gg_photoOpacityVal"></span></label><input type="range" id="gg_photoOpacity" min="15" max="100" step="1"></div>
+        <div class="gg-fld"><label>Dim behind photo <span class="gg-rv" id="gg_dimVal"></span></label><input type="range" id="gg_dim" min="0" max="75" step="1"></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gg_showGround"><span class="gg-switch"></span><span class="gg-tl">Ground shadow</span></label></div>
+        <div class="gg-hint">For a full-bleed watch: set <b>Behind text</b> + <b>Fill background</b>, then raise <b>Dim</b> so the wording stays readable. PNGs with transparent backgrounds work best.</div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Layout</div>
+        <div class="gg-fld"><label>Format</label><div class="gg-chips" id="gg_formatChips">
+          <div class="gg-chip" data-w="1080" data-h="1350">Portrait 4:5</div>
+          <div class="gg-chip" data-w="1080" data-h="1920">Story 9:16</div>
+          <div class="gg-chip" data-w="1080" data-h="1080">Square 1:1</div></div></div>
+        <div class="gg-fld"><label>Model colour</label><div class="gg-chips" id="gg_modelColor">
+          <div class="gg-chip" data-c="#ffffff">White</div><div class="gg-chip" data-c="#E4C879">Gold</div></div></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gg_showLogo"><span class="gg-switch"></span><span class="gg-tl">Show logo</span></label></div>
+        <div class="gg-fld"><label>Logo text</label><textarea id="gg_logoText" rows="3"></textarea></div>
+        <div class="gg-dlrow">
+          <button class="gg-dl" id="gg_download">⬇ Download PNG</button>
+          <select class="gg-q" id="gg_quality" title="Export resolution"><option value="2">2×</option><option value="3" selected>3×</option><option value="4">4×</option></select>
+        </div>
+      </div>
+    </div>
+    <div id="ggPreview"><div id="ggFrame">
+      <div id="ggCard">
+        <div class="photoLayer" id="gg_photoLayer"><div class="ground" id="gg_ground" style="display:none"></div><img id="gg_img" alt="" style="display:none"></div>
+        <div class="scrim" id="gg_scrim"></div>
+        <div class="pad">
+          <div class="header" id="gg_header"></div>
+          <div class="midspace"><div class="ph" id="gg_placeholder">Upload a watch photo →</div></div>
+          <div class="footer" id="gg_footer"></div>
+        </div>
+        <div class="brandmark" id="gg_logo"></div>
+      </div>
+    </div></div>
+  </div>`;
+}
 
-const PLAN_HOURS = Array.from({length:18},(_,i)=>i+5); // 5am to 10pm
+function ggStar(size,color){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}" style="display:block"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77 5.82 21l1.18-6.88-5-4.87 7.1-1.01L12 2z"/></svg>`;
+}
+function ggLayoutPhoto(){
+  const s=ggState, k=s.W/1080, img=ggEl('gg_img');
+  if(!img) return;
+  if(!s.imgSrc || !ggAspect){
+    img.style.display='none';
+    const ph=ggEl('gg_placeholder'); if(ph){ph.style.display='block';ph.style.fontSize=(20*k)+'px';}
+    ggEl('gg_ground').style.display='none'; return;
+  }
+  img.style.display='block';
+  ggEl('gg_placeholder').style.display='none';
+  const cardAspect=s.W/s.H; let baseW,baseH;
+  if(s.fit==='cover'){ if(ggAspect>cardAspect){baseH=s.H;baseW=s.H*ggAspect;}else{baseW=s.W;baseH=s.W/ggAspect;} }
+  else { if(ggAspect>cardAspect){baseW=s.W;baseH=s.W/ggAspect;}else{baseH=s.H;baseW=s.H*ggAspect;} }
+  const sc=s.photoSize/100, w=baseW*sc, h=baseH*sc;
+  const xOff=s.photoX/100*s.W, yOff=s.photoY/100*s.H;
+  const left=(s.W-w)/2+xOff, top=(s.H-h)/2+yOff;
+  img.style.width=w+'px'; img.style.height=h+'px'; img.style.left=left+'px'; img.style.top=top+'px';
+  img.style.transformOrigin='center center';
+  img.style.transform=s.photoRot?`rotate(${s.photoRot}deg)`:'none';
+  img.style.opacity=s.photoOpacity/100;
+  const g=ggEl('gg_ground');
+  if(s.showGround){ const gw=w*0.62,gh=Math.max(10,h*0.06);
+    g.style.display='block'; g.style.width=gw+'px'; g.style.height=gh+'px';
+    g.style.left=(left+w/2-gw/2)+'px'; g.style.top=(top+h-gh*0.5)+'px';
+  } else g.style.display='none';
+  ggEl('gg_photoLayer').style.zIndex = s.layer==='front'?15:1;
+}
+function ggRender(){
+  const s=ggState, card=ggEl('ggCard'); if(!card) return;
+  card.style.width=s.W+'px'; card.style.height=s.H+'px';
+  const k=s.W/1080, p=[];
+  if(s.headline.trim()) p.push(`<div class="headline" style="font-size:${88*k}px;margin-bottom:${10*k}px">${esc(s.headline)}</div>`);
+  if(s.brand.trim())    p.push(`<div class="brand" style="font-size:${58*k}px;letter-spacing:${8*k}px">${esc(s.brand)}</div>`);
+  if(s.model.trim())    p.push(`<div class="model" style="font-size:${138*k}px;color:${s.modelColor}">${esc(s.model)}</div>`);
+  if(s.edition.trim())  p.push(`<div class="edition" style="font-size:${46*k}px">${esc(s.edition)}</div>`);
+  if(s.editionLabel.trim()) p.push(`<div class="editionLabel" style="font-size:${24*k}px;letter-spacing:${6*k}px;margin-top:${6*k}px">${esc(s.editionLabel)}</div>`);
+  const hasValue=s.valueLabel.trim()||s.valueAmount.trim();
+  if(hasValue){
+    p.push(`<div class="rule" style="width:62%;margin-top:${16*k}px;margin-bottom:${12*k}px"></div>`);
+    const sep=(s.valueLabel.trim()&&s.valueAmount.trim())?` <span style="color:#6f7d95">|</span> `:'';
+    p.push(`<div class="value" style="font-size:${34*k}px">${esc(s.valueLabel)}${sep}<span class="amt">${esc(s.valueAmount)}</span></div>`);
+    p.push(`<div class="rule" style="width:62%;margin-top:${12*k}px;margin-bottom:${16*k}px"></div>`);
+  }
+  if(s.showTrust){
+    const sz=30*k; let st='';
+    for(let i=0;i<s.stars;i++) st+=`<span class="tstar" style="background:${s.starColor};width:${sz}px;height:${sz}px;margin-right:${4*k}px">${ggStar(sz*0.78,'#fff')}</span>`;
+    p.push(`<div class="trust" style="font-size:${30*k}px;gap:${10*k}px;margin-top:${hasValue?0:14*k}px">${ggStar(34*k,s.starColor)}<span>${esc(s.trustLabel)}</span><span class="stars">${st}</span></div>`);
+  }
+  ggEl('gg_header').innerHTML=p.join('');
+  if(s.imgSrc) ggEl('gg_img').src=s.imgSrc;
+  ggLayoutPhoto();
+  const scrim=ggEl('gg_scrim');
+  if(s.dim>0){ const a=s.dim/100; scrim.style.background=`linear-gradient(180deg, rgba(9,21,41,${a*0.9}) 0%, rgba(9,21,41,${a*0.5}) 45%, rgba(13,28,55,${a*0.95}) 100%)`; }
+  else scrim.style.background='transparent';
+  const f=[];
+  if(s.discount.trim()) f.push(`<div class="discount" style="font-size:${76*k}px;margin-bottom:${20*k}px">${esc(s.discount)}</div>`);
+  if(s.showPrice&&(s.oldPrice.trim()||s.newPrice.trim())){
+    const o=s.oldPrice.trim()?`<span class="oldp" style="font-size:${52*k}px">${esc(s.oldPrice)}<span class="strike"></span></span>`:'';
+    const ar=(s.oldPrice.trim()&&s.newPrice.trim())?`<span class="arrow" style="font-size:${44*k}px">→</span>`:'';
+    const n=s.newPrice.trim()?`<span class="newp" style="font-size:${56*k}px">${esc(s.newPrice)}</span>`:'';
+    f.push(`<div class="pricebox" style="gap:${18*k}px;padding:${14*k}px ${28*k}px;border-radius:${16*k}px">${o}${ar}${n}</div>`);
+  }
+  ggEl('gg_footer').innerHTML=f.join('');
+  ggEl('gg_footer').style.marginBottom=(10*k)+'px';
+  card.querySelector('.pad').style.padding=`${64*k}px ${58*k}px`;
+  const logo=ggEl('gg_logo');
+  if(s.showLogo&&s.logoText.trim()){ logo.style.display='block'; logo.style.fontSize=(34*k)+'px'; logo.style.letterSpacing=(3*k)+'px'; logo.style.left=(52*k)+'px'; logo.style.bottom=(46*k)+'px'; logo.innerHTML=esc(s.logoText).replace(/\n/g,'<br>'); }
+  else logo.style.display='none';
+  ggFit();
+}
+function ggFit(){
+  const prev=ggEl('ggPreview'), card=ggEl('ggCard'), frame=ggEl('ggFrame'); if(!prev||!card) return;
+  const s=Math.min((prev.clientWidth-60)/ggState.W,(prev.clientHeight-60)/ggState.H,1);
+  card.style.transform=`scale(${s})`;
+  frame.style.width=(ggState.W*s)+'px'; frame.style.height=(ggState.H*s)+'px';
+}
+function ggSyncAll(){
+  const s=ggState;
+  ['headline','brand','model','edition','editionLabel','valueLabel','valueAmount','trustLabel','discount','oldPrice','newPrice','logoText'].forEach(kk=>{ const el=ggEl('gg_'+kk); if(el) el.value=s[kk]; });
+  ggEl('gg_showTrust').checked=s.showTrust; ggEl('gg_showPrice').checked=s.showPrice; ggEl('gg_showLogo').checked=s.showLogo; ggEl('gg_showGround').checked=s.showGround;
+  const setR=(id,v,suf='')=>{ ggEl('gg_'+id).value=v; ggEl('gg_'+id+'Val').textContent=v+suf; };
+  setR('stars',s.stars); setR('photoSize',s.photoSize,'%'); setR('photoX',s.photoX); setR('photoY',s.photoY);
+  setR('photoRot',s.photoRot,'°'); setR('photoOpacity',s.photoOpacity,'%'); setR('dim',s.dim,'%');
+  const act=(wrap,fn)=>[...ggEl(wrap).children].forEach(c=>c.classList.toggle('active',fn(c)));
+  act('gg_layerChips',c=>c.dataset.l===s.layer);
+  act('gg_fitChips',c=>c.dataset.f===s.fit);
+  act('gg_formatChips',c=>+c.dataset.w===s.W&&+c.dataset.h===s.H);
+  act('gg_modelColor',c=>c.dataset.c===s.modelColor);
+  act('gg_starSwatches',c=>c.dataset.c===s.starColor);
+  act('gg_posPresets',()=>false);
+  if(s.imgSrc){ const nm=ggEl('gg_photoName'); if(nm) nm.textContent='Photo loaded'; }
+}
+const GG_PRESETS={
+  centre:{photoX:0,photoY:0,photoSize:72,fit:'contain',layer:'front',photoRot:0,dim:0},
+  fill:{photoX:0,photoY:0,photoSize:110,fit:'cover',layer:'behind',photoRot:0,dim:38},
+  top:{photoY:-30},bottom:{photoY:28},left:{photoX:-30},right:{photoX:30},
+  reset:{photoX:0,photoY:6,photoSize:64,fit:'contain',layer:'behind',photoRot:0,photoOpacity:100,dim:0}
+};
+function ggBootLaunch(){
+  ggSyncAll();
+  const s=ggState;
+  const bindT=kk=>{ ggEl('gg_'+kk).oninput=e=>{ s[kk]=e.target.value; ggRender(); }; };
+  ['headline','brand','model','edition','editionLabel','valueLabel','valueAmount','trustLabel','discount','oldPrice','newPrice','logoText'].forEach(bindT);
+  ggEl('gg_showTrust').onchange=e=>{s.showTrust=e.target.checked;ggRender();};
+  ggEl('gg_showPrice').onchange=e=>{s.showPrice=e.target.checked;ggRender();};
+  ggEl('gg_showLogo').onchange=e=>{s.showLogo=e.target.checked;ggRender();};
+  ggEl('gg_showGround').onchange=e=>{s.showGround=e.target.checked;ggRender();};
+  const bindR=(id,suf='')=>{ ggEl('gg_'+id).oninput=e=>{ s[id]=+e.target.value; ggEl('gg_'+id+'Val').textContent=e.target.value+suf; ggRender(); }; };
+  bindR('stars'); bindR('photoSize','%'); bindR('photoX'); bindR('photoY'); bindR('photoRot','°'); bindR('photoOpacity','%'); bindR('dim','%');
+  const chip=(wrap,fn)=>{ ggEl(wrap).onclick=e=>{ const c=e.target.closest('.gg-chip'); if(!c)return; [...e.currentTarget.children].forEach(x=>x.classList.remove('active')); c.classList.add('active'); fn(c); ggRender(); }; };
+  chip('gg_layerChips',c=>s.layer=c.dataset.l);
+  chip('gg_fitChips',c=>s.fit=c.dataset.f);
+  chip('gg_formatChips',c=>{s.W=+c.dataset.w;s.H=+c.dataset.h;});
+  chip('gg_modelColor',c=>s.modelColor=c.dataset.c);
+  ggEl('gg_starSwatches').onclick=e=>{ const sw=e.target.closest('.gg-swatch'); if(!sw)return; [...e.currentTarget.children].forEach(x=>x.classList.remove('active')); sw.classList.add('active'); s.starColor=sw.dataset.c; ggRender(); };
+  ggEl('gg_posPresets').onclick=e=>{ const c=e.target.closest('.gg-chip'); if(!c)return; Object.assign(s,GG_PRESETS[c.dataset.p]||{}); ggSyncAll(); ggRender(); };
+  ggEl('gg_photoInput').onchange=e=>{
+    const file=e.target.files[0]; e.target.value=''; if(!file)return;
+    ggEl('gg_photoName').textContent=file.name.length>22?file.name.slice(0,20)+'…':file.name;
+    const rd=new FileReader();
+    rd.onload=()=>{ const pr=new Image(); pr.onload=()=>{ ggAspect=pr.naturalWidth/pr.naturalHeight; s.imgSrc=rd.result; ggRender(); }; pr.onerror=()=>alert('That image could not be loaded — try another file.'); pr.src=rd.result; };
+    rd.readAsDataURL(file);
+  };
+  ggEl('gg_download').onclick=async ()=>{
+    const btn=ggEl('gg_download'); const orig=btn.innerHTML; btn.disabled=true; btn.innerHTML='Rendering…';
+    try{
+      await document.fonts.ready;
+      const scale=+ggEl('gg_quality').value; const card=ggEl('ggCard');
+      const prevT=card.style.transform; card.style.transform='none';
+      const canvas=await html2canvas(card,{scale,backgroundColor:null,useCORS:true,logging:false,width:s.W,height:s.H});
+      card.style.transform=prevT;
+      const link=document.createElement('a');
+      link.download=((s.brand+'-'+s.model).replace(/[^a-z0-9]+/gi,'-').toLowerCase().replace(/^-|-$/g,'')||'watch-drop')+'.png';
+      link.href=canvas.toDataURL('image/png'); link.click();
+    }catch(err){ alert('Export failed: '+err.message); }
+    finally{ btn.disabled=false; btn.innerHTML=orig; ggFit(); }
+  };
+  document.fonts.ready.then(ggRender);
+  ggRender();
+}
+function ggBoot(){ if(ggTab==='email') geBoot(); else if(ggTab==='post') gpBoot(); else ggBootLaunch(); }
+function ggSetTab(k){ ggTab=k; render(); }
+
+/* ===== Email template (landscape) ===== */
+let geState = {
+  brand:'OMEGA', model:'Speedmaster', edition:'Michael Schumacher', editionLabel:'SPECIAL EDITION',
+  valueText:'VALUE : £5,000', endsText:'ENDS AT 8:30PM WEDNESDAY',
+  price:'£19.99', priceLabel:'PER ENTRY', entries:'499', entriesLabel:'MAX ENTRIES',
+  bgSrc:null, heroSrc:null, thumbs:[null,null,null],
+  heroW:42, heroSize:100, heroX:0, heroY:0, dim:0,
+  W:1600, H:840, modelColor:'#ffffff'
+};
+let geAspect = null;
+const GE_BG_DEFAULT = "radial-gradient(140% 90% at 72% 0%, rgba(120,150,205,.20), rgba(120,150,205,0) 55%), linear-gradient(180deg,#0c1d3d 0%,#14284e 47%,#26365a 54%,#b9bec7 60%,#e9ebee 80%,#dfe2e6 100%)";
+
+function ggEmailMarkup(){
+  return `<div id="geRoot">
+    <div id="geControls">
+      <div class="gg-group">
+        <div class="gg-title">Content</div>
+        <div class="gg-fld"><label>Brand</label><input type="text" id="ge_brand"></div>
+        <div class="gg-fld"><label>Model (script)</label><input type="text" id="ge_model"></div>
+        <div class="gg-fld"><label>Edition line</label><input type="text" id="ge_edition"></div>
+        <div class="gg-fld"><label>Small label</label><input type="text" id="ge_editionLabel"></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Value &amp; Timing</div>
+        <div class="gg-fld"><label>Value text</label><input type="text" id="ge_valueText"></div>
+        <div class="gg-fld"><label>Ends text</label><input type="text" id="ge_endsText"></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Entry Stats</div>
+        <div class="gg-row"><div class="gg-fld"><label>Price</label><input type="text" id="ge_price"></div>
+          <div class="gg-fld"><label>Price label</label><input type="text" id="ge_priceLabel"></div></div>
+        <div class="gg-row"><div class="gg-fld"><label>Max entries</label><input type="text" id="ge_entries"></div>
+          <div class="gg-fld"><label>Entries label</label><input type="text" id="ge_entriesLabel"></div></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">🖼 Images</div>
+        <div class="gg-fld"><label>Background (marble &amp; blue)</label>
+          <label class="gg-up" for="ge_bgInput">🖼 <span id="ge_bgName">Upload background</span></label>
+          <input type="file" id="ge_bgInput" accept="image/*" style="display:none"></div>
+        <div class="gg-fld"><label>Main photo (left)</label>
+          <label class="gg-up" for="ge_heroInput">📷 <span id="ge_heroName">Upload main photo</span></label>
+          <input type="file" id="ge_heroInput" accept="image/*" style="display:none"></div>
+        <div class="gg-fld"><label>Photo width <span class="gg-rv" id="ge_heroWVal"></span></label><input type="range" id="ge_heroW" min="20" max="60" step="1"></div>
+        <div class="gg-fld"><label>Photo zoom <span class="gg-rv" id="ge_heroSizeVal"></span></label><input type="range" id="ge_heroSize" min="60" max="200" step="1"></div>
+        <div class="gg-fld"><label>Photo horizontal <span class="gg-rv" id="ge_heroXVal"></span></label><input type="range" id="ge_heroX" min="-60" max="60" step="1"></div>
+        <div class="gg-fld"><label>Photo vertical <span class="gg-rv" id="ge_heroYVal"></span></label><input type="range" id="ge_heroY" min="-60" max="60" step="1"></div>
+        <div class="gg-fld"><label>Dim behind photo <span class="gg-rv" id="ge_dimVal"></span></label><input type="range" id="ge_dim" min="0" max="75" step="1"></div>
+        <div class="gg-fld"><label>Bottom thumbnails (up to 3)</label>
+          <div class="gg-row">
+            <label class="gg-up" for="ge_thumb0" style="flex:1"><span id="ge_thumbName0">＋ 1</span></label>
+            <label class="gg-up" for="ge_thumb1" style="flex:1"><span id="ge_thumbName1">＋ 2</span></label>
+            <label class="gg-up" for="ge_thumb2" style="flex:1"><span id="ge_thumbName2">＋ 3</span></label>
+          </div>
+          <input type="file" id="ge_thumb0" accept="image/*" style="display:none">
+          <input type="file" id="ge_thumb1" accept="image/*" style="display:none">
+          <input type="file" id="ge_thumb2" accept="image/*" style="display:none">
+        </div>
+        <div class="gg-hint">The main photo sits on the left; the three thumbnails run along the bottom. Upload your marble/blue background, or leave it for the built-in gradient.</div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Layout</div>
+        <div class="gg-fld"><label>Format</label><div class="gg-chips" id="ge_formatChips">
+          <div class="gg-chip" data-w="1600" data-h="840">Landscape 1.9:1</div>
+          <div class="gg-chip" data-w="1200" data-h="628">Facebook 1.91:1</div>
+          <div class="gg-chip" data-w="1600" data-h="900">Wide 16:9</div></div></div>
+        <div class="gg-fld"><label>Model colour</label><div class="gg-chips" id="ge_modelColor">
+          <div class="gg-chip" data-c="#ffffff">White</div><div class="gg-chip" data-c="#E4C879">Gold</div></div></div>
+        <div class="gg-dlrow">
+          <button class="gg-dl" id="ge_download">⬇ Download PNG</button>
+          <select class="gg-q" id="ge_quality" title="Export resolution"><option value="2">2×</option><option value="3" selected>3×</option><option value="4">4×</option></select>
+        </div>
+      </div>
+    </div>
+    <div id="gePreview"><div id="geFrame">
+      <div id="geCard">
+        <div class="geHero" id="ge_hero"><div class="ge-ph" id="ge_hero_ph">Upload the main photo →</div><img id="ge_hero_img" alt="" style="display:none"></div>
+        <div class="geScrim" id="ge_scrim"></div>
+        <div class="geRight" id="ge_right"></div>
+      </div>
+    </div></div>
+  </div>`;
+}
+
+function geLayoutHero(k){
+  const s=geState, box=ggEl('ge_hero'), img=ggEl('ge_hero_img'), ph=ggEl('ge_hero_ph');
+  if(!box) return;
+  box.style.width=s.heroW+'%';
+  if(!s.heroSrc || !geAspect){ img.style.display='none'; if(ph) ph.style.display='block'; if(ph) ph.style.fontSize=(22*k)+'px'; return; }
+  img.style.display='block'; if(ph) ph.style.display='none';
+  const boxW=s.heroW/100*s.W, boxH=s.H, boxAspect=boxW/boxH;
+  let bw,bh; if(geAspect>boxAspect){ bh=boxH; bw=boxH*geAspect; } else { bw=boxW; bh=boxW/geAspect; }
+  const sc=s.heroSize/100, w=bw*sc, h=bh*sc;
+  const xOff=s.heroX/100*boxW, yOff=s.heroY/100*boxH;
+  img.style.width=w+'px'; img.style.height=h+'px';
+  img.style.left=((boxW-w)/2+xOff)+'px';
+  img.style.top=((boxH-h)/2+yOff)+'px';
+}
+function geRender(){
+  const s=geState, card=ggEl('geCard'); if(!card) return;
+  card.style.width=s.W+'px'; card.style.height=s.H+'px';
+  card.style.background = s.bgSrc ? `center/cover no-repeat url('${s.bgSrc}')` : GE_BG_DEFAULT;
+  const k=s.W/1600;
+  if(s.heroSrc) ggEl('ge_hero_img').src=s.heroSrc;
+  geLayoutHero(k);
+  const scrim=ggEl('ge_scrim');
+  if(s.dim>0){ const a=s.dim/100; scrim.style.background=`linear-gradient(105deg, rgba(9,21,41,${a*0.35}) 0%, rgba(9,21,41,${a*0.72}) 48%, rgba(9,21,41,${a*0.92}) 100%)`; } else scrim.style.background='transparent';
+  const right=ggEl('ge_right');
+  right.style.left=(s.heroW-1)+'%'; right.style.right='2.5%';
+  right.style.paddingTop=(46*k)+'px'; right.style.paddingBottom=(38*k)+'px';
+  const val=(s.valueText.trim()||s.endsText.trim());
+  const main=`<div class="geMain">
+    ${s.brand.trim()?`<div class="ge-brand" style="font-size:${56*k}px;letter-spacing:${5*k}px">${esc(s.brand)}</div>`:''}
+    ${s.model.trim()?`<div class="ge-model" style="font-size:${118*k}px;color:${s.modelColor}">${esc(s.model)}</div>`:''}
+    ${s.edition.trim()?`<div class="ge-edition" style="font-size:${46*k}px">${esc(s.edition)}</div>`:''}
+    ${s.editionLabel.trim()?`<div class="ge-label" style="font-size:${24*k}px;letter-spacing:${6*k}px;margin-top:${6*k}px">${esc(s.editionLabel)}</div>`:''}
+    ${val?`<div class="ge-rule" style="width:94%;margin-top:${18*k}px;margin-bottom:${12*k}px"></div>
+      <div class="ge-value" style="font-size:${30*k}px">${esc(s.valueText)}${(s.valueText.trim()&&s.endsText.trim())?'&nbsp;&nbsp;|&nbsp;&nbsp;':''}${esc(s.endsText)}</div>
+      <div class="ge-rule" style="width:94%;margin-top:${12*k}px;margin-bottom:${22*k}px"></div>`:''}
+    <div class="geStats" style="gap:${56*k}px">
+      <div class="geStat"><div class="geBig" style="font-size:${92*k}px">${esc(s.price)}</div><div class="geSmall" style="font-size:${22*k}px;letter-spacing:${4*k}px;margin-top:${4*k}px">${esc(s.priceLabel)}</div></div>
+      <div class="geDiv" style="height:${120*k}px"></div>
+      <div class="geStat"><div class="geBig" style="font-size:${92*k}px">${esc(s.entries)}</div><div class="geSmall" style="font-size:${22*k}px;letter-spacing:${4*k}px;margin-top:${4*k}px">${esc(s.entriesLabel)}</div></div>
+    </div>
+  </div>`;
+  const thumbs=s.thumbs.filter(Boolean);
+  const thumbHTML=thumbs.length?`<div class="geThumbs" style="gap:${22*k}px;margin-top:auto">
+    ${thumbs.map(src=>`<div class="geThumb" style="width:${168*k}px;height:${168*k}px;border-radius:${18*k}px;border-width:${3*k}px;background-image:url('${src}')"></div>`).join('')}
+  </div>`:'';
+  right.innerHTML=main+thumbHTML;
+  geFit();
+}
+function geFit(){
+  const prev=ggEl('gePreview'), card=ggEl('geCard'), frame=ggEl('geFrame'); if(!prev||!card) return;
+  const sc=Math.min((prev.clientWidth-60)/geState.W,(prev.clientHeight-60)/geState.H,1);
+  card.style.transform=`scale(${sc})`;
+  frame.style.width=(geState.W*sc)+'px'; frame.style.height=(geState.H*sc)+'px';
+}
+function geSync(){
+  const s=geState;
+  ['brand','model','edition','editionLabel','valueText','endsText','price','priceLabel','entries','entriesLabel'].forEach(kk=>{ const el=ggEl('ge_'+kk); if(el) el.value=s[kk]; });
+  const setR=(id,v,suf='')=>{ ggEl('ge_'+id).value=v; ggEl('ge_'+id+'Val').textContent=v+suf; };
+  setR('heroW',s.heroW,'%'); setR('heroSize',s.heroSize,'%'); setR('heroX',s.heroX); setR('heroY',s.heroY); setR('dim',s.dim,'%');
+  [...ggEl('ge_formatChips').children].forEach(c=>c.classList.toggle('active',+c.dataset.w===s.W&&+c.dataset.h===s.H));
+  [...ggEl('ge_modelColor').children].forEach(c=>c.classList.toggle('active',c.dataset.c===s.modelColor));
+  if(s.bgSrc) ggEl('ge_bgName').textContent='Background loaded';
+  if(s.heroSrc) ggEl('ge_heroName').textContent='Photo loaded';
+  s.thumbs.forEach((t,i)=>{ if(t) ggEl('ge_thumbName'+i).textContent='✓ '+(i+1); });
+}
+function geReadFile(file, cb){ const r=new FileReader(); r.onload=()=>cb(r.result); r.readAsDataURL(file); }
+function geBoot(){
+  geSync();
+  const s=geState;
+  const bindT=kk=>{ ggEl('ge_'+kk).oninput=e=>{ s[kk]=e.target.value; geRender(); }; };
+  ['brand','model','edition','editionLabel','valueText','endsText','price','priceLabel','entries','entriesLabel'].forEach(bindT);
+  const bindR=(id,suf='')=>{ ggEl('ge_'+id).oninput=e=>{ s[id]=+e.target.value; ggEl('ge_'+id+'Val').textContent=e.target.value+suf; geRender(); }; };
+  bindR('heroW','%'); bindR('heroSize','%'); bindR('heroX'); bindR('heroY'); bindR('dim','%');
+  const chip=(wrap,fn)=>{ ggEl(wrap).onclick=e=>{ const c=e.target.closest('.gg-chip'); if(!c)return; [...e.currentTarget.children].forEach(x=>x.classList.remove('active')); c.classList.add('active'); fn(c); geRender(); }; };
+  chip('ge_formatChips',c=>{s.W=+c.dataset.w;s.H=+c.dataset.h;});
+  chip('ge_modelColor',c=>s.modelColor=c.dataset.c);
+  ggEl('ge_bgInput').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f)return; ggEl('ge_bgName').textContent='Background loaded'; geReadFile(f,d=>{ s.bgSrc=d; geRender(); }); };
+  ggEl('ge_heroInput').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f)return; ggEl('ge_heroName').textContent=f.name.length>18?f.name.slice(0,16)+'…':f.name; geReadFile(f,d=>{ const pr=new Image(); pr.onload=()=>{ geAspect=pr.naturalWidth/pr.naturalHeight; s.heroSrc=d; geRender(); }; pr.onerror=()=>alert('That image could not be loaded.'); pr.src=d; }); };
+  [0,1,2].forEach(i=>{ ggEl('ge_thumb'+i).onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f)return; ggEl('ge_thumbName'+i).textContent='✓ '+(i+1); geReadFile(f,d=>{ s.thumbs[i]=d; geRender(); }); }; });
+  ggEl('ge_download').onclick=async ()=>{
+    const btn=ggEl('ge_download'); const orig=btn.innerHTML; btn.disabled=true; btn.innerHTML='Rendering…';
+    try{
+      await document.fonts.ready;
+      const scale=+ggEl('ge_quality').value; const card=ggEl('geCard');
+      const prevT=card.style.transform; card.style.transform='none';
+      const canvas=await html2canvas(card,{scale,backgroundColor:null,useCORS:true,logging:false,width:s.W,height:s.H});
+      card.style.transform=prevT;
+      const link=document.createElement('a');
+      link.download=((s.brand+'-'+s.model+'-email').replace(/[^a-z0-9]+/gi,'-').toLowerCase().replace(/^-|-$/g,'')||'watch-drop-email')+'.png';
+      link.href=canvas.toDataURL('image/png'); link.click();
+    }catch(err){ alert('Export failed: '+err.message); }
+    finally{ btn.disabled=false; btn.innerHTML=orig; geFit(); }
+  };
+  document.fonts.ready.then(geRender);
+  geRender();
+}
+
+/* ===== Post / Ad template (portrait: gold headline, pills, reflection) ===== */
+let gpState = {
+  intro1:'ENDING TONIGHT', intro2:'WIN THE', bigText:'TAG HEUER', modelLine:'MONACO "PYTHON"',
+  valueLabel:'RETAIL', valueAmount:'£4,700',
+  showTrust:true, trustLabel:'Trustpilot', stars:5, starColor:'#00B67A',
+  showPills:true, pill1big:'349', pill1small:'MAX ENTRIES', pill2big:'£24.99', pill2small:'',
+  imgSrc:null, photoSize:64, photoX:0, photoY:4, photoRot:0, photoOpacity:100, dim:0,
+  fit:'contain', layer:'behind', reflection:true, bgSrc:null,
+  W:1080, H:1350, showLogo:true, logoText:'THE\nWATCH\nDROP'
+};
+let gpAspect = null;
+const GP_BG_DEFAULT = "radial-gradient(120% 55% at 50% 26%, rgba(120,150,205,.18), rgba(120,150,205,0) 58%), linear-gradient(180deg,#0a1a38 0%,#12274f 40%,#33415f 50%,#c7ccd3 58%,#e9ebee 70%,#9aa0a8 85%,#141619 100%)";
+const GP_PRESETS={
+  centre:{photoX:0,photoY:0,photoSize:70,fit:'contain',layer:'front',photoRot:0,dim:0},
+  fill:{photoX:0,photoY:0,photoSize:110,fit:'cover',layer:'behind',photoRot:0,dim:34},
+  top:{photoY:-28},bottom:{photoY:26},left:{photoX:-28},right:{photoX:28},
+  reset:{photoX:0,photoY:4,photoSize:64,fit:'contain',layer:'behind',photoRot:0,photoOpacity:100,dim:0}
+};
+function gpPostMarkup(){
+  return `<div id="gpRoot">
+    <div id="gpControls">
+      <div class="gg-group">
+        <div class="gg-title">Content</div>
+        <div class="gg-fld"><label>Intro line 1</label><input type="text" id="gp_intro1"></div>
+        <div class="gg-fld"><label>Intro line 2</label><input type="text" id="gp_intro2"></div>
+        <div class="gg-fld"><label>Big headline (gold)</label><input type="text" id="gp_bigText"></div>
+        <div class="gg-fld"><label>Model line</label><input type="text" id="gp_modelLine"></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Value &amp; Trust</div>
+        <div class="gg-row"><div class="gg-fld"><label>Value label</label><input type="text" id="gp_valueLabel"></div>
+          <div class="gg-fld"><label>Amount</label><input type="text" id="gp_valueAmount"></div></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gp_showTrust"><span class="gg-switch"></span><span class="gg-tl">Show trust badge</span></label></div>
+        <div class="gg-fld"><label>Badge label</label><input type="text" id="gp_trustLabel"></div>
+        <div class="gg-fld"><label>Stars <span class="gg-rv" id="gp_starsVal"></span></label><input type="range" id="gp_stars" min="1" max="5" step="1"></div>
+        <div class="gg-fld"><label>Star colour</label><div class="gg-sw" id="gp_starSwatches">
+          <div class="gg-swatch" data-c="#00B67A" style="background:#00B67A"></div>
+          <div class="gg-swatch" data-c="#C9A24B" style="background:#C9A24B"></div>
+          <div class="gg-swatch" data-c="#FFFFFF" style="background:#FFFFFF"></div></div></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Entry Pills</div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gp_showPills"><span class="gg-switch"></span><span class="gg-tl">Show pills</span></label></div>
+        <div class="gg-row"><div class="gg-fld"><label>Pill 1 — value</label><input type="text" id="gp_pill1big"></div>
+          <div class="gg-fld"><label>Pill 1 — label</label><input type="text" id="gp_pill1small"></div></div>
+        <div class="gg-row"><div class="gg-fld"><label>Pill 2 — value</label><input type="text" id="gp_pill2big"></div>
+          <div class="gg-fld"><label>Pill 2 — label</label><input type="text" id="gp_pill2small"></div></div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">📷 Photo &amp; positioning</div>
+        <div class="gg-fld"><label class="gg-up" for="gp_photoInput">📷 <span id="gp_photoName">Upload watch photo</span></label>
+          <input type="file" id="gp_photoInput" accept="image/*" style="display:none"></div>
+        <div class="gg-fld"><label>Quick position</label><div class="gg-chips" id="gp_posPresets">
+          <div class="gg-chip" data-p="centre">Centre</div><div class="gg-chip" data-p="fill">Fill background</div>
+          <div class="gg-chip" data-p="top">Top</div><div class="gg-chip" data-p="bottom">Bottom</div>
+          <div class="gg-chip" data-p="left">Left</div><div class="gg-chip" data-p="right">Right</div>
+          <div class="gg-chip" data-p="reset">Reset</div></div></div>
+        <div class="gg-fld"><label>Layer</label><div class="gg-chips" id="gp_layerChips">
+          <div class="gg-chip" data-l="behind">Behind text</div><div class="gg-chip" data-l="front">In front of text</div></div></div>
+        <div class="gg-fld"><label>Fit</label><div class="gg-chips" id="gp_fitChips">
+          <div class="gg-chip" data-f="contain">Contain</div><div class="gg-chip" data-f="cover">Cover / fill</div></div></div>
+        <div class="gg-fld"><label>Size <span class="gg-rv" id="gp_photoSizeVal"></span></label><input type="range" id="gp_photoSize" min="20" max="240" step="1"></div>
+        <div class="gg-fld"><label>Horizontal <span class="gg-rv" id="gp_photoXVal"></span></label><input type="range" id="gp_photoX" min="-100" max="100" step="1"></div>
+        <div class="gg-fld"><label>Vertical <span class="gg-rv" id="gp_photoYVal"></span></label><input type="range" id="gp_photoY" min="-100" max="100" step="1"></div>
+        <div class="gg-fld"><label>Rotation <span class="gg-rv" id="gp_photoRotVal"></span></label><input type="range" id="gp_photoRot" min="-45" max="45" step="1"></div>
+        <div class="gg-fld"><label>Opacity <span class="gg-rv" id="gp_photoOpacityVal"></span></label><input type="range" id="gp_photoOpacity" min="15" max="100" step="1"></div>
+        <div class="gg-fld"><label>Dim behind photo <span class="gg-rv" id="gp_dimVal"></span></label><input type="range" id="gp_dim" min="0" max="75" step="1"></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gp_reflection"><span class="gg-switch"></span><span class="gg-tl">Marble reflection</span></label></div>
+        <div class="gg-fld"><label>Background (marble)</label>
+          <label class="gg-up" for="gp_bgInput">🖼 <span id="gp_bgName">Upload background</span></label>
+          <input type="file" id="gp_bgInput" accept="image/*" style="display:none"></div>
+        <div class="gg-hint">Reflection mirrors the watch on the marble (turns off when rotated). Upload your own marble/blue background, or use the built-in gradient.</div>
+      </div>
+      <div class="gg-group">
+        <div class="gg-title">Layout</div>
+        <div class="gg-fld"><label>Format</label><div class="gg-chips" id="gp_formatChips">
+          <div class="gg-chip" data-w="1080" data-h="1350">Portrait 4:5</div>
+          <div class="gg-chip" data-w="1080" data-h="1920">Story 9:16</div>
+          <div class="gg-chip" data-w="1080" data-h="1080">Square 1:1</div></div></div>
+        <div class="gg-fld"><label class="gg-toggle"><input type="checkbox" id="gp_showLogo"><span class="gg-switch"></span><span class="gg-tl">Show logo</span></label></div>
+        <div class="gg-fld"><label>Logo text</label><textarea id="gp_logoText" rows="3"></textarea></div>
+        <div class="gg-dlrow">
+          <button class="gg-dl" id="gp_download">⬇ Download PNG</button>
+          <select class="gg-q" id="gp_quality" title="Export resolution"><option value="2">2×</option><option value="3" selected>3×</option><option value="4">4×</option></select>
+        </div>
+      </div>
+    </div>
+    <div id="gpPreview"><div id="gpFrame">
+      <div id="gpCard">
+        <div class="photoLayer" id="gp_photoLayer"><img id="gp_reflect" alt="" style="display:none"><img id="gp_img" alt="" style="display:none"></div>
+        <div class="scrim" id="gp_scrim"></div>
+        <div class="pad">
+          <div class="header" id="gp_header"></div>
+          <div class="midspace"><div class="ph" id="gp_placeholder">Upload a watch photo →</div></div>
+          <div class="footer" id="gp_footer"></div>
+        </div>
+        <div class="brandmark" id="gp_logo"></div>
+      </div>
+    </div></div>
+  </div>`;
+}
+function gpLayoutPhoto(){
+  const s=gpState,k=s.W/1080,img=ggEl('gp_img'),ref=ggEl('gp_reflect'); if(!img) return;
+  if(!s.imgSrc||!gpAspect){ img.style.display='none'; ref.style.display='none'; const ph=ggEl('gp_placeholder'); if(ph){ph.style.display='block';ph.style.fontSize=(20*k)+'px';} return; }
+  img.style.display='block'; ggEl('gp_placeholder').style.display='none';
+  const cardAspect=s.W/s.H; let baseW,baseH;
+  if(s.fit==='cover'){ if(gpAspect>cardAspect){baseH=s.H;baseW=s.H*gpAspect;}else{baseW=s.W;baseH=s.W/gpAspect;} }
+  else { if(gpAspect>cardAspect){baseW=s.W;baseH=s.W/gpAspect;}else{baseH=s.H;baseW=s.H*gpAspect;} }
+  const sc=s.photoSize/100,w=baseW*sc,h=baseH*sc;
+  const xOff=s.photoX/100*s.W,yOff=s.photoY/100*s.H, left=(s.W-w)/2+xOff, top=(s.H-h)/2+yOff;
+  img.style.width=w+'px'; img.style.height=h+'px'; img.style.left=left+'px'; img.style.top=top+'px';
+  img.style.transformOrigin='center center'; img.style.transform=s.photoRot?`rotate(${s.photoRot}deg)`:'none'; img.style.opacity=s.photoOpacity/100;
+  if(s.reflection && !s.photoRot){
+    ref.style.display='block'; ref.src=s.imgSrc;
+    ref.style.width=w+'px'; ref.style.height=h+'px'; ref.style.left=left+'px'; ref.style.top=(top+h)+'px';
+    ref.style.transform='scaleY(-1)'; ref.style.opacity=(s.photoOpacity/100)*0.26;
+  } else ref.style.display='none';
+  ggEl('gp_photoLayer').style.zIndex = s.layer==='front'?15:1;
+}
+function gpRender(){
+  const s=gpState, card=ggEl('gpCard'); if(!card) return;
+  card.style.width=s.W+'px'; card.style.height=s.H+'px';
+  card.style.background = s.bgSrc ? `center/cover no-repeat url('${s.bgSrc}')` : GP_BG_DEFAULT;
+  const k=s.W/1080, p=[];
+  if(s.intro1.trim()) p.push(`<div class="gp-intro" style="font-size:${64*k}px;letter-spacing:${3*k}px">${esc(s.intro1)}</div>`);
+  if(s.intro2.trim()) p.push(`<div class="gp-intro2" style="font-size:${46*k}px">${esc(s.intro2)}</div>`);
+  if(s.bigText.trim()) p.push(`<div class="gp-big" style="font-size:${120*k}px;letter-spacing:${2*k}px;margin:${4*k}px 0">${esc(s.bigText)}</div>`);
+  if(s.modelLine.trim()) p.push(`<div class="gp-model" style="font-size:${38*k}px;letter-spacing:${5*k}px;margin-top:${4*k}px">${esc(s.modelLine)}</div>`);
+  if(s.valueLabel.trim()||s.valueAmount.trim()){
+    const sep=(s.valueLabel.trim()&&s.valueAmount.trim())?` <span style="color:#6f7d95">|</span> `:'';
+    p.push(`<div class="rule" style="width:70%;margin-top:${16*k}px;margin-bottom:${10*k}px"></div>`);
+    p.push(`<div class="value" style="font-size:${32*k}px;letter-spacing:${2*k}px">${esc(s.valueLabel)}${sep}<span class="amt">${esc(s.valueAmount)}</span></div>`);
+    p.push(`<div class="rule" style="width:70%;margin-top:${10*k}px;margin-bottom:${14*k}px"></div>`);
+  }
+  if(s.showTrust){
+    const sz=30*k; let st='';
+    for(let i=0;i<s.stars;i++) st+=`<span class="tstar" style="background:${s.starColor};width:${sz}px;height:${sz}px;margin-right:${4*k}px">${ggStar(sz*0.78,'#fff')}</span>`;
+    p.push(`<div class="trust" style="font-size:${30*k}px;gap:${10*k}px;margin-top:${6*k}px">${ggStar(34*k,s.starColor)}<span>${esc(s.trustLabel)}</span><span class="stars">${st}</span></div>`);
+  }
+  ggEl('gp_header').innerHTML=p.join('');
+  if(s.imgSrc) ggEl('gp_img').src=s.imgSrc;
+  gpLayoutPhoto();
+  const scrim=ggEl('gp_scrim');
+  if(s.dim>0){ const a=s.dim/100; scrim.style.background=`linear-gradient(180deg, rgba(9,21,41,${a*0.9}) 0%, rgba(9,21,41,${a*0.45}) 45%, rgba(13,28,55,${a*0.9}) 100%)`; } else scrim.style.background='transparent';
+  const pill=(big,small)=> big.trim()? `<div class="gpPill" style="padding:${15*k}px ${26*k}px;border-radius:${16*k}px;gap:${12*k}px"><span class="gpBig" style="font-size:${58*k}px">${esc(big)}</span>${small.trim()?`<span class="gpSmall" style="font-size:${19*k}px;letter-spacing:${1.5*k}px">${esc(small).replace(' ','<br>')}</span>`:''}</div>` : '';
+  let footer='';
+  if(s.showPills && (s.pill1big.trim()||s.pill2big.trim())) footer=`<div class="gpPills" style="gap:${16*k}px">${pill(s.pill1big,s.pill1small)}${pill(s.pill2big,s.pill2small)}</div>`;
+  ggEl('gp_footer').innerHTML=footer;
+  ggEl('gp_footer').style.marginBottom=(12*k)+'px';
+  card.querySelector('.pad').style.padding=`${58*k}px ${54*k}px`;
+  const logo=ggEl('gp_logo');
+  if(s.showLogo&&s.logoText.trim()){ logo.style.display='block'; logo.style.fontSize=(34*k)+'px'; logo.style.letterSpacing=(3*k)+'px'; logo.style.left=(50*k)+'px'; logo.style.bottom=(44*k)+'px'; logo.innerHTML=esc(s.logoText).replace(/\n/g,'<br>'); }
+  else logo.style.display='none';
+  gpFit();
+}
+function gpFit(){
+  const prev=ggEl('gpPreview'), card=ggEl('gpCard'), frame=ggEl('gpFrame'); if(!prev||!card) return;
+  const sc=Math.min((prev.clientWidth-60)/gpState.W,(prev.clientHeight-60)/gpState.H,1);
+  card.style.transform=`scale(${sc})`; frame.style.width=(gpState.W*sc)+'px'; frame.style.height=(gpState.H*sc)+'px';
+}
+function gpSync(){
+  const s=gpState;
+  ['intro1','intro2','bigText','modelLine','valueLabel','valueAmount','trustLabel','pill1big','pill1small','pill2big','pill2small','logoText'].forEach(kk=>{ const el=ggEl('gp_'+kk); if(el) el.value=s[kk]; });
+  ggEl('gp_showTrust').checked=s.showTrust; ggEl('gp_showPills').checked=s.showPills; ggEl('gp_showLogo').checked=s.showLogo; ggEl('gp_reflection').checked=s.reflection;
+  const setR=(id,v,suf='')=>{ ggEl('gp_'+id).value=v; ggEl('gp_'+id+'Val').textContent=v+suf; };
+  setR('stars',s.stars); setR('photoSize',s.photoSize,'%'); setR('photoX',s.photoX); setR('photoY',s.photoY); setR('photoRot',s.photoRot,'°'); setR('photoOpacity',s.photoOpacity,'%'); setR('dim',s.dim,'%');
+  const act=(wrap,fn)=>[...ggEl(wrap).children].forEach(c=>c.classList.toggle('active',fn(c)));
+  act('gp_layerChips',c=>c.dataset.l===s.layer); act('gp_fitChips',c=>c.dataset.f===s.fit);
+  act('gp_formatChips',c=>+c.dataset.w===s.W&&+c.dataset.h===s.H); act('gp_starSwatches',c=>c.dataset.c===s.starColor);
+  if(s.imgSrc) ggEl('gp_photoName').textContent='Photo loaded';
+  if(s.bgSrc) ggEl('gp_bgName').textContent='Background loaded';
+}
+function gpBoot(){
+  gpSync();
+  const s=gpState;
+  const bindT=kk=>{ ggEl('gp_'+kk).oninput=e=>{ s[kk]=e.target.value; gpRender(); }; };
+  ['intro1','intro2','bigText','modelLine','valueLabel','valueAmount','trustLabel','pill1big','pill1small','pill2big','pill2small','logoText'].forEach(bindT);
+  ggEl('gp_showTrust').onchange=e=>{s.showTrust=e.target.checked;gpRender();};
+  ggEl('gp_showPills').onchange=e=>{s.showPills=e.target.checked;gpRender();};
+  ggEl('gp_showLogo').onchange=e=>{s.showLogo=e.target.checked;gpRender();};
+  ggEl('gp_reflection').onchange=e=>{s.reflection=e.target.checked;gpRender();};
+  const bindR=(id,suf='')=>{ ggEl('gp_'+id).oninput=e=>{ s[id]=+e.target.value; ggEl('gp_'+id+'Val').textContent=e.target.value+suf; gpRender(); }; };
+  bindR('stars'); bindR('photoSize','%'); bindR('photoX'); bindR('photoY'); bindR('photoRot','°'); bindR('photoOpacity','%'); bindR('dim','%');
+  const chip=(wrap,fn)=>{ ggEl(wrap).onclick=e=>{ const c=e.target.closest('.gg-chip'); if(!c)return; [...e.currentTarget.children].forEach(x=>x.classList.remove('active')); c.classList.add('active'); fn(c); gpRender(); }; };
+  chip('gp_layerChips',c=>s.layer=c.dataset.l); chip('gp_fitChips',c=>s.fit=c.dataset.f);
+  chip('gp_formatChips',c=>{s.W=+c.dataset.w;s.H=+c.dataset.h;});
+  ggEl('gp_starSwatches').onclick=e=>{ const sw=e.target.closest('.gg-swatch'); if(!sw)return; [...e.currentTarget.children].forEach(x=>x.classList.remove('active')); sw.classList.add('active'); s.starColor=sw.dataset.c; gpRender(); };
+  ggEl('gp_posPresets').onclick=e=>{ const c=e.target.closest('.gg-chip'); if(!c)return; Object.assign(s,GP_PRESETS[c.dataset.p]||{}); gpSync(); gpRender(); };
+  ggEl('gp_photoInput').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f)return; ggEl('gp_photoName').textContent=f.name.length>22?f.name.slice(0,20)+'…':f.name; const rd=new FileReader(); rd.onload=()=>{ const pr=new Image(); pr.onload=()=>{ gpAspect=pr.naturalWidth/pr.naturalHeight; s.imgSrc=rd.result; gpRender(); }; pr.onerror=()=>alert('That image could not be loaded.'); pr.src=rd.result; }; rd.readAsDataURL(f); };
+  ggEl('gp_bgInput').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(!f)return; ggEl('gp_bgName').textContent='Background loaded'; const rd=new FileReader(); rd.onload=()=>{ s.bgSrc=rd.result; gpRender(); }; rd.readAsDataURL(f); };
+  ggEl('gp_download').onclick=async ()=>{
+    const btn=ggEl('gp_download'); const orig=btn.innerHTML; btn.disabled=true; btn.innerHTML='Rendering…';
+    try{
+      await document.fonts.ready;
+      const scale=+ggEl('gp_quality').value; const card=ggEl('gpCard');
+      const prevT=card.style.transform; card.style.transform='none';
+      const canvas=await html2canvas(card,{scale,backgroundColor:null,useCORS:true,logging:false,width:s.W,height:s.H});
+      card.style.transform=prevT;
+      const link=document.createElement('a');
+      link.download=((s.bigText+'-'+s.modelLine).replace(/[^a-z0-9]+/gi,'-').toLowerCase().replace(/^-|-$/g,'')||'watch-drop-ad')+'.png';
+      link.href=canvas.toDataURL('image/png'); link.click();
+    }catch(err){ alert('Export failed: '+err.message); }
+    finally{ btn.disabled=false; btn.innerHTML=orig; gpFit(); }
+  };
+  document.fonts.ready.then(gpRender);
+  gpRender();
+}
+
+window.addEventListener('resize',()=>{ if(document.getElementById('ggPreview')) ggFit(); if(document.getElementById('gePreview')) geFit(); if(document.getElementById('gpPreview')) gpFit(); });
+
+/* ===== Script Reader / Teleprompter ===== */
+let _srUtterance=null, _srSpeaking=false, _srRate=0.9, _srCharIndex=0, _srFullText='';
+const SR_STEPS=20, SR_MIN=0.3, SR_MAX=2.0;
+function srStepToRate(step){ return Math.round((SR_MIN+(step/SR_STEPS)*(SR_MAX-SR_MIN))*100)/100; }
+function srRateToStep(rate){ return Math.round(((rate-SR_MIN)/(SR_MAX-SR_MIN))*SR_STEPS); }
+
+function openScriptReaderById(scriptId, dropId){
+  const d=dropId?dropById(dropId):null;
+  const s=d?(d.scripts||[]).find(x=>x.id===scriptId):null;
+  if(s){ openScriptReader(s.body||''); return; }
+  const c=DB.content.find(x=>x.id===scriptId);
+  if(c){ openScriptReader(c.body||''); return; }
+  for(const dr of DB.drops){
+    const found=(dr.scripts||[]).find(x=>x.id===scriptId);
+    if(found){ openScriptReader(found.body||''); return; }
+  }
+  alert('Script not found');
+}
+
+function srBuildWordSpans(text){
+  // Split into tokens preserving whitespace and newlines
+  return text.replace(/([^\s]+)/g, (word, _, offset)=>`<span class="sr-word" data-ci="${offset}" onclick="srReadFrom(${offset})" style="cursor:pointer;border-radius:3px;padding:0 1px;transition:background .1s">${word}</span>`);
+}
+
+function openScriptReader(text){
+  if(!text||!text.trim()){ alert('No script to read'); return; }
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  _srSpeaking=false; _srCharIndex=0; _srFullText=text;
+
+  const step=srRateToStep(_srRate);
+  const overlay=document.createElement('div');
+  overlay.id='scriptReaderOverlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column;overflow:hidden';
+  overlay.innerHTML=`
+    <div style="flex:1;overflow-y:auto;padding:32px 24px 120px;-webkit-overflow-scrolling:touch" id="sr_scroll">
+      <div id="sr_text" style="font-size:22px;line-height:1.9;color:#fff;word-break:break-word">${srBuildWordSpans(text)}</div>
+    </div>
+    <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,.92);backdrop-filter:blur(10px);padding:14px 20px 28px;border-top:1px solid rgba(255,255,255,.1)">
+      <div style="font-size:10px;color:rgba(255,255,255,.3);text-align:center;margin-bottom:8px">Tap any word to start reading from there</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button id="sr_play" onclick="srToggle()" style="width:52px;height:52px;border-radius:50%;background:var(--gold);border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#000;flex-shrink:0">▶</button>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.8px">Speed</span>
+            <span id="sr_speed_label" style="font-size:13px;color:var(--gold);font-weight:700">${_srRate.toFixed(2)}×</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button onclick="srAdjustSpeed(-1)" style="background:rgba(255,255,255,.1);border:none;color:#fff;width:32px;height:32px;border-radius:6px;font-size:16px;cursor:pointer;flex-shrink:0">−</button>
+            <input id="sr_speed" type="range" min="0" max="${SR_STEPS}" step="1" value="${step}" oninput="srSetSpeed(parseInt(this.value))" style="flex:1;accent-color:var(--gold);height:4px">
+            <button onclick="srAdjustSpeed(1)" style="background:rgba(255,255,255,.1);border:none;color:#fff;width:32px;height:32px;border-radius:6px;font-size:16px;cursor:pointer;flex-shrink:0">+</button>
+          </div>
+        </div>
+        <button onclick="srClose()" style="background:rgba(255,255,255,.1);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:18px;cursor:pointer;flex-shrink:0">×</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function srHighlightWord(charIndex){
+  document.querySelectorAll('.sr-word').forEach(el=>{
+    const ci=parseInt(el.dataset.ci);
+    el.style.background = (ci===charIndex)?'rgba(201,162,75,.5)':'';
+    el.style.color = (ci===charIndex)?'#fff':'';
+  });
+  // Scroll active word into view
+  const active=document.querySelector(`.sr-word[data-ci="${charIndex}"]`);
+  if(active) active.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function srStartFrom(charIndex){
+  window.speechSynthesis.cancel();
+  _srCharIndex=charIndex;
+  const textFromHere=_srFullText.slice(charIndex);
+  _srUtterance=new SpeechSynthesisUtterance(textFromHere);
+  _srUtterance.rate=_srRate;
+  _srUtterance.onboundary=e=>{
+    if(e.name==='word'){
+      const absIdx=charIndex+e.charIndex;
+      _srCharIndex=absIdx;
+      srHighlightWord(absIdx);
+    }
+  };
+  _srUtterance.onend=()=>{
+    _srSpeaking=false;
+    _srCharIndex=0;
+    document.querySelectorAll('.sr-word').forEach(el=>{ el.style.background=''; el.style.color=''; });
+    const b=document.getElementById('sr_play'); if(b) b.textContent='▶';
+  };
+  window.speechSynthesis.speak(_srUtterance);
+  _srSpeaking=true;
+  const b=document.getElementById('sr_play'); if(b) b.textContent='⏸';
+}
+
+function srReadFrom(charIndex){
+  srStartFrom(charIndex);
+}
+
+function srToggle(){
+  if(_srSpeaking){
+    window.speechSynthesis.pause();
+    _srSpeaking=false;
+    document.getElementById('sr_play').textContent='▶';
+  } else {
+    if(window.speechSynthesis.paused){
+      window.speechSynthesis.resume();
+      _srSpeaking=true;
+      document.getElementById('sr_play').textContent='⏸';
+    } else {
+      srStartFrom(_srCharIndex);
+    }
+  }
+}
+
+function srSetSpeed(step){
+  _srRate=srStepToRate(step);
+  const lbl=document.getElementById('sr_speed_label'); if(lbl) lbl.textContent=_srRate.toFixed(2)+'×';
+  const sl=document.getElementById('sr_speed'); if(sl) sl.value=step;
+  // If playing, restart from current position at new speed
+  if(_srSpeaking || window.speechSynthesis.paused){
+    srStartFrom(_srCharIndex);
+  }
+}
+
+function srAdjustSpeed(delta){
+  const sl=document.getElementById('sr_speed'); if(!sl) return;
+  const newStep=Math.max(0,Math.min(SR_STEPS,parseInt(sl.value)+delta));
+  srSetSpeed(newStep);
+}
+
+function srClose(){
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  _srSpeaking=false; _srCharIndex=0;
+  const el=document.getElementById('scriptReaderOverlay'); if(el) el.remove();
+}
+
+/* ===== Scripts tab ===== */
+function dropScripts(d){
+  d.scripts = d.scripts||[];
+  const rows = d.scripts.map(s=>`
+    <div class="card" style="margin-bottom:12px;${s.toFilm?'border-color:var(--gold)':''}">
+      <div class="card-h">
+        <div style="display:flex;align-items:center;gap:10px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0">
+            <input type="checkbox" ${s.toFilm?'checked':''} onchange="toggleScriptToFilm('${d.id}','${s.id}',this.checked)" style="width:16px;height:16px;accent-color:var(--gold)">
+            <span style="font-size:11px;color:var(--gold2);font-weight:600;text-transform:uppercase;letter-spacing:.6px">To Film</span>
+          </label>
+          <h3 style="margin:0">${esc(s.title||'Untitled Script')}</h3>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-gold" onclick="openScriptReaderById('${s.id}','${d.id}')">▶ Read</button>
+          <button class="btn btn-sm" onclick="editDropScript('${d.id}','${s.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="delDropScript('${d.id}','${s.id}')">✕</button>
+        </div>
+      </div>
+      <div style="padding:12px 18px;color:var(--ink2);font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:120px;overflow:hidden;cursor:pointer" onclick="editDropScript('${d.id}','${s.id}')">${esc((s.body||'').slice(0,300))}${(s.body||'').length>300?'…':''}</div>
+    </div>`).join('');
+
+  return `<div style="margin-top:4px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="muted" style="font-size:12.5px">${d.scripts.length} script${d.scripts.length===1?'':'s'} for ${esc(d.number)}</div>
+      <button class="btn btn-gold" onclick="newDropScript('${d.id}')">＋ New Script</button>
+    </div>
+    ${rows||'<div class="card"><div class="empty">No scripts yet — add one to get started.</div></div>'}
+  </div>`;
+}
+
+function newDropScript(dropId){
+  const d=dropById(dropId); if(!d) return;
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>New Script</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Title</label><input id="sc_title" placeholder="e.g. Launch hook, Draw day urgency…"></div>
+      <div class="field"><label>Script</label><textarea id="sc_body" style="min-height:260px" placeholder="Write your script here…"></textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveDropScript('${dropId}','')">Save</button>
+    </div>
+  </div>`);
+}
+
+function editDropScript(dropId, scriptId){
+  const d=dropById(dropId); if(!d) return;
+  const s=(d.scripts||[]).find(x=>x.id===scriptId); if(!s) return;
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>Edit Script</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Title</label><input id="sc_title" value="${esc(s.title||'')}"></div>
+      <div class="field"><label>Script</label><textarea id="sc_body" style="min-height:260px">${esc(s.body||'')}</textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="openScriptReader(document.getElementById('sc_body').value)">▶ Read</button>
+      <button class="btn btn-gold" onclick="saveDropScript('${dropId}','${scriptId}')">Save</button>
+    </div>
+  </div>`);
+}
+
+function saveDropScript(dropId, scriptId){
+  const d=dropById(dropId); if(!d) return;
+  d.scripts=d.scripts||[];
+  const title=document.getElementById('sc_title').value.trim()||'Untitled';
+  const body=document.getElementById('sc_body').value||'';
+  if(scriptId){
+    const s=d.scripts.find(x=>x.id===scriptId);
+    if(s){ s.title=title; s.body=body; }
+  } else {
+    d.scripts.push({id:uid('sc'),title,body,created:now()});
+  }
+  saveDB(); closeModal(); render();
+}
+
+function delDropScript(dropId, scriptId){
+  const d=dropById(dropId); if(!d) return;
+  if(!confirm('Delete this script?')) return;
+  d.scripts=(d.scripts||[]).filter(x=>x.id!==scriptId);
+  saveDB(); render();
+}
+function toggleScriptToFilm(dropId, scriptId, val){
+  const d=dropById(dropId); if(!d) return;
+  const s=(d.scripts||[]).find(x=>x.id===scriptId); if(!s) return;
+  s.toFilm=val; queueSave();
+}
+
+let scriptsFilter='All';
+function vAllScripts(){
+  const all=[];
+  DB.drops.forEach(d=>(d.scripts||[]).forEach(s=>all.push({...s,dropId:d.id,dropNum:d.number})));
+  all.sort((a,b)=>(b.created||'').localeCompare(a.created||''));
+  const toFilmCount = all.filter(s=>s.toFilm).length;
+  const filtered = scriptsFilter==='To Film' ? all.filter(s=>s.toFilm) : all;
+
+  const rows = filtered.map(s=>`
+    <div class="card" style="margin-bottom:10px;${s.toFilm?'border-color:var(--gold)':''}">
+      <div class="card-h">
+        <div style="display:flex;align-items:center;gap:10px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0" onclick="event.stopPropagation()">
+            <input type="checkbox" ${s.toFilm?'checked':''} onchange="toggleScriptToFilm('${s.dropId}','${s.id}',this.checked)" style="width:16px;height:16px;accent-color:var(--gold)">
+            <span style="font-size:11px;color:var(--gold2);font-weight:600;text-transform:uppercase;letter-spacing:.6px">To Film</span>
+          </label>
+          <div>
+            <div style="font-weight:700;font-size:14px">${esc(s.title||'Untitled')}</div>
+            <span class="pill pill-type" style="font-size:10px;cursor:pointer;margin-top:2px" onclick="go('drop','${s.dropId}','scripts')">${esc(s.dropNum)}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-gold" onclick="openScriptReaderById('${s.id}','${d.id}')">▶ Read</button>
+          <button class="btn btn-sm" onclick="go('drop','${s.dropId}','scripts')">Open →</button>
+        </div>
+      </div>
+      <div style="padding:10px 18px 14px;color:var(--ink2);font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:100px;overflow:hidden">${esc((s.body||'').slice(0,250))}${(s.body||'').length>250?'…':''}</div>
+    </div>`).join('');
+
+  return `<div class="page-head"><div><h2>Scripts</h2><div class="desc">${all.length} total · ${toFilmCount} to film</div></div></div>
+    <div class="filters">
+      <button class="fbtn ${scriptsFilter==='All'?'active':''}" onclick="scriptsFilter='All';render()">All (${all.length})</button>
+      <button class="fbtn ${scriptsFilter==='To Film'?'active':''}" onclick="scriptsFilter='To Film';render()">🎬 To Film (${toFilmCount})</button>
+    </div>
+    ${filtered.length? rows : '<div class="card"><div class="empty">${scriptsFilter==="To Film"?"No scripts marked to film yet — tick the checkbox on any script.":"No scripts yet — add them from any Drop Hub under the Scripts tab."}</div></div>'}`;
+}
+
+function vaultLiveBanner(d){
+  if(!d.launch||!d.draw) return '';
+  const now = new Date();
+  const launch = new Date(d.launch);
+  const draw = new Date(d.draw);
+  const totalDays = Math.max(1, Math.round((draw-launch)/(1000*60*60*24)));
+  const daysLive = Math.max(0, Math.round((now-launch)/(1000*60*60*24)));
+  const daysLeft = Math.max(0, Math.round((draw-now)/(1000*60*60*24)));
+  const pctThrough = Math.min(100, Math.round(daysLive/totalDays*100));
+
+  // Ad spend pacing — £1k/week assumption
+  const weeksLive = daysLive/7;
+  const adPacePerWeek = Number((d.tracker||{}).adWeeklyBudget)||1000;
+  const expectedAdSpend = Math.round(weeksLive*adPacePerWeek);
+  const actualAdSpend = Number((d.tracker||{}).adsBudget)||0;
+  const adDelta = actualAdSpend - expectedAdSpend;
+  const adStatus = adDelta>100?'over':adDelta<-100?'under':'on track';
+  const adColor = adStatus==='over'?'var(--danger)':adStatus==='under'?'var(--warn)':'var(--live)';
+
+  return `<div class="card" style="margin-bottom:16px;border-color:var(--gold)">
+    <div class="card-h"><h3>⏱ Vault Progress</h3>
+      <span class="muted" style="font-size:11.5px">${daysLive} days live · ${daysLeft} days remaining</span>
+    </div>
+    <div style="padding:14px 18px">
+      <!-- Timeline bar -->
+      <div style="position:relative;height:10px;background:var(--panel2);border-radius:10px;margin-bottom:10px;overflow:hidden">
+        <div style="position:absolute;left:0;top:0;height:100%;width:${pctThrough}%;background:var(--gold);border-radius:10px;transition:width .5s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-bottom:16px">
+        <span>${fmtDate(d.launch)}</span>
+        <span style="color:var(--gold2);font-weight:700">${pctThrough}% through</span>
+        <span>${fmtDate(d.draw)}</span>
+      </div>
+      <!-- Stats row -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:120px;background:var(--panel);border-radius:10px;padding:12px 14px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3)">Days Live</div>
+          <div style="font-size:24px;font-weight:800;color:var(--ink)">${daysLive}</div>
+          <div style="font-size:11px;color:var(--ink3)">${Math.round(weeksLive*10)/10} weeks</div>
+        </div>
+        <div style="flex:1;min-width:120px;background:var(--panel);border-radius:10px;padding:12px 14px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3)">Days Left</div>
+          <div style="font-size:24px;font-weight:800;color:${daysLeft<14?'var(--warn)':'var(--ink)'}">${daysLeft}</div>
+          <div style="font-size:11px;color:var(--ink3)">${totalDays} total</div>
+        </div>
+        <div style="flex:2;min-width:180px;background:var(--panel);border-radius:10px;padding:12px 14px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3)">Ad Spend Pacing (£${adPacePerWeek.toLocaleString()}/wk)</div>
+          <div style="font-size:24px;font-weight:800;color:${adColor}">${gbp(actualAdSpend)}</div>
+          <div style="font-size:11px;color:${adColor}">${adStatus==='on track'?'On track':'${adStatus==="over"?"£"+(adDelta)+" over pace":"£"+Math.abs(adDelta)+" under pace"}'} · expected ${gbp(expectedAdSpend)}</div>
+          <div style="margin-top:8px">
+            <label style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px">Weekly budget (£)</label>
+            <input type="number" value="${adPacePerWeek}" style="width:100%;margin-top:4px;font-size:13px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:6px;padding:5px 8px" onchange="updTracker('adWeeklyBudget',this.value)">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ===== Ads tab ===== */
+function dropAds(d){
+  d.ads=d.ads||[];
+  // Ensure 5 ad slots
+  while(d.ads.length<5) d.ads.push({id:uid('ad'),label:'AD'+(d.ads.length+1),desc:'',square:'',vertical:''});
+
+  const cards = d.ads.map((ad,i)=>`
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-h">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;font-weight:800;color:var(--gold2);min-width:36px">AD${i+1}</span>
+          <input value="${esc(ad.label||'AD'+(i+1))}" placeholder="Ad name…"
+            style="background:transparent;border:none;border-bottom:1px solid var(--line2);color:var(--ink);font-size:14px;font-weight:600;padding:2px 4px;width:180px"
+            onchange="updDropAd('${d.id}','${ad.id}','label',this.value)">
+        </div>
+        <button class="btn btn-sm btn-danger" onclick="delDropAd('${d.id}','${ad.id}')">✕</button>
+      </div>
+      <div style="padding:0 18px 14px;display:flex;flex-direction:column;gap:12px">
+        <!-- Description -->
+        <div class="field" style="margin:0">
+          <label>Description / Brief</label>
+          <textarea style="min-height:60px" placeholder="Hook, copy direction, notes for Leila…" onchange="updDropAd('${d.id}','${ad.id}','desc',this.value)">${esc(ad.desc||'')}</textarea>
+        </div>
+        <!-- Two format slots — fixed compact size, correct aspect ratios -->
+        <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+          <!-- Square 1080x1080 — shown at 160x160 -->
+          <div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">1080 × 1080</div>
+            <div style="position:relative;width:160px;height:160px;background:var(--panel2);border-radius:8px;border:2px dashed var(--line2);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="document.getElementById('ad_sq_${ad.id}').click()">
+              ${ad.square
+                ? `<img data-mediaref="${esc(ad.square)}" style="width:100%;height:100%;object-fit:cover">
+                   <button onclick="event.stopPropagation();updDropAd('${d.id}','${ad.id}','square','');saveDB();render()" style="position:absolute;top:4px;right:4px;background:rgba(11,18,32,.85);border:none;color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center">×</button>`
+                : `<div style="text-align:center;color:var(--ink3)"><div style="font-size:20px">＋</div><div style="font-size:10px;margin-top:3px">Square</div></div>`}
+            </div>
+            <input id="ad_sq_${ad.id}" type="file" accept="image/*,video/*" style="display:none" onchange="uploadAdAsset(event,'${d.id}','${ad.id}','square')">
+          </div>
+          <!-- Vertical 1080x1920 — shown at 90x160 -->
+          <div>
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:6px">1080 × 1920</div>
+            <div style="position:relative;width:90px;height:160px;background:var(--panel2);border-radius:8px;border:2px dashed var(--line2);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="document.getElementById('ad_vt_${ad.id}').click()">
+              ${ad.vertical
+                ? `<img data-mediaref="${esc(ad.vertical)}" style="width:100%;height:100%;object-fit:cover">
+                   <button onclick="event.stopPropagation();updDropAd('${d.id}','${ad.id}','vertical','');saveDB();render()" style="position:absolute;top:4px;right:4px;background:rgba(11,18,32,.85);border:none;color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center">×</button>`
+                : `<div style="text-align:center;color:var(--ink3)"><div style="font-size:20px">＋</div><div style="font-size:10px;margin-top:3px">Vertical</div></div>`}
+            </div>
+            <input id="ad_vt_${ad.id}" type="file" accept="image/*,video/*" style="display:none" onchange="uploadAdAsset(event,'${d.id}','${ad.id}','vertical')">
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  return `<div style="margin-top:4px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="muted" style="font-size:12.5px">${d.ads.length} ad slots · upload square and vertical formats for each</div>
+      <button class="btn btn-gold" onclick="addDropAd('${d.id}')">＋ Add Ad</button>
+    </div>
+    ${cards}
+  </div>`;
+}
+
+function updDropAd(dropId, adId, field, val){
+  const d=dropById(dropId); if(!d) return;
+  const ad=(d.ads||[]).find(a=>a.id===adId); if(!ad) return;
+  ad[field]=val; queueSave();
+}
+function addDropAd(dropId){
+  const d=dropById(dropId); if(!d) return;
+  d.ads=d.ads||[];
+  d.ads.push({id:uid('ad'),label:'AD'+(d.ads.length+1),desc:'',square:'',vertical:''});
+  saveDB(); render();
+}
+function delDropAd(dropId, adId){
+  const d=dropById(dropId); if(!d) return;
+  if(!confirm('Remove this ad slot?')) return;
+  d.ads=(d.ads||[]).filter(a=>a.id!==adId);
+  saveDB(); render();
+}
+async function uploadAdAsset(evt, dropId, adId, format){
+  const file=evt.target.files[0]; if(!file) return;
+  try{
+    const ref=await storeMedia(file);
+    updDropAd(dropId,adId,format,ref);
+    saveDB(); render();
+    toast('Uploaded');
+  }catch(e){ alert('Upload failed: '+e.message); }
+  evt.target.value='';
+}
+
+/* ===== Note Tables ===== */
+function renderNoteTables(tables){
+  if(!tables||!tables.length) return '<div class="muted" style="font-size:12px;padding:4px 0">No tables yet.</div>';
+  return tables.map(t=>renderNoteTableBlock(t)).join('');
+}
+function renderNoteTableBlock(t){
+  const tid=t.id||uid('tbl');
+  const headers=t.headers&&t.headers.length?t.headers:['Name','Email','Notes'];
+  const rows=t.rows&&t.rows.length?t.rows:[Array(headers.length).fill('')];
+  const thInputs=headers.map((h,i)=>`<th style="padding:4px"><input class="nt-tbl-hdr" value="${esc(h)}" placeholder="Column ${i+1}" style="background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-weight:700;font-size:12px;width:100%;min-width:80px"></th>`).join('');
+  const trRows=rows.map(row=>`<tr class="nt-tbl-row">${headers.map((_,ci)=>`<td style="padding:4px"><input class="nt-tbl-cell" value="${esc(row[ci]||'')}" placeholder="—" style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-size:13px;width:100%;min-width:80px"></td>`).join('')}<td style="padding:4px;width:28px"><button onclick="ntDelRow(this)" style="background:none;border:none;color:var(--ink3);cursor:pointer;font-size:14px;padding:2px 4px">x</button></td></tr>`).join('');
+  return `<div class="nt-table-block" data-tid="${tid}" style="margin-bottom:14px;background:var(--panel);border-radius:10px;padding:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <input class="nt-tbl-title" value="${esc(t.title||'')}" placeholder="Table title..." style="flex:1;background:transparent;border:none;border-bottom:1px solid var(--line2);color:var(--ink);font-weight:700;font-size:13px;padding:2px 4px;outline:none">
+      <button onclick="ntAddCol(this)" class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px">+ Col</button>
+      <button onclick="ntAddRow(this)" class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px">+ Row</button>
+      <button onclick="this.closest('.nt-table-block').remove()" class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px">x</button>
+    </div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr>${thInputs}<th style="width:28px"></th></tr></thead>
+      <tbody>${trRows}</tbody>
+    </table></div>
+    <button onclick="ntAddRow(this)" style="margin-top:6px;background:none;border:none;color:var(--gold2);font-size:12px;cursor:pointer;padding:0">+ Add row</button>
+  </div>`;
+}
+function addNoteTable(){
+  const wrap=document.getElementById('nt_tables_wrap'); if(!wrap) return;
+  const blank={id:uid('tbl'),title:'',headers:['Name','Email','Notes'],rows:[['','','']]};
+  wrap.insertAdjacentHTML('beforeend',renderNoteTableBlock(blank));
+  const ph=wrap.querySelector('.muted');if(ph)ph.remove();
+}
+function ntAddRow(btn){
+  const block=btn.closest('.nt-table-block');
+  const tbody=block.querySelector('tbody');
+  const colCount=block.querySelectorAll('.nt-tbl-hdr').length;
+  const tr=document.createElement('tr');
+  tr.className='nt-tbl-row';
+  tr.innerHTML=Array(colCount).fill(0).map(()=>`<td style="padding:4px"><input class="nt-tbl-cell" placeholder="--" style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-size:13px;width:100%;min-width:80px"></td>`).join('')+`<td style="padding:4px;width:28px"><button onclick="ntDelRow(this)" style="background:none;border:none;color:var(--ink3);cursor:pointer;font-size:14px;padding:2px 4px">x</button></td>`;
+  tbody.appendChild(tr);
+}
+function ntDelRow(btn){ btn.closest('tr').remove(); }
+function ntAddCol(btn){
+  const block=btn.closest('.nt-table-block');
+  const theadRow=block.querySelector('thead tr');
+  const tbody=block.querySelector('tbody');
+  const th=document.createElement('th');
+  th.style.cssText='padding:4px';
+  th.innerHTML=`<input class="nt-tbl-hdr" placeholder="Column" style="background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-weight:700;font-size:12px;width:100%;min-width:80px">`;
+  theadRow.insertBefore(th,theadRow.lastElementChild);
+  tbody.querySelectorAll('.nt-tbl-row').forEach(row=>{
+    const td=document.createElement('td');
+    td.style.cssText='padding:4px';
+    td.innerHTML=`<input class="nt-tbl-cell" placeholder="--" style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:5px;padding:5px 8px;font-size:13px;width:100%;min-width:80px">`;
+    row.insertBefore(td,row.lastElementChild);
+  });
+}
+
+function openMonthlyRevenueUpload(){
+  DB.monthlyRevenue=DB.monthlyRevenue||[];
+  const months=[];
+  // Last 6 months
+  for(let i=0;i<6;i++){
+    const d=new Date(); d.setMonth(d.getMonth()-i);
+    const key=d.toISOString().slice(0,7);
+    const label=d.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+    months.push({key,label});
+  }
+  const rows=months.map(m=>{
+    const entry=DB.monthlyRevenue.find(r=>r.month===m.key);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+      <div style="flex:1;font-size:13px;font-weight:600">${m.label}</div>
+      <input type="number" step="0.01" placeholder="£0.00" value="${entry?entry.actual:''}"
+        id="mr_${m.key}"
+        style="width:130px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:7px 10px;font-size:14px;font-weight:700">
+      ${entry?`<span style="font-size:11px;color:var(--live)">✓ logged</span>`:'<span style="font-size:11px;color:var(--ink3)">not logged</span>'}
+    </div>`;
+  }).join('');
+
+  openModal(`<div class="modal wide"><div class="modal-h"><h3>Monthly Revenue — DNA Payments</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="muted" style="font-size:12.5px;margin-bottom:14px">Enter the total settled amount from your DNA Payments dashboard for each month. This is the gross amount before fees.</div>
+      <div style="margin-bottom:8px">
+        ${rows}
+      </div>
+      <div style="padding-top:12px;border-top:1px solid var(--line)">
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:8px">Or upload a DNA Payments CSV export — we'll sum all transaction amounts automatically.</div>
+        <input type="file" accept=".csv" id="mr_csv_file" style="font-size:12px">
+        <button class="btn btn-sm btn-ghost" style="margin-left:8px" onclick="parseMonthlyRevenueCSV()">Parse CSV</button>
+        <div id="mr_csv_result" class="muted" style="font-size:12px;margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveMonthlyRevenue()">Save</button>
+    </div>
+  </div>`);
+}
+
+function saveMonthlyRevenue(){
+  DB.monthlyRevenue=DB.monthlyRevenue||[];
+  const months=[];
+  for(let i=0;i<6;i++){
+    const d=new Date(); d.setMonth(d.getMonth()-i);
+    months.push(d.toISOString().slice(0,7));
+  }
+  months.forEach(m=>{
+    const el=document.getElementById('mr_'+m); if(!el) return;
+    const val=parseFloat(el.value);
+    if(isNaN(val)||val<=0){ DB.monthlyRevenue=DB.monthlyRevenue.filter(r=>r.month!==m); return; }
+    const existing=DB.monthlyRevenue.find(r=>r.month===m);
+    if(existing) existing.actual=val;
+    else DB.monthlyRevenue.push({month:m,actual:val,updated:now()});
+  });
+  saveDB(); closeModal(); render(); toast('Monthly revenue saved');
+}
+
+function parseMonthlyRevenueCSV(){
+  const file=(document.getElementById('mr_csv_file')||{}).files&&document.getElementById('mr_csv_file').files[0];
+  if(!file){ alert('Select a CSV first'); return; }
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const rows=parseCSV(reader.result);
+    // Find amount column — look for 'amount','total','gross','settlement'
+    const amtCol=rows.headers.find(h=>/amount|total|gross|settlement|net/i.test(h));
+    const dateCol=rows.headers.find(h=>/date|time/i.test(h));
+    if(!amtCol){ document.getElementById('mr_csv_result').textContent='Could not find an amount column. Try entering manually.'; return; }
+    // Sum by month
+    const byMonth={};
+    rows.rows.forEach(row=>{
+      const rawAmt=String(row[amtCol]||'').replace(/[£,\s]/g,'');
+      const amt=parseFloat(rawAmt); if(isNaN(amt)||amt<=0) return;
+      let month=new Date().toISOString().slice(0,7);
+      if(dateCol&&row[dateCol]){
+        const d=new Date(row[dateCol]);
+        if(!isNaN(d)) month=d.toISOString().slice(0,7);
+      }
+      byMonth[month]=(byMonth[month]||0)+amt;
+    });
+    // Fill in fields
+    Object.entries(byMonth).forEach(([m,total])=>{
+      const el=document.getElementById('mr_'+m); if(el) el.value=total.toFixed(2);
+    });
+    const total=Object.values(byMonth).reduce((a,b)=>a+b,0);
+    document.getElementById('mr_csv_result').textContent=`Parsed ${rows.rows.length} rows across ${Object.keys(byMonth).length} month(s). Total: £${total.toFixed(2)}. Review then Save.`;
+  };
+  reader.readAsText(file);
+}
+
+/* ===== Tracker Quick Calculator ===== */
+let _tcExpr='', _tcResult='0', _tcNewNum=true;
+function toggleTrackerCalc(){
+  const el=document.getElementById('tracker_calc_widget'); if(!el) return;
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+function tcKey(k){
+  const disp=document.getElementById('tc_display'); if(!disp) return;
+  if(k==='C'){ _tcExpr=''; _tcResult='0'; _tcNewNum=true; disp.textContent='0'; return; }
+  if(k==='⌫'){
+    _tcResult=_tcResult.length>1?_tcResult.slice(0,-1):'0';
+    disp.textContent=_tcResult; return;
+  }
+  if(k==='='){
+    try{
+      const expr=(_tcExpr+_tcResult).replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/＋/g,'+');
+      const val=Function('"use strict";return ('+expr+')')();
+      _tcResult=parseFloat(val.toFixed(8)).toString();
+      _tcExpr=''; _tcNewNum=true;
+      disp.textContent=_tcResult;
+    }catch(e){ disp.textContent='Error'; _tcExpr=''; _tcResult='0'; _tcNewNum=true; }
+    return;
+  }
+  if(['÷','×','−','＋'].includes(k)){
+    _tcExpr=(_tcExpr+_tcResult+k); _tcResult=''; _tcNewNum=true;
+    disp.textContent=_tcExpr; return;
+  }
+  if(k==='%'){
+    try{
+      const val=parseFloat(_tcResult)/100;
+      _tcResult=val.toString(); disp.textContent=_tcResult;
+    }catch(e){}
+    return;
+  }
+  if(k==='±'){
+    _tcResult=_tcResult.startsWith('-')?_tcResult.slice(1):('-'+_tcResult);
+    disp.textContent=_tcResult; return;
+  }
+  if(k==='.' && _tcResult.includes('.')) return;
+  if(_tcNewNum){ _tcResult=(k==='.'?'0':'')+(k==='0'?'0':k); _tcNewNum=false; }
+  else { _tcResult=(_tcResult==='0'&&k!=='.')?k:(_tcResult+k); }
+  disp.textContent=_tcResult;
+}
+
+/* ================= PLANNING / TIME BLOCK ================= */
+let planView='day', planDay=today(), planDragTask=null, planDaySummaryMode=false;
+
+// 30-min slots: 5:00 to 22:00 — stored as floats (5, 5.5, 6, 6.5...)
+const PLAN_HOURS = Array.from({length:35},(_,i)=>5+(i*0.5)); // 5:00am to 10:00pm in 30min steps
+function planHourLabel(h){ const hr=Math.floor(h); const min=h%1?'30':'00'; const ampm=hr<12?'am':hr===12?'pm':'pm'; const disp=hr===12?12:hr>12?hr-12:hr; return `${disp}:${min}${ampm}`; }
+function planViewSummary(){ planDaySummaryMode=!planDaySummaryMode; render(); }
 const PLAN_EST_OPTIONS = [
   {label:'15 min',mins:15},{label:'30 min',mins:30},{label:'45 min',mins:45},
   {label:'1 hr',mins:60},{label:'1.5 hr',mins:90},{label:'2 hr',mins:120},
@@ -7154,7 +8358,7 @@ function vPlanning(){
 
   // Build time grid
   const gridCols = days.length===1?'1fr':`repeat(${days.length},1fr)`;
-  const SLOT_H = 56; // px per hour
+  const SLOT_H = 28; // px per 30-min slot
 
   const dayHeaders = days.map(d=>`
     <div style="text-align:center;padding:8px 4px;font-size:12px;font-weight:700;color:${d===today()?'var(--gold2)':'var(--ink)'};border-bottom:1px solid var(--line2);background:${d===today()?'rgba(201,162,75,.08)':'var(--bg2)'}">
@@ -7163,26 +8367,59 @@ function vPlanning(){
 
   let gridRows = '';
   PLAN_HOURS.forEach(h=>{
-    const timeLabel=`${h===12?12:h>12?h-12:h}${h<12?'am':h===12?'pm':'pm'}`;
-    const isNowHour = new Date().getHours()===h && days.includes(today());
-    gridRows += `<div style="display:grid;grid-template-columns:52px ${gridCols};min-height:${SLOT_H}px;border-bottom:1px solid var(--line)">
+    const isHalf=h%1!==0;
+    const timeLabel=isHalf?'':`${planHourLabel(h)}`;
+    const nowH=new Date().getHours()+(new Date().getMinutes()>=30?0.5:0);
+    const isNowHour = Math.abs(nowH-h)<0.5 && days.includes(today());
+    const isHalfHr = h%1!==0;
+    gridRows += `<div style="display:grid;grid-template-columns:52px ${gridCols};min-height:${SLOT_H}px;border-bottom:1px solid ${isHalfHr?'rgba(255,255,255,.04)':'var(--line)'}">
       <div style="font-size:10px;color:var(--ink3);padding:4px 6px;text-align:right;border-right:1px solid var(--line2);${isNowHour?'color:var(--gold2);font-weight:700':''}">${timeLabel}</div>
       ${days.map(d=>{
         // Tasks scheduled in this hour
-        const slotTasks = DB.tasks.filter(t=>t.scheduledDate===d && t.scheduledHour===h && !t.done);
+        const slotTasks = DB.tasks.filter(t=>t.scheduledDate===d && t.scheduledHour===h);
+        const slotH = Math.floor(h); const slotMin = h%1?30:0;
         const dayName=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()];
-        const recurTasks = (DB.tasks||[]).filter(t=>t.recurring&&t.recurringHour===h&&(t.recurringDays||[]).includes(dayName));
+        const recurTasks = (!isHalfHr)?(DB.tasks||[]).filter(t=>t.recurring&&t.recurringHour===Math.floor(h)&&(t.recurringDays||[]).includes(dayName)):[];
         return `<div class="plan-slot" data-day="${d}" data-hour="${h}"
           style="border-right:1px solid var(--line2);padding:2px 4px;position:relative;min-height:${SLOT_H}px;background:${isNowHour&&d===today()?'rgba(201,162,75,.04)':'transparent'}"
+          onmousedown="planDrawStart(event,'${d}',${h})"
           ondragover="event.preventDefault();this.style.background='rgba(201,162,75,.12)'"
           ondragleave="this.style.background=''"
           ondrop="planDrop(event,'${d}',${h});this.style.background=''">
-          ${slotTasks.map(t=>`
-            <div style="background:${taskColor(t)};color:#fff;border-radius:5px;padding:3px 7px;font-size:11px;font-weight:600;margin-bottom:2px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:4px"
-              onclick="openTask('${t.id}')" title="${esc(t.title)}">
-              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
-              <span onclick="event.stopPropagation();planUnschedule('${t.id}')" style="opacity:.7;cursor:pointer;flex-shrink:0">×</span>
-            </div>`).join('')}
+          ${slotTasks.map(t=>{
+            const mins=t.estMins||60;
+            const bh=Math.max(36,Math.round((mins/60)*SLOT_H));
+            const isDone=t.done;
+            return `<div
+              class="plan-block" data-task-id="${t.id}"
+              draggable="true"
+              onmousedown="event.stopPropagation()"
+              ondragstart="planDragTask='${t.id}';event.dataTransfer.setData('text/plain','${t.id}');event.dataTransfer.effectAllowed='move'"
+              ondragend="planDragTask=null"
+              style="background:${isDone?'var(--panel2)':taskColor(t)};color:${isDone?'var(--ink3)':'#fff'};
+                border-radius:6px;padding:4px 8px 12px;font-size:11px;font-weight:600;
+                margin-bottom:2px;position:relative;height:${bh}px;box-sizing:border-box;overflow:hidden;
+                cursor:grab;user-select:none;${isDone?'opacity:.6;text-decoration:line-through':''}">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
+                <span onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}</span>
+                <div style="display:flex;gap:3px;flex-shrink:0">
+                  <span onclick="event.stopPropagation();planMarkDone('${t.id}')"
+                    title="${isDone?'Mark undone':'Mark done'}"
+                    style="cursor:pointer;font-size:11px;opacity:.8;background:rgba(0,0,0,.2);border-radius:3px;padding:0 4px;line-height:16px">
+                    ${isDone?'↺':'✓'}
+                  </span>
+                  <span onclick="event.stopPropagation();planUnschedule('${t.id}')" style="opacity:.7;cursor:pointer;font-size:13px;line-height:1">×</span>
+                </div>
+              </div>
+              ${mins&&mins!==60?`<div style="font-size:9px;opacity:.7;margin-top:2px">${planFmtEst(mins)}</div>`:''}
+              <div class="plan-resize-handle"
+                onmousedown="event.stopPropagation();planResizeStart(event,'${t.id}')"
+                style="position:absolute;bottom:0;left:0;right:0;height:12px;cursor:ns-resize;
+                  background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center">
+                <div style="width:28px;height:2px;background:rgba(255,255,255,.7);border-radius:2px"></div>
+              </div>
+            </div>`;
+          }).join('')}
           ${recurTasks.map(t=>{
             const rc=t.recurringColor||'#CA8A04';
             const rt=t.recurringType||'';
@@ -7195,21 +8432,32 @@ function vPlanning(){
               ${rt?`<span style="font-size:9px;opacity:.75;background:rgba(0,0,0,.2);border-radius:3px;padding:1px 4px">${esc(rt)}</span>`:''}
             </div>`;
           }).join('')}
+          ${(DB.planTimeBlocks||[]).filter(b=>b.date===d&&b.startHour===h).map(b=>`
+            <div style="background:var(--panel2);border:2px dashed var(--line2);border-radius:5px;padding:4px 8px;font-size:11px;
+              color:var(--ink3);font-weight:600;display:flex;align-items:center;justify-content:space-between;
+              height:${Math.max(28,(b.endHour-b.startHour+1)*SLOT_H-6)}px;box-sizing:border-box">
+              <span>🚫 ${esc(b.label)}</span>
+              <span onclick="DB.planTimeBlocks=DB.planTimeBlocks.filter(x=>x.id!=='${b.id}');saveDB();render()"
+                style="cursor:pointer;opacity:.6;font-size:13px">×</span>
+            </div>`).join('')}
         </div>`;
       }).join('')}
     </div>`;
   });
 
   return `<div class="page-head"><div><h2>Planning</h2><div class="desc">Time block your day — drag tasks into slots.</div></div>
-    <div class="page-actions" style="display:flex;gap:8px;align-items:center">
-      <button class="fbtn ${planView==='day'?'active':''}" onclick="planView='day';render()">Day</button>
-      <button class="fbtn ${planView==='week'?'active':''}" onclick="planView='week';render()">Week</button>
+    <div class="page-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="fbtn ${planView==='day'&&!planDaySummaryMode?'active':''}" onclick="planView='day';planDaySummaryMode=false;render()">Day</button>
+      <button class="fbtn ${planView==='week'&&!planDaySummaryMode?'active':''}" onclick="planView='week';planDaySummaryMode=false;render()">Week</button>
+      <button class="fbtn ${planDaySummaryMode?'active':''}" onclick="planDaySummaryMode=!planDaySummaryMode;render()">📋 Summary</button>
+      <div style="width:1px;height:20px;background:var(--line2)"></div>
       <button class="btn btn-sm btn-ghost" onclick="planDay=planAddDays(planDay,-1);render()">‹</button>
       <span style="font-size:13px;font-weight:600;color:var(--ink)">${planView==='day'?planDayLabel(planDay):'Week of '+planDayLabel(planWeekDays(planDay)[0])}</span>
       <button class="btn btn-sm btn-ghost" onclick="planDay=planAddDays(planDay,1);render()">›</button>
       <button class="btn btn-sm btn-ghost" onclick="planDay=today();render()">Today</button>
     </div></div>
-  <div style="display:flex;gap:16px;height:calc(100vh - 160px);overflow:hidden">
+  ${planDaySummaryMode ? planDaySummaryView(planDay, myName) : ''}
+  <div style="display:flex;gap:16px;height:calc(100vh - 160px);overflow:hidden;${planDaySummaryMode?'display:none':''}">
     <!-- Task list panel -->
     <div style="width:240px;flex-shrink:0;display:flex;flex-direction:column;gap:0">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line2)">
@@ -7218,7 +8466,7 @@ function vPlanning(){
       <div style="overflow-y:auto;flex:1;padding-right:4px">${taskList}</div>
     </div>
     <!-- Time grid -->
-    <div style="flex:1;overflow-y:auto;border:1px solid var(--line2);border-radius:12px;overflow:hidden">
+    <div style="flex:1;overflow-y:auto;border:1px solid var(--line2);border-radius:12px;" id="plan_grid">
       <div style="display:grid;grid-template-columns:52px ${gridCols};position:sticky;top:0;z-index:2">
         <div style="background:var(--bg2);border-bottom:1px solid var(--line2);border-right:1px solid var(--line2)"></div>
         ${dayHeaders}
@@ -7240,8 +8488,10 @@ function planDrop(event, day, hour){
   const taskId = planDragTask||event.dataTransfer.getData('text/plain');
   if(!taskId) return;
   const t=DB.tasks.find(x=>x.id===taskId); if(!t) return;
+  const h=Number(hour);
   t.scheduledDate=day;
-  t.scheduledHour=Number(hour);
+  t.scheduledHour=h;
+  t.scheduledMin=h%1?30:0;
   t.due=day; // also set the due date
   saveDB(); render();
   toast(`${t.title} → ${planDayLabel(day)} at ${hour<12?hour+'am':hour===12?'12pm':(hour-12)+'pm'}`);
@@ -7252,100 +8502,199 @@ function planUnschedule(taskId){
   delete t.scheduledDate; delete t.scheduledHour;
   saveDB(); render();
 }
+function planMarkDone(taskId){
+  const t=DB.tasks.find(x=>x.id===taskId); if(!t) return;
+  t.done=!t.done;
+  saveDB(); render();
+}
 
 // Add est time slider to task modal — patch into openTask
 const _origOpenTask = typeof openTask==='function'?openTask:null;
 
-/* ================= TEMPLATE GALLERY ================= */
-let tplSeries='Main', tplType='Email';
-const TPL_SERIES=['Main','Weekend','TAG','Vault'];
-const TPL_TYPES=['Email','Ad Square','Ad Vertical'];
-function vTemplates(){
-  DB.templates=DB.templates||[];
-  const filtered=DB.templates.filter(t=>t.series===tplSeries&&t.type===tplType);
-  const seriesTabs=TPL_SERIES.map(s=>`<button class="fbtn ${tplSeries===s?'active':''}" onclick="tplSeries='${s}';render()">${s}</button>`).join('');
-  const typeTabs=TPL_TYPES.map(t=>`<button class="fbtn ${tplType===t?'active':''}" onclick="tplType='${t}';render()">${t}</button>`).join('');
-  const isVert=tplType==='Ad Vertical', isSq=tplType==='Ad Square';
-  const cards=filtered.length?filtered.map(t=>{
-    const asp=isVert?'width:120px;height:213px':isSq?'width:180px;height:180px':'width:100%;height:160px';
-    return `<div style="background:var(--panel);border:1px solid var(--line2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;${isVert?'width:140px':''}">
-      <div style="${asp};background:var(--panel2);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
-        ${t.thumbnail?`<img data-mediaref="${esc(t.thumbnail)}" style="width:100%;height:100%;object-fit:cover">`:`<div style="text-align:center;color:var(--ink3)"><div style="font-size:24px">▦</div><div style="font-size:10px;margin-top:4px">No preview</div></div>`}
-      </div>
-      <div style="padding:10px 12px;flex:1;display:flex;flex-direction:column;gap:6px">
-        <div style="font-size:13px;font-weight:700">${esc(t.name||'Untitled')}</div>
-        ${t.notes?`<div style="font-size:11px;color:var(--ink3)">${esc(t.notes)}</div>`:''}
-        <div style="display:flex;gap:6px;margin-top:auto;padding-top:6px;flex-wrap:wrap">
-          ${t.canvaLink?`<a href="${esc(t.canvaLink)}" target="_blank" class="btn btn-sm btn-gold" style="font-size:11px;text-decoration:none">Open Canva →</a>`:''}
-          <button class="btn btn-sm" onclick="editTemplate('${t.id}')">Edit</button>
-          <button class="btn btn-sm btn-danger" onclick="delTemplate('${t.id}')">✕</button>
-        </div>
-      </div>
-    </div>`;
-  }).join(''):'<div class="muted" style="padding:20px 0">No templates yet — add one.</div>';
-  return `<div class="page-head"><div><h2>Template Gallery</h2><div class="desc">Canva templates by series and format.</div></div>
-    <div class="page-actions"><button class="btn btn-gold" onclick="addTemplate()">＋ Add Template</button></div></div>
-  <div class="filters">${seriesTabs}</div>
-  <div class="filters">${typeTabs}</div>
-  <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:4px">${cards}</div>`;
+/* ===== Plan block drag move + resize ===== */
+let _planResizing=null;
+function planResizeStart(e, taskId){
+  e.preventDefault(); e.stopPropagation();
+  const t=DB.tasks.find(x=>x.id===taskId); if(!t) return;
+  _planResizing={taskId, startY:e.clientY, startMins:t.estMins||60};
+  document.addEventListener('mousemove',planResizeMove);
+  document.addEventListener('mouseup',planResizeEnd);
+  document.body.style.userSelect='none';
 }
-function addTemplate(id){
-  DB.templates=DB.templates||[];
-  const t=id?DB.templates.find(x=>x.id===id)||{}:{};
-  openModal(`<div class="modal wide"><div class="modal-h"><h3>${id?'Edit':'Add'} Template</h3><span class="x" onclick="closeModal()">×</span></div>
-    <div class="modal-b">
-      <div class="field-row">
-        <div class="field"><label>Name</label><input id="tpl_name" value="${esc(t.name||'')}"></div>
-        <div class="field"><label>Series</label><select id="tpl_series" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px">
-          ${TPL_SERIES.map(s=>`<option value="${s}" ${(t.series||tplSeries)===s?'selected':''}>${s}</option>`).join('')}
-        </select></div>
-        <div class="field"><label>Type</label><select id="tpl_type" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px">
-          ${TPL_TYPES.map(s=>`<option value="${s}" ${(t.type||tplType)===s?'selected':''}>${s}</option>`).join('')}
-        </select></div>
-      </div>
-      <div class="field"><label>Canva Link</label><input id="tpl_canva" value="${esc(t.canvaLink||'')}"></div>
-      <div class="field"><label>Preview Image</label>
-        <div style="display:flex;gap:10px;align-items:flex-start;margin-top:6px">
-          ${t.thumbnail?`<img data-mediaref="${esc(t.thumbnail)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--line2)">`:''}
-          <label class="btn btn-sm btn-ghost" style="cursor:pointer">Upload<input type="file" accept="image/*" style="display:none" onchange="uploadTplThumb(event,'${id||''}')"></label>
-        </div>
-        <input type="hidden" id="tpl_thumb" value="${esc(t.thumbnail||'')}">
-      </div>
-      <div class="field"><label>Notes</label><input id="tpl_notes" value="${esc(t.notes||'')}"></div>
+function planResizeMove(e){
+  if(!_planResizing) return;
+  const t=DB.tasks.find(x=>x.id===_planResizing.taskId); if(!t) return;
+  const SLOT_H=56;
+  const dy=e.clientY-_planResizing.startY;
+  const deltaMins=Math.round((dy/SLOT_H)*60/15)*15;
+  const newMins=Math.max(15,Math.min(480,_planResizing.startMins+deltaMins));
+  t.estMins=newMins;
+  const block=document.querySelector('.plan-block[data-task-id="'+_planResizing.taskId+'"]');
+  if(block){
+    block.style.height=Math.max(36,Math.round((newMins/60)*56))+'px';
+    const lbl=block.querySelector('div[style*="font-size:9px"]');
+    if(lbl) lbl.textContent=planFmtEst(newMins);
+  }
+}
+function planResizeEnd(){
+  if(!_planResizing) return;
+  document.removeEventListener('mousemove',planResizeMove);
+  document.removeEventListener('mouseup',planResizeEnd);
+  document.body.style.userSelect='';
+  queueSave();
+  _planResizing=null;
+}
+
+/* ===== Plan draw-to-create ===== */
+let _planDraw=null;
+
+function planDrawStart(e, day, hour){
+  if(e.button!==0) return; // left click only
+  if(e.target.closest('.plan-block,.plan-resize-handle,.plan-done-btn')) return;
+  if(planDragTask) return; // don't draw while dragging a task
+  e.preventDefault();
+  e.stopPropagation();
+  _planDraw={day, startHour:hour, endHour:hour};
+  // Create overlay element
+  const overlay=document.createElement('div');
+  overlay.id='plan_draw_overlay';
+  overlay.style.cssText='position:fixed;pointer-events:none;background:rgba(99,179,237,.25);border:2px solid #63B3ED;border-radius:6px;z-index:50';
+  document.body.appendChild(overlay);
+  planDrawUpdateOverlay(e);
+  document.addEventListener('mousemove',planDrawMove);
+  document.addEventListener('mouseup',planDrawEnd);
+}
+
+function planDrawMove(e){
+  if(!_planDraw) return;
+  // Find which slot we're over
+  const els=document.elementsFromPoint(e.clientX,e.clientY);
+  const slot=els.find(el=>el.classList&&el.classList.contains('plan-slot'));
+  if(slot){
+    const h=parseInt(slot.dataset.hour);
+    if(!isNaN(h)) _planDraw.endHour=Math.max(_planDraw.startHour,h);
+  }
+  planDrawUpdateOverlay(e);
+}
+
+function planDrawUpdateOverlay(e){
+  const overlay=document.getElementById('plan_draw_overlay');
+  if(!overlay||!_planDraw) return;
+  // Find start slot and end slot elements
+  const startEl=document.querySelector(`.plan-slot[data-day="${_planDraw.day}"][data-hour="${_planDraw.startHour}"]`);
+  const endEl=document.querySelector(`.plan-slot[data-day="${_planDraw.day}"][data-hour="${_planDraw.endHour}"]`);
+  if(!startEl||!endEl) return;
+  const sr=startEl.getBoundingClientRect();
+  const er=endEl.getBoundingClientRect();
+  overlay.style.left=sr.left+'px';
+  overlay.style.top=sr.top+'px';
+  overlay.style.width=sr.width+'px';
+  overlay.style.height=(er.bottom-sr.top)+'px';
+}
+
+function planDrawEnd(e){
+  document.removeEventListener('mousemove',planDrawMove);
+  document.removeEventListener('mouseup',planDrawEnd);
+  const overlay=document.getElementById('plan_draw_overlay');
+  if(overlay) overlay.remove();
+  if(!_planDraw) return;
+  const {day, startHour, endHour}=_planDraw;
+  _planDraw=null;
+  const durationMins=(endHour-startHour+1)*60;
+  // Show choice popup near mouse
+  planShowCreatePopup(e.clientX, e.clientY, day, startHour, durationMins);
+}
+
+function planShowCreatePopup(x, y, day, hour, durationMins){
+  const old=document.getElementById('plan_create_popup'); if(old) old.remove();
+  const pop=document.createElement('div');
+  pop.id='plan_create_popup';
+  pop.style.cssText=`position:fixed;left:${Math.min(x,window.innerWidth-220)}px;top:${Math.min(y,window.innerHeight-160)}px;
+    z-index:200;background:var(--panel);border:1px solid var(--line2);border-radius:12px;
+    box-shadow:0 8px 32px rgba(0,0,0,.4);padding:14px;width:210px`;
+  const timeLabel=`${hour<12?hour:hour===12?12:hour-12}${hour<12?'am':'pm'}`;
+  const estLabel=durationMins>=60?(durationMins/60)+'hr':durationMins+'min';
+  pop.innerHTML=`
+    <div style="font-size:12px;font-weight:700;color:var(--ink3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.6px">
+      ${timeLabel} · ${estLabel}
     </div>
-    <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delTemplate('${id}')">Delete</button>`:''}
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-gold" onclick="saveTemplate('${id||''}')">Save</button>
-    </div></div>`);
-  setTimeout(hydrateMedia,50);
+    <button onclick="planCreateTask('${day}',${hour},${durationMins})" class="btn btn-gold" style="width:100%;margin-bottom:8px;justify-content:center">
+      ＋ New Task
+    </button>
+    <button onclick="planCreateTimeOff('${day}',${hour},${durationMins})" class="btn" style="width:100%;justify-content:center;background:var(--bg2)">
+      🚫 Time off / Break
+    </button>
+    <button onclick="document.getElementById('plan_create_popup').remove()" style="width:100%;margin-top:6px;background:none;border:none;color:var(--ink3);cursor:pointer;font-size:12px;padding:4px">Cancel</button>
+  `;
+  document.body.appendChild(pop);
+  // Click outside to close
+  setTimeout(()=>document.addEventListener('click',function _(ev){
+    if(!pop.contains(ev.target)){ pop.remove(); document.removeEventListener('click',_); }
+  }),100);
 }
-function editTemplate(id){ addTemplate(id); }
-async function uploadTplThumb(evt,tplId){
-  const file=evt.target.files[0]; if(!file) return;
-  try{
-    const ref=await storeMedia(file);
-    document.getElementById('tpl_thumb').value=ref;
-    setTimeout(hydrateMedia,50); toast('Uploaded');
-  }catch(e){ alert('Upload failed'); }
-  evt.target.value='';
+
+function planCreateTask(day, hour, durationMins){
+  const pop=document.getElementById('plan_create_popup'); if(pop) pop.remove();
+  const t={id:uid('t'),title:'New task',dropId:'',due:day,done:false,category:'Task',
+    type:'Admin',projectId:'',assignedTo:getPresenceName()||teamList()[0],
+    time:Math.floor(hour)+':'+(Number(hour)%1?'30':'00'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
+    estMins:durationMins,scheduledDate:day,scheduledHour:Number(hour),
+    recurring:false,recurringDays:[],recurringTime:'',recurringHour:null,
+    recurringType:'',recurringColor:'#CA8A04',created:now()};
+  DB.tasks.unshift(t); saveDB();
+  openTask(t.id); // open straight to edit
 }
-function saveTemplate(id){
-  DB.templates=DB.templates||[];
-  const name=document.getElementById('tpl_name').value.trim()||'Untitled';
-  const series=document.getElementById('tpl_series').value;
-  const type=document.getElementById('tpl_type').value;
-  const canvaLink=document.getElementById('tpl_canva').value.trim();
-  const thumbnail=document.getElementById('tpl_thumb').value;
-  const notes=document.getElementById('tpl_notes').value.trim();
-  if(id){const t=DB.templates.find(x=>x.id===id);if(t)Object.assign(t,{name,series,type,canvaLink,thumbnail,notes});}
-  else DB.templates.push({id:uid('tpl'),name,series,type,canvaLink,thumbnail,notes,created:now()});
-  tplSeries=series; tplType=type;
-  saveDB(); closeModal(); render();
+
+function planCreateTimeOff(day, hour, durationMins){
+  const pop=document.getElementById('plan_create_popup'); if(pop) pop.remove();
+  DB.planTimeBlocks=DB.planTimeBlocks||[];
+  // Show inline label picker
+  const labelPop=document.createElement('div');
+  labelPop.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:300;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:20px;width:260px;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  labelPop.innerHTML=`<div style="font-weight:700;margin-bottom:12px">What is this time for?</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${['Lunch','Break','School run','Personal','Travel','Deep work','Other'].map(l=>`
+        <button onclick="planSaveTimeOff('${day}',${hour},${durationMins},'${l}');this.closest('div[style*=fixed]').remove()"
+          class="btn" style="justify-content:flex-start">${l}</button>`).join('')}
+    </div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:10px;background:none;border:none;color:var(--ink3);cursor:pointer;width:100%;text-align:center;font-size:12px">Cancel</button>`;
+  document.body.appendChild(labelPop);
 }
-function delTemplate(id){
-  if(!confirm('Delete this template?')) return;
-  DB.templates=(DB.templates||[]).filter(x=>x.id!==id);
-  saveDB(); closeModal(); render();
+function planSaveTimeOff(day, hour, durationMins, label){
+  DB.planTimeBlocks=DB.planTimeBlocks||[];
+  DB.planTimeBlocks.push({id:uid('tb'),date:day,startHour:Number(hour),
+    endHour:Number(hour)+Math.ceil(durationMins/60)-1,label,created:now()});
+  saveDB(); render();
+}
+
+function planDaySummaryView(day, name){
+  const d=day||planDay;
+  const nm=name||getPresenceName()||'Felix';
+  const dayTasks=DB.tasks.filter(t=>!t.done&&(t.due===d||(t.scheduledDate===d))&&(t.assignedTo===nm||!t.assignedTo));
+  const done=DB.tasks.filter(t=>t.done&&t.scheduledDate===d&&(t.assignedTo===nm||!t.assignedTo));
+  const recurring=(DB.tasks||[]).filter(t=>t.recurring&&(t.recurringDays||[]).includes(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()]));
+  const sections=[
+    {label:'🔁 Recurring today',items:recurring,color:'var(--gold2)'},
+    {label:'📋 Tasks for today',items:dayTasks,color:'var(--blue)'},
+    {label:'✓ Completed',items:done,color:'var(--live)'},
+  ];
+  return `<div style="background:var(--panel);border:1px solid var(--line2);border-radius:14px;padding:20px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:16px;color:var(--ink2)">${planDayLabel(d)} — Day Summary</div>
+    ${sections.map(s=>s.items.length?`
+      <div style="margin-bottom:14px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:${s.color};font-weight:700;margin-bottom:8px">${s.label} (${s.items.length})</div>
+        ${s.items.map(t=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);${t.done?'opacity:.5':''}">
+            <div style="width:3px;height:32px;background:${taskColor(t)};border-radius:2px;flex-shrink:0"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;${t.done?'text-decoration:line-through':''}">${esc(t.title)}</div>
+              <div style="font-size:11px;color:var(--ink3)">${t.scheduledHour!=null?planHourLabel(t.scheduledHour):''}${t.estMins?' · '+planFmtEst(t.estMins):''}${t.dropId?' · '+(dropById(t.dropId)||{}).number||'':''}</div>
+            </div>
+            <button onclick="planMarkDone('${t.id}')" style="background:${t.done?'var(--panel2)':'var(--live)'};border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700;flex-shrink:0">${t.done?'↺':'✓'}</button>
+          </div>`).join('')}
+      </div>`:''
+    ).join('')}
+  </div>`;
 }
 
 checkSessionAndBoot();
