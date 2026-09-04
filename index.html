@@ -2461,28 +2461,7 @@ function vDashboard(){
 
   <div class="kpi-row">
     <div class="kpi"><div class="label">Live Drops</div><div class="val green">${live.length}</div><div class="sub">${upcoming.length} upcoming</div></div>
-    <div class="kpi" style="grid-column:span 2">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <div class="label">Revenue this month</div>
-        <div style="display:flex;align-items:center;gap:8px">
-          ${revPct!==null?`<span class="sub" style="margin:0;font-weight:700;color:${revPctColor}">${revPct}% of forecast</span>`:''}
-          <button class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px" onclick="openMonthlyRevenueUpload()">⬆ Upload</button>
-        </div>
-      </div>
-      <div style="display:flex;gap:16px;margin-top:9px;align-items:flex-end">
-        <div style="flex:1;min-width:0;cursor:pointer" onclick="openMonthlyRevenueUpload()">
-          ${monthActual!==null
-            ? `<div class="val gold">${gbp(monthActual)}</div><div class="sub">Actual · DNA Payments</div>`
-            : `<div class="val" style="color:var(--ink3);font-size:18px">Not logged</div><div class="sub" style="color:var(--gold2)">Click Upload to add</div>`}
-        </div>
-        <div style="width:1px;align-self:stretch;background:var(--line2);margin-bottom:4px"></div>
-        <div style="flex:1;min-width:0">
-          <div class="val" style="color:var(--ink2)">${gbp(monthRev)}</div>
-          <div class="sub">Forecast · modelled</div>
-        </div>
-      </div>
-    </div>
-    <div class="kpi"><div class="label">Profit this month</div><div class="val">${gbp(monthProfit)}</div><div class="sub">rev − cost</div></div>
+
     <div class="kpi"><div class="label">Awaiting dispatch</div><div class="val">${awaitingDispatch.length}</div><div class="sub">winners</div></div>
   </div>
 
