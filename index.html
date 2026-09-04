@@ -2214,16 +2214,12 @@ const NAV=[
     {k:'customers',label:'Customers',ico:'◉',count:()=>DB.customers.length},
   ]},
   {group:'Finance',items:[
-    {k:'finance',label:'Finance Overview',ico:'₤'},
     {k:'fixedCosts',label:'Fixed Costs',ico:'◇',count:()=>DB.fixedCosts.length},
-    {k:'marketing',label:'Marketing & Ads',ico:'◈'},
   ]},
   {group:'Content',items:[
     {k:'content',label:'New Content',ico:'✎',count:()=>DB.content.length},
     {k:'scripts',label:'Scripts',ico:'▷',count:()=>DB.drops.reduce((a,d)=>a+(d.scripts||[]).length,0)},
-    {k:'graphics',label:'Graphics Generator',ico:'❖'},
     {k:'contentSchedule',label:'Content Schedule',ico:'▦',count:()=>dueContentToday().length},
-    {k:'assets',label:'Asset Library',ico:'▣',count:()=>DB.assets.length},
     {k:'ideas',label:'Idea Inbox',ico:'✧',count:()=>DB.ideas.length},
   ]},
   {group:'Knowledge',items:[
