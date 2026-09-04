@@ -5777,7 +5777,7 @@ function openWatch(id){
         <button class="btn btn-sm btn-danger" onclick="unlinkWatchFromDrop('${d.id}','${id}')">Unlink</button>
       </div>`).join(''):'<div class="muted" style="font-size:12.5px;padding:6px 0">Not allocated to any drop yet.</div>'}</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      ${dd('w_assign_drop',[{value:'',label:'— assign to a drop —'},...DB.drops.filter(d=>d.status!=='Complete'&&d.status!=='Closed').map(d=>({value:d.id,label:`${esc(d.number)} · ${esc(d.status)}${d.watchId&&d.watchId!==id?' (has watch)':d.watchId===id?' (this watch)':''}`}))],'')}
+      ${dd('w_assign_drop',[{value:'',label:'— assign to a drop —'},...[...DB.drops].sort((a,b)=>{ const order={Live:0,Upcoming:1,Draft:2,Complete:3,Closed:4}; return (order[a.status]||9)-(order[b.status]||9); }).map(d=>({value:d.id,label:`${esc(d.number)} · ${esc(d.status)}${d.watchId&&d.watchId!==id?' (has watch)':d.watchId===id?' ✓ (this watch)':''}`}))],'')}
       <button class="btn btn-sm btn-gold" onclick="allocateWatchToDrop('${id||''}')">Assign to Drop</button>
     </div>
     <div class="two-col">
