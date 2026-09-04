@@ -1165,6 +1165,36 @@ const DEFAULT_RECURRING_TASKS = [
   {title:'Dispatch prize', type:'Prize Delivery', category:'Task'},
   {title:'Collect review', type:'Winner & Dispatch', category:'Admin'},
 ];
+const WATCH_BRANDS=['Audemars Piguet','Blancpain x Swatch','Breitling','Cartier','Casio / G-Shock','Christopher Ward','Garmin','Grand Seiko','H. Moser & Cie','Hublot','IWC','Jaeger-LeCoultre','Longines','NOMOS','Omega','Omega x Swatch','Panerai','Patek Philippe','Richard Mille','Rolex','Seiko','Swatch','TAG Heuer','Tissot','Tudor','Vacheron Constantin','Other'];
+const WATCH_FAMILIES={
+  'Rolex':['Air-King','Cellini','Cosmograph Daytona','DateJust','Day-Date','Explorer','Explorer II','GMT-Master II','Milgauss','Oyster Perpetual','Sea-Dweller','Sky-Dweller','Submariner','Yacht-Master'],
+  'Tudor':['1926','Black Bay','Black Bay 41','Black Bay 58','Black Bay Chrono','Black Bay GMT','Black Bay Pro','Clair de Rose','Fastrider','Glamour','Pelagos','Ranger','Royal','Submariner Heritage'],
+  'Omega':['Aqua Terra','Constellation','De Ville','Planet Ocean','Seamaster','Seamaster 300','Seamaster Diver 300M','Seamaster Planet Ocean','Speedmaster','Speedmaster Moonwatch','Speedmaster Racing'],
+  'TAG Heuer':['Aquaracer','Autavia','Carrera','Connected','Formula 1','Link','Monaco'],
+  'Cartier':['Ballon Bleu','Calibre','Drive','Pasha','Panthere','Ronde','Santos','Santos-Dumont','Tank','Tank Louis Cartier','Tank Must'],
+  'Omega x Swatch':['MoonSwatch Mission to Mars','MoonSwatch Mission to the Moon','MoonSwatch Mission to Mercury','MoonSwatch Mission to Venus','MoonSwatch Mission to Earth','MoonSwatch Mission to Jupiter','MoonSwatch Mission to Saturn','MoonSwatch Mission to Uranus','MoonSwatch Mission to Neptune','MoonSwatch Mission to Pluto','MoonSwatch Mission to Moonshine Gold'],
+  'Blancpain x Swatch':['Fifty Fathoms Atlantic Ocean','Fifty Fathoms Arctic Ocean','Fifty Fathoms Indian Ocean','Fifty Fathoms Pacific Ocean','Fifty Fathoms Antarctic Ocean'],
+  'Swatch':['Big Bold','Irony','Originals','Skin','Sistem51','Gent'],
+  'Tissot':['Chemin des Tourelles','Gentleman','Le Locle','PRX','PRX Powermatic 80','Seastar','T-Race','Tradition'],
+  'Breitling':['Avenger','Chronomat','Colt','Cockpit','Endurance Pro','Navitimer','Premier','Superocean','Superocean Heritage','Windrider'],
+  'IWC':['Aquatimer','Big Pilot','Ingenieur','Pilot','Portofino','Portugieser'],
+  'Panerai':['Luminor','Luminor Due','Luminor Marina','Radiomir','Submersible'],
+  'Seiko':['5 Sports','Astron','Presage','Prospex','SPB'],
+  'Grand Seiko':['Elegance','Heritage','Sport'],
+  'Patek Philippe':['Aquanaut','Calatrava','Complications','Grand Complications','Nautilus'],
+  'Audemars Piguet':['Jules Audemars','Millenary','Royal Oak','Royal Oak Offshore'],
+  'Jaeger-LeCoultre':['Master','Polaris','Rendez-Vous','Reverso'],
+  'Vacheron Constantin':['Fiftysix','Patrimony','Traditionnelle'],
+  'Hublot':['Big Bang','Classic Fusion','Spirit of Big Bang'],
+  'Richard Mille':['RM 005','RM 011','RM 027','RM 035','RM 055'],
+  'Longines':['Conquest','HydroConquest','La Grande Classique','Master Collection','Spirit'],
+  'H. Moser & Cie':['Endeavour','Heritage','Pioneer','Streamliner'],
+  'NOMOS':['Ahoi','Club','Lambda','Metro','Orion','Tangente','Tetra'],
+  'Christopher Ward':['C1','C3','C5','C60','C63','C65','C9'],
+  'Garmin':['Descent','Epix','Fenix','Forerunner','MARQ','Quatix','Tactix'],
+  'Casio / G-Shock':['DW-5600','GA-2100','GW-M5610','G-SHOCK Pro Trek','Edifice','Wave Ceptor'],
+  'Other':[],
+};
 const CONTENT_CATS=['Watch Photos','Watch Video','Delivery Video','Evergreen Video','Person Only'];
 function watchGalleryKeyForCategory(cat){ return slug(cat); }
 const CONTENT_STATUSES=['To Do','Done'];
@@ -5777,8 +5807,8 @@ function openWatch(id){
       <button class="btn btn-sm btn-gold" onclick="allocateWatchToDrop('${id||''}')">Assign to Drop</button>
     </div>
     <div class="two-col">
-      <div>${mInput('w_brand','Brand',w.brand)}${mInput('w_model','Full Model Name',w.model)}
-        <div class="field-row">${mInput('w_family','Model Family (e.g. Speedmaster)',w.family)}${mInput('w_variant','Variant / Spec (e.g. Moonwatch)',w.variant)}</div>
+      <div><div class="field"><label>Brand</label>${dd('w_brand_dd',[...WATCH_BRANDS.map(b=>({value:b,label:b}))],w.brand||'','onWatchBrandChange')}</div>${mInput('w_model','Full Model Name',w.model)}
+        <div class="field-row"><div class="field"><label>Model Family</label><input id="w_family" list="w_family_list" value="${esc(w.family||'')}" placeholder="Select or type…" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;outline:none"><datalist id="w_family_list">${(WATCH_FAMILIES[w.brand]||[]).map(f=>`<option value="${f}">`).join('')}</datalist></div>${mInput('w_variant','Variant / Spec (e.g. Moonwatch)',w.variant)}</div>
         <div class="muted" style="font-size:11px;margin-top:-8px;margin-bottom:12px">Family + Variant power the Brand → Model → Variant drill-down. Leave blank and Atlas will split the full model name for you.</div>
         <div class="field-row-3">${mInput('w_ref','Reference',w.ref)}${mInput('w_serial','Serial Number',w.serial)}${mInput('w_year','Year',w.year,'number')}</div>
         ${mInput('w_move','Movement',w.movement)}
@@ -5798,6 +5828,12 @@ function openWatch(id){
     </div>
     <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delWatch('${id}')">Delete</button>`:''}
       <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveWatch('${id||''}')">Save</button></div></div>`);
+}
+function onWatchBrandChange(id,val){
+  const dl=document.getElementById('w_family_list'); if(!dl) return;
+  const families=WATCH_FAMILIES[val]||[];
+  dl.innerHTML=families.map(f=>`<option value="${f}">`).join('');
+  const fi=document.getElementById('w_family'); if(fi) fi.value='';
 }
 function allocateWatchToDrop(watchId){
   const dropId=ddVal('w_assign_drop'); if(!dropId){toast('Select a drop first');return;}
@@ -5821,8 +5857,8 @@ function saveWatch(id){const g=k=>document.getElementById(k).value;
   const coverImg=explicitThumb||((media[slug('Watch Photos')]||[]).map(x=>x.ref).find(Boolean))||'';
   const retiredBtn=document.getElementById('w_retired_btn');
   let fam=g('w_family').trim(), variant=g('w_variant').trim();
-  if(!fam && !variant){ const sp=splitModel(g('w_brand'),g('w_model')); fam=sp.family; variant=sp.variant; }
-  const data={brand:g('w_brand'),model:g('w_model'),family:fam,variant:variant,ref:g('w_ref'),serial:g('w_serial'),year:Number(g('w_year'))||null,movement:g('w_move'),
+  if(!fam && !variant){ const sp=splitModel(ddVal('w_brand_dd')||'',g('w_model')); fam=sp.family; variant=sp.variant; }
+  const data={brand:ddVal('w_brand_dd')||g('w_model'),model:g('w_model'),family:fam,variant:variant,ref:g('w_ref'),serial:g('w_serial'),year:Number(g('w_year'))||null,movement:g('w_move'),
     retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),canvaLink:g('w_canvalink'),driveLink:g('w_drivelink'),mediaLink:(g('w_canvalink')||g('w_drivelink')||''),desc:g('w_desc'),
     supplierId:ddVal('w_supplier'), retired: retiredBtn? retiredBtn.dataset.val==='1' : false,
     media, img:coverImg, invoiceUrl};
