@@ -1303,7 +1303,7 @@ function migrate(){
   });
   (DB.drops||[]).forEach(migrateDrop);
   (DB.watches||[]).forEach(w=>{
-    w.serial=w.serial||''; w.mediaLink=w.mediaLink||''; w.retired=!!w.retired;
+    w.serial=w.serial||''; w.mediaLink=w.mediaLink||''; w.canvaLink=w.canvaLink||''; w.driveLink=w.driveLink||''; w.retired=!!w.retired;
     // Derive Model Family + Variant if missing, so Brand→Model→Variant drill-down works
     if(w.family===undefined || w.variant===undefined){
       const sp=splitModel(w.brand,w.model);
@@ -5766,22 +5766,8 @@ function openWatch(id){
       ${id?`<button type="button" class="btn btn-sm ${w.retired?'btn-gold':''}" id="w_retired_btn" data-val="${w.retired?'1':'0'}" onclick="toggleWatchRetiredBtn()">${w.retired?'Retired':'Mark Retired'}</button>`:''}
       <span class="x" onclick="closeModal()">×</span>
     </div></div>
-    <div class="modal-b"><div class="two-col">
-      <div>${mInput('w_brand','Brand',w.brand)}${mInput('w_model','Full Model Name',w.model)}
-        <div class="field-row">${mInput('w_family','Model Family (e.g. Speedmaster)',w.family)}${mInput('w_variant','Variant / Spec (e.g. Moonwatch)',w.variant)}</div>
-        <div class="muted" style="font-size:11px;margin-top:-8px;margin-bottom:12px">Family + Variant power the Brand → Model → Variant drill-down. Leave blank and Atlas will split the full model name for you.</div>
-        <div class="field-row-3">${mInput('w_ref','Reference',w.ref)}${mInput('w_serial','Serial Number',w.serial)}${mInput('w_year','Year',w.year,'number')}</div>
-        ${mInput('w_move','Movement',w.movement)}
-        <div class="field"><label>Supplier</label>${dd('w_supplier',[{value:'',label:'— select —'},...DB.suppliers.map(s=>({value:s.id,label:s.name}))], w.supplierId||'')}</div></div>
-      <div><div class="field-row">${mInput('w_retail','Retail (£)',w.retail,'number')}${mInput('w_cost','Cost (£)',w.cost,'number')}</div>
-        ${mInput('w_specs','Specs',w.specs)}
-        ${mInput('w_medialink','Media folder link (Drive/Canva)',w.mediaLink)}
-        ${mediaField('w_thumb','Thumbnail Image (shown in Watch Library)',w.img)}
-        ${fileField('w_invoice','Invoice',w.invoiceUrl)}
-      </div>
-    </div>${mArea('w_desc','Description',w.desc)}
-    ${CONTENT_CATS.map(cat=>galleryHTML(slug(cat),cat,'image/*,video/*',id)).join('')}
-    <div class="section-sub" style="margin-top:18px">Drop Allocation</div>
+    <div class="modal-b">
+    <div class="section-sub" style="margin-top:0">Drop Allocation</div>
     <div id="watch_alloc_list" style="margin-bottom:10px">${drops.length?drops.map(d=>`
       <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
         <div style="flex:1;cursor:pointer" onclick="closeModal();go('drop','${d.id}')">
@@ -5794,6 +5780,23 @@ function openWatch(id){
       ${dd('w_assign_drop',[{value:'',label:'— assign to a drop —'},...DB.drops.filter(d=>d.status!=='Complete'&&d.status!=='Closed').map(d=>({value:d.id,label:`${esc(d.number)} · ${esc(d.status)}${d.watchId&&d.watchId!==id?' (has watch)':d.watchId===id?' (this watch)':''}`}))],'')}
       <button class="btn btn-sm btn-gold" onclick="allocateWatchToDrop('${id||''}')">Assign to Drop</button>
     </div>
+    <div class="two-col">
+      <div>${mInput('w_brand','Brand',w.brand)}${mInput('w_model','Full Model Name',w.model)}
+        <div class="field-row">${mInput('w_family','Model Family (e.g. Speedmaster)',w.family)}${mInput('w_variant','Variant / Spec (e.g. Moonwatch)',w.variant)}</div>
+        <div class="muted" style="font-size:11px;margin-top:-8px;margin-bottom:12px">Family + Variant power the Brand → Model → Variant drill-down. Leave blank and Atlas will split the full model name for you.</div>
+        <div class="field-row-3">${mInput('w_ref','Reference',w.ref)}${mInput('w_serial','Serial Number',w.serial)}${mInput('w_year','Year',w.year,'number')}</div>
+        ${mInput('w_move','Movement',w.movement)}
+        <div class="field"><label>Supplier</label>${dd('w_supplier',[{value:'',label:'— select —'},...DB.suppliers.map(s=>({value:s.id,label:s.name}))], w.supplierId||'')}</div></div>
+      <div><div class="field-row">${mInput('w_retail','Retail (£)',w.retail,'number')}${mInput('w_cost','Cost (£)',w.cost,'number')}</div>
+        ${mInput('w_specs','Specs',w.specs)}
+        <div class="field-row">
+          <div class="field"><label>Canva Link</label><div style="display:flex;gap:6px;align-items:center"><input id="w_canvalink" value="${esc(w.canvaLink||'')}" placeholder="Paste Canva link…" style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px">${w.canvaLink?`<a href="${esc(w.canvaLink)}" target="_blank" class="btn btn-sm btn-ghost" style="white-space:nowrap">Open ↗</a>`:''}</div></div>
+          <div class="field"><label>Drive Link</label><div style="display:flex;gap:6px;align-items:center"><input id="w_drivelink" value="${esc(w.driveLink||'')}" placeholder="Paste Drive link…" style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px">${w.driveLink?`<a href="${esc(w.driveLink)}" target="_blank" class="btn btn-sm btn-ghost" style="white-space:nowrap">Open ↗</a>`:''}</div></div>
+        </div>
+        ${mediaField('w_thumb','Thumbnail Image (shown in Watch Library)',w.img)}
+        ${fileField('w_invoice','Invoice',w.invoiceUrl)}
+      </div>
+    </div>${mArea('w_desc','Description',w.desc)}
     ${linkedContent.length?`<div class="section-sub">In New Content (${linkedContent.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${linkedContent.map(c=>`<span class="pill pill-upcoming" style="cursor:pointer" onclick="closeModal();go('content');setTimeout(()=>openContent('${c.id}'),50)">${esc(c.title)}</span>`).join('')}</div>`:''}
     ${linkedMedia.length?`<div class="section-sub">In Asset Library (${linkedMedia.length})</div><div class="asset-grid">${linkedMedia.map(i=>libTile(i)).join('')}</div>`:''}
     </div>
@@ -5824,7 +5827,7 @@ function saveWatch(id){const g=k=>document.getElementById(k).value;
   let fam=g('w_family').trim(), variant=g('w_variant').trim();
   if(!fam && !variant){ const sp=splitModel(g('w_brand'),g('w_model')); fam=sp.family; variant=sp.variant; }
   const data={brand:g('w_brand'),model:g('w_model'),family:fam,variant:variant,ref:g('w_ref'),serial:g('w_serial'),year:Number(g('w_year'))||null,movement:g('w_move'),
-    retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),mediaLink:g('w_medialink'),desc:g('w_desc'),
+    retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),canvaLink:g('w_canvalink'),driveLink:g('w_drivelink'),mediaLink:(g('w_canvalink')||g('w_drivelink')||''),desc:g('w_desc'),
     supplierId:ddVal('w_supplier'), retired: retiredBtn? retiredBtn.dataset.val==='1' : false,
     media, img:coverImg, invoiceUrl};
   if(!data.brand){alert('Brand required');return;}
