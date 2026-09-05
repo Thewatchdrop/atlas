@@ -1332,6 +1332,13 @@ function migrate(){
     DB.contentScheduleTemplates[ty]=(DB.contentScheduleTemplates[ty]||[]).map(it=>({...it,id:it.id||uid('tpl')}));
   });
   (DB.drops||[]).forEach(migrateDrop);
+  // Auto-resolve pending drop links
+  (DB.watches||[]).forEach(w=>{
+    if(w.pendingDropNumber){
+      const d=DB.drops.find(x=>(x.number||'').toUpperCase()===w.pendingDropNumber.toUpperCase());
+      if(d&&!d.watchId){ d.watchId=w.id; if(d.tracker) d.tracker.watchCost=Number(w.cost)||0; delete w.pendingDropNumber; }
+    }
+  });
   (DB.watches||[]).forEach(w=>{
     w.serial=w.serial||''; w.mediaLink=w.mediaLink||''; w.canvaLink=w.canvaLink||''; w.driveLink=w.driveLink||''; w.retired=!!w.retired;
     // Derive Model Family + Variant if missing, so Brand→Model→Variant drill-down works
@@ -5775,17 +5782,29 @@ function openWatch(id){
     </div></div>
     <div class="modal-b">
     <div class="section-sub" style="margin-top:0">Drop Allocation</div>
-    <div id="watch_alloc_list" style="margin-bottom:10px">${drops.length?drops.map(d=>`
+    <div style="margin-bottom:12px">${drops.length?drops.map(d=>`
       <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
         <div style="flex:1;cursor:pointer" onclick="closeModal();go('drop','${d.id}')">
           <div style="font-weight:600;font-size:13.5px">${esc(d.number)} <span style="color:var(--ink3);font-weight:400">— ${esc(watchName(d.watchId))}</span></div>
           <div style="font-size:11.5px;color:var(--ink3)">${esc(d.status)} · Draw ${fmtDate(d.draw)}</div>
         </div>
         <button class="btn btn-sm btn-danger" onclick="unlinkWatchFromDrop('${d.id}','${id}')">Unlink</button>
-      </div>`).join(''):'<div class="muted" style="font-size:12.5px;padding:6px 0">Not allocated to any drop yet.</div>'}</div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      ${dd('w_assign_drop',[{value:'',label:'— assign to a drop —'},...[...DB.drops].sort((a,b)=>{ const order={Live:0,Upcoming:1,Draft:2,Complete:3,Closed:4}; return (order[a.status]||9)-(order[b.status]||9); }).map(d=>({value:d.id,label:`${esc(d.number)} · ${esc(d.status)}${d.watchId&&d.watchId!==id?' (has watch)':d.watchId===id?' ✓ (this watch)':''}`}))],'')}
-      <button class="btn btn-sm btn-gold" onclick="allocateWatchToDrop('${id||''}')">Assign to Drop</button>
+      </div>`).join(''):(w.pendingDropNumber?'':'<div class="muted" style="font-size:12.5px;padding:6px 0">Not allocated to any drop yet.</div>')}</div>
+    ${w.pendingDropNumber?`<div style="padding:8px 12px;margin-bottom:10px;background:rgba(245,165,36,.1);border:1px solid var(--warn);border-radius:8px;display:flex;align-items:center;gap:10px"><span style="font-size:13px">⏳ Pending: <strong>${esc(w.pendingDropNumber)}</strong> — auto-links when that drop is created</span><button class="btn btn-sm btn-danger" onclick="clearPendingDrop('${id}')">Clear</button></div>`:''}
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;margin-bottom:8px">Series</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${['D','W','V','T','O'].map(s=>`<button class="fbtn ${watchAllocSeries===s?'active':''}" onclick="setWatchAllocSeries('${id}','${s}')" style="padding:5px 14px;font-size:13px;font-weight:700">${s} <span style="font-size:10px;font-weight:400;opacity:.7">${{D:'Main',W:'Weekend',V:'Vault',T:'Tech',O:'Other'}[s]}</span></button>`).join('')}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      ${(()=>{ const sf={D:d=>/^D\d/.test(d.number||''),W:d=>/^W/.test(d.number||''),V:d=>d.type==='Vault'||/^V/.test(d.number||''),T:d=>/^T/.test(d.number||''),O:d=>!['D','W','V','T'].some(p=>(d.number||'').toUpperCase().startsWith(p))}; const lbl={D:'main drop',W:'weekend drop',V:'vault drop',T:'tech drop',O:'other drop'}; const filtered=[...DB.drops].filter(sf[watchAllocSeries]||(_=>true)).sort((a,b)=>({Live:0,Upcoming:1,Draft:2,Complete:3,Closed:4}[a.status]||9)-({Live:0,Upcoming:1,Draft:2,Complete:3,Closed:4}[b.status]||9)); return dd('w_assign_drop',[{value:'',label:`— pick a ${lbl[watchAllocSeries]||'drop'} —`},...filtered.map(d=>({value:d.id,label:`${esc(d.number)} · ${esc(d.status)}${d.watchId&&d.watchId!==id?' (has watch)':d.watchId===id?' ✓':''}`}))],''+''); })()}
+      <button class="btn btn-sm btn-gold" onclick="allocateWatchToDrop('${id||''}')">Assign</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="w_manual_drop" placeholder="Or type future drop number e.g. D43…" style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px;font-size:13px" onkeydown="if(event.key==='Enter')allocateWatchToDropManual('${id}')">
+      <button class="btn btn-sm btn-ghost" onclick="allocateWatchToDropManual('${id}')">Link</button>
+    </div>
     </div>
     <div class="two-col">
       <div><div class="field"><label>Brand</label>${dd('w_brand_dd',[...WATCH_BRANDS.map(b=>({value:b,label:b}))],w.brand||'','onWatchBrandChange')}</div>${mInput('w_model','Full Model Name',w.model)}
@@ -5816,6 +5835,8 @@ function onWatchBrandChange(id,val){
   dl.innerHTML=families.map(f=>`<option value="${f}">`).join('');
   const fi=document.getElementById('w_family'); if(fi) fi.value='';
 }
+let watchAllocSeries='D';
+function setWatchAllocSeries(watchId,series){ watchAllocSeries=series; openWatch(watchId); }
 function allocateWatchToDrop(watchId){
   const dropId=ddVal('w_assign_drop'); if(!dropId){toast('Select a drop first');return;}
   const d=dropById(dropId); if(!d) return;
@@ -5823,6 +5844,26 @@ function allocateWatchToDrop(watchId){
   d.watchId=watchId;
   if(d.tracker) d.tracker.watchCost=Number((watchById(watchId)||{}).cost)||0;
   saveDB(); openWatch(watchId); toast('Allocated to '+d.number+' ✅');
+}
+function allocateWatchToDropManual(watchId){
+  const input=document.getElementById('w_manual_drop'); if(!input) return;
+  const num=input.value.trim().toUpperCase(); if(!num){toast('Enter a drop number');return;}
+  const d=DB.drops.find(x=>(x.number||'').toUpperCase()===num);
+  if(d){
+    if(d.watchId&&d.watchId!==watchId&&!confirm(d.number+' already has a watch. Replace it?')) return;
+    d.watchId=watchId;
+    if(d.tracker) d.tracker.watchCost=Number((watchById(watchId)||{}).cost)||0;
+    const w=watchById(watchId); if(w) delete w.pendingDropNumber;
+    saveDB(); openWatch(watchId); toast('Linked to '+d.number+' ✅');
+  } else {
+    const w=watchById(watchId); if(!w) return;
+    w.pendingDropNumber=num;
+    saveDB(); openWatch(watchId); toast('Pending link saved for '+num+' — will auto-link when drop is created');
+  }
+}
+function clearPendingDrop(watchId){
+  const w=watchById(watchId); if(!w) return;
+  delete w.pendingDropNumber; saveDB(); openWatch(watchId); toast('Pending link cleared');
 }
 function unlinkWatchFromDrop(dropId,watchId){
   const d=dropById(dropId); if(!d) return;
