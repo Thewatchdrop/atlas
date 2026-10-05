@@ -2644,29 +2644,55 @@ function vaultHubWinnerRows(vaults, showVaultBadge){
 function vaultHubLogForm(vaults){
   if(!vaults.length) return '';
   const dropOpts=vaults.map(d=>`<option value="${esc(d.id)}">${esc(d.number||d.name||'Vault')}</option>`).join('');
+  // Watch pool for first vault by default
+  const firstVaultId=vaults[0]?vaults[0].id:'';
+  const availWatches=(DB.vaultWatches||[]).filter(w=>w.vaultId===firstVaultId&&w.status!=='won');
+  const watchPoolOpts=availWatches.length
+    ?`<option value="">— select from pool —</option>${availWatches.map(w=>`<option value="${esc(w.id)}" data-label="${esc(w.brand+' '+w.model)}" data-cost="${Number(w.cost)||0}">${esc(w.brand+' '+w.model)}${w.ref?' ('+esc(w.ref)+')':''} — £${Number(w.cost)||0}</option>`).join('')}`
+    :`<option value="">— no available watches in pool —</option>`;
+  // Customer lookup
+  const custOpts=`<option value="">— no customer linked —</option>`+
+    [...(DB.customers||[])].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(c=>`<option value="${esc(c.id)}">${esc(c.name||'Unnamed')}${c.email?' — '+esc(c.email):''}</option>`).join('');
+  const fldStyle='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px';
   return `<div class="card" style="margin-bottom:16px">
     <div class="card-h"><h3>Log a Won Prize</h3><span class="muted" style="font-size:11.5px">Record each prize as it's triggered — keeps P&amp;L live</span></div>
     <div class="modal-b" style="max-height:none">
       <div class="field-row">
         <div class="field"><label>Vault</label>
-          <select id="vh_vault" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px">
+          <select id="vh_vault" style="${fldStyle}" onchange="onVHVaultChange()">
             ${dropOpts}
           </select>
         </div>
         <div class="field"><label>Prize Type</label>
-          <select id="vh_type" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px" onchange="onVHTypeChange()">
+          <select id="vh_type" style="${fldStyle}" onchange="onVHTypeChange()">
             <option value="watch">Watch</option>
             <option value="cash">Cash</option>
             <option value="credit">Credit</option>
           </select>
         </div>
       </div>
+      <div class="field-row" id="vh_pool_row">
+        <div class="field" style="grid-column:1/-1"><label>Pick from Watch Pool</label>
+          <select id="vh_watch_pool" style="${fldStyle}" onchange="onVHWatchSelect()">
+            ${watchPoolOpts}
+          </select>
+        </div>
+      </div>
       <div class="field-row">
-        <div class="field"><label>Prize Label</label><input id="vh_label" placeholder="e.g. Tudor BB58 Blue, £500 Cash…"></div>
+        <div class="field"><label>Prize Label</label><input id="vh_label" placeholder="e.g. Tudor BB58 Blue — auto-filled from pool"></div>
         <div class="field" id="vh_cost_wrap"><label id="vh_cost_lbl">Cost Paid (£)</label><input id="vh_cost" type="number" placeholder="0"></div>
       </div>
       <div class="field-row">
+        <div class="field"><label>Winner — Customer Lookup</label>
+          <select id="vh_cust" style="${fldStyle}">
+            ${custOpts}
+          </select>
+        </div>
+        <div class="field"><label>Winner Ticket #</label><input id="vh_ticket" placeholder="e.g. #4521"></div>
+      </div>
+      <div class="field-row">
         <div class="field"><label>Date Won</label><input id="vh_date" type="date" value="${today()}"></div>
+        <div class="field"><label>Winner Name (if not in customers)</label><input id="vh_winner_name" placeholder="Leave blank if selected above"></div>
       </div>
     </div>
     <div style="padding:0 18px 14px;display:flex;justify-content:flex-end">
@@ -2903,17 +2929,42 @@ function delVaultWatch(id){
 
 function markVaultWatchWon(id){
   const w=(DB.vaultWatches||[]).find(x=>x.id===id); if(!w) return;
-  const name=prompt('Winner name:'); if(!name) return;
-  const dateStr=prompt('Date won (YYYY-MM-DD):',today()); if(dateStr===null) return;
-  w.status='won'; w.winnerName=name.trim(); w.dateWon=dateStr||today();
+  const custOpts=`<option value="">— no customer linked —</option>`+
+    [...(DB.customers||[])].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(c=>`<option value="${esc(c.id)}">${esc(c.name||'Unnamed')}${c.email?' — '+esc(c.email):''}</option>`).join('');
+  const fld='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;margin-top:5px';
+  openModal(`<div class="modal"><div class="modal-h"><h3>Mark as Won — ${esc(w.brand)} ${esc(w.model)}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Winner — Customer Lookup</label><select id="mww_cust" style="${fld}">${custOpts}</select></div>
+      <div class="field"><label>Winner Name (if not in customer list)</label><input id="mww_name" placeholder="Leave blank if selected above" style="${fld}"></div>
+      <div class="field"><label>Winner Ticket #</label><input id="mww_ticket" placeholder="e.g. #4521" style="${fld}"></div>
+      <div class="field"><label>Date Won</label><input id="mww_date" type="date" value="${today()}" style="${fld}"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="confirmMarkVaultWatchWon('${id}')">Confirm Won →</button>
+    </div>
+  </div>`);
+}
+
+function confirmMarkVaultWatchWon(id){
+  const w=(DB.vaultWatches||[]).find(x=>x.id===id); if(!w) return;
+  const custId=(document.getElementById('mww_cust')||{}).value||'';
+  const manualName=(document.getElementById('mww_name')||{}).value||'';
+  const ticket=(document.getElementById('mww_ticket')||{}).value||'';
+  const dateStr=(document.getElementById('mww_date')||{}).value||today();
+  const linkedCust=custId?DB.customers.find(c=>c.id===custId):null;
+  const winnerName=linkedCust?linkedCust.name:manualName;
+  if(!winnerName){ alert('Enter a winner name or select from the customer list'); return; }
+  w.status='won'; w.winnerName=winnerName; w.dateWon=dateStr; w.custId=custId; w.ticket=ticket;
   const d=dropById(w.vaultId);
   if(d){
     d.vaultPrizes=d.vaultPrizes||[];
     const pid=uid('vp');
-    d.vaultPrizes.push({id:pid,type:'watch',label:`${w.brand} ${w.model}`,cost:w.cost||0,amount:0,date:w.dateWon,created:now()});
+    d.vaultPrizes.push({id:pid,type:'watch',label:`${w.brand} ${w.model}`,cost:w.cost||0,amount:0,date:dateStr,winnerName,custId,ticket,created:now()});
     w.prizeId=pid;
   }
-  saveDB(); render();
+  saveDB(); closeModal(); render();
+  toast(`${w.brand} ${w.model} marked as won — ${winnerName}`);
 }
 
 function unmarkVaultWatchWon(id){
@@ -2980,14 +3031,35 @@ function vVaultHub(){
 }
 
 function onVHTypeChange(){
-  const sel=document.getElementById('vh_type');
+  const type=(document.getElementById('vh_type')||{}).value||'watch';
   const wrap=document.getElementById('vh_cost_wrap');
   const lbl=document.getElementById('vh_cost_lbl');
   const inp=document.getElementById('vh_cost');
-  if(!sel||!wrap) return;
-  if(sel.value==='watch'){ lbl.textContent='Cost Paid (£)'; inp.placeholder='What you paid'; wrap.style.display=''; }
-  else if(sel.value==='cash'){ lbl.textContent='Amount (£)'; inp.placeholder='Cash prize amount'; wrap.style.display=''; }
-  else { wrap.style.display='none'; }
+  const poolRow=document.getElementById('vh_pool_row');
+  if(wrap){
+    if(type==='watch'){ lbl.textContent='Cost Paid (£)'; inp.placeholder='What you paid'; wrap.style.display=''; }
+    else if(type==='cash'){ lbl.textContent='Amount (£)'; inp.placeholder='Cash prize amount'; wrap.style.display=''; }
+    else { wrap.style.display='none'; }
+  }
+  if(poolRow) poolRow.style.display=type==='watch'?'':'none';
+}
+
+function onVHVaultChange(){
+  const vaultId=(document.getElementById('vh_vault')||{}).value||'';
+  const sel=document.getElementById('vh_watch_pool'); if(!sel) return;
+  const avail=(DB.vaultWatches||[]).filter(w=>w.vaultId===vaultId&&w.status!=='won');
+  sel.innerHTML=avail.length
+    ?`<option value="">— select from pool —</option>${avail.map(w=>`<option value="${esc(w.id)}" data-label="${esc(w.brand+' '+w.model)}" data-cost="${Number(w.cost)||0}">${esc(w.brand+' '+w.model)}${w.ref?' ('+esc(w.ref)+')':''} — £${Number(w.cost)||0}</option>`).join('')}`
+    :`<option value="">— no available watches in pool —</option>`;
+}
+
+function onVHWatchSelect(){
+  const sel=document.getElementById('vh_watch_pool'); if(!sel||!sel.value) return;
+  const opt=sel.options[sel.selectedIndex];
+  const labelEl=document.getElementById('vh_label');
+  const costEl=document.getElementById('vh_cost');
+  if(labelEl) labelEl.value=opt.dataset.label||'';
+  if(costEl) costEl.value=opt.dataset.cost||'';
 }
 
 function addVaultHubPrize(){
@@ -2997,10 +3069,25 @@ function addVaultHubPrize(){
   const label=(document.getElementById('vh_label')||{}).value||'';
   const cost=Number((document.getElementById('vh_cost')||{}).value)||0;
   const date=(document.getElementById('vh_date')||{}).value||today();
-  if(!label){ alert('Enter a label for this prize'); return; }
+  const custId=(document.getElementById('vh_cust')||{}).value||'';
+  const ticket=(document.getElementById('vh_ticket')||{}).value||'';
+  const manualName=(document.getElementById('vh_winner_name')||{}).value||'';
+  const watchPoolId=(document.getElementById('vh_watch_pool')||{}).value||'';
+  if(!label){ alert('Enter a prize label — or pick from the watch pool above'); return; }
+  // Resolve winner name: prefer linked customer, then manual
+  const linkedCust=custId?DB.customers.find(c=>c.id===custId):null;
+  const winnerName=linkedCust?linkedCust.name:manualName;
+  // Log the prize
   d.vaultPrizes=d.vaultPrizes||[];
-  d.vaultPrizes.push({id:uid('vp'),type,label,cost:type==='watch'?cost:0,amount:type==='cash'?cost:0,date,created:now()});
+  const pid=uid('vp');
+  d.vaultPrizes.push({id:pid,type,label,cost:type==='watch'?cost:0,amount:type==='cash'?cost:0,date,winnerName,custId,ticket,created:now()});
+  // If linked to watch pool, mark it as won there too
+  if(watchPoolId){
+    const w=(DB.vaultWatches||[]).find(x=>x.id===watchPoolId);
+    if(w){ w.status='won'; w.winnerName=winnerName; w.dateWon=date; w.prizeId=pid; w.custId=custId; w.ticket=ticket; }
+  }
   saveDB(); render();
+  toast(`Prize logged${winnerName?' — '+winnerName:''}`);
 }
 
 let dropFilter='All';
@@ -5199,20 +5286,31 @@ function vCustomers(){
     </div></div>`:'';
 
   // Klaviyo strategy card
+  const klavExports=DB.klaviyoExports||{};
   const klaviyoCard=`<div class="card" style="margin-bottom:16px">
-    <div class="card-h"><h3>📧 Klaviyo Segments</h3><span class="muted" style="font-size:11.5px">Click a segment to filter the list below</span></div>
+    <div class="card-h"><h3>📧 Klaviyo Segments</h3><span class="muted" style="font-size:11.5px">Click to filter · Download CSV to upload to Klaviyo</span></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;padding:14px 18px">
       ${[
-        {k:'onetime', label:'One-time buyers', strategy:'Re-engagement sequence \u2014 you\u2019re this close to winning'},
-        {k:'repeat',  label:'Repeat buyers',   strategy:'VIP early access, loyalty messaging'},
-        {k:'vip',     label:'VIP £500+',        strategy:'Founders Club sends, exclusive previews'},
-        {k:'lapsed',  label:'Lapsed 60d+',      strategy:'Win-back — show recent winner stories'},
-        {k:'neverbought',label:'Never bought',  strategy:'First-time offer — "1 entry from £X"'},
-        {k:'new',     label:'New this week',    strategy:'Welcome sequence — build trust fast'},
-      ].map(s=>`<div onclick="setCustSeg('${s.k}')" style="cursor:pointer;padding:12px 14px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;transition:.12s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--line2)'">
-        <div style="font-weight:700;font-size:13px;margin-bottom:4px">${esc(s.label)} <span style="color:var(--gold2);font-size:12px">${segCounts[s.k]||0}</span></div>
-        <div style="font-size:11.5px;color:var(--ink3)">${esc(s.strategy)}</div>
-      </div>`).join('')}
+        {k:'onetime',    label:'One-time buyers',  strategy:'Re-engagement sequence \u2014 you\u2019re this close to winning'},
+        {k:'repeat',     label:'Repeat buyers',    strategy:'VIP early access, loyalty messaging'},
+        {k:'vip',        label:'VIP \u00a3500+',   strategy:'Founders Club sends, exclusive previews'},
+        {k:'lapsed',     label:'Lapsed 60d+',      strategy:'Win-back \u2014 show recent winner stories'},
+        {k:'neverbought',label:'Never bought',     strategy:'First-time offer \u2014 \u201c1 entry from \u00a3X\u201d'},
+        {k:'new',        label:'New this week',    strategy:'Welcome sequence \u2014 build trust fast'},
+        {k:'multidrop',  label:'Multi-Drop 3+',    strategy:'Loyal buyers \u2014 odds-stacker messaging'},
+      ].map(s=>{
+        const lastExp=klavExports[s.k];
+        return `<div style="padding:12px 14px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px">
+          <div onclick="setCustSeg('${s.k}')" style="cursor:pointer;margin-bottom:8px">
+            <div style="font-weight:700;font-size:13px;margin-bottom:3px">${esc(s.label)} <span style="color:var(--gold2);font-size:12px">${segCounts[s.k]||0}</span></div>
+            <div style="font-size:11.5px;color:var(--ink3)">${esc(s.strategy)}</div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding-top:8px;margin-top:2px">
+            <span style="font-size:10.5px;color:var(--ink3)">${lastExp?'Last exported '+fmtDate(lastExp):'Never exported'}</span>
+            <button onclick="event.stopPropagation();downloadSegmentCSV('${s.k}','${esc(s.label)}')" class="btn btn-sm btn-gold" style="font-size:11px;padding:4px 10px;white-space:nowrap">⬇ CSV</button>
+          </div>
+        </div>`;
+      }).join('')}
     </div>
   </div>`;
 
@@ -5413,6 +5511,54 @@ function deleteCustomerImport(id){
   if(!confirm('Remove this import record? (Customers and entries already imported will remain.)')) return;
   DB.customerImports=(DB.customerImports||[]).filter(x=>x.id!==id);
   saveDB();render();
+}
+
+function downloadSegmentCSV(segKey, segLabel){
+  const custs=DB.customers||[];
+  const inSeg=segKey==='all'?custs:custs.filter(c=>custTags(c).includes(segKey));
+  if(!inSeg.length){ toast('No customers in this segment'); return; }
+
+  // Klaviyo-ready columns: Email required, then profile fields
+  const headers=['Email','First Name','Last Name','Phone','City','Postcode','Total Spend','Orders','AOV','Last Active','Sign Up','Segment'];
+  const rows=inSeg.map(c=>{
+    const nameParts=(c.name||'').trim().split(' ');
+    const first=nameParts[0]||'';
+    const last=nameParts.slice(1).join(' ')||'';
+    return [
+      c.email||'',
+      first,
+      last,
+      c.phone||'',
+      c.city||'',
+      c.postcode||'',
+      (Number(c.spend)||0).toFixed(2),
+      c.orders||0,
+      (Number(c.aov)||0).toFixed(2),
+      c.lastActive?c.lastActive.slice(0,10):'',
+      c.signUp?c.signUp.slice(0,10):'',
+      segLabel
+    ];
+  });
+
+  const csvContent=[headers,...rows].map(r=>r.map(v=>{
+    const s=String(v).replace(/"/g,'""');
+    return s.includes(',')||s.includes('"')||s.includes('\n')?`"${s}"`:s;
+  }).join(',')).join('\n');
+
+  const blob=new Blob(['\uFEFF'+csvContent],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const dateStr=today().replace(/-/g,'');
+  a.href=url;
+  a.download=`klaviyo_${segKey}_${dateStr}_${inSeg.length}contacts.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  // Record export date
+  DB.klaviyoExports=DB.klaviyoExports||{};
+  DB.klaviyoExports[segKey]=today();
+  saveDB();render();
+  toast(`Downloaded ${inSeg.length} contacts — ${segLabel}`);
 }
 
 
