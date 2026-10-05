@@ -2675,6 +2675,138 @@ function vaultHubLogForm(vaults){
   </div>`;
 }
 
+const VAULT_PRESETS={
+  'tag':   {name:'TAG Heuer Vault',  price:1.99, pool:100000, watches:40, avgWatch:1500, watchValue:60000,  prizePool:90454,  winners:25000, odds:'1 in 4',  fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:19.5},
+  'tudor': {name:'Tudor Vault',      price:2.99, pool:100000, watches:30, avgWatch:3500, watchValue:105000, prizePool:135909, winners:20000, odds:'1 in 5',  fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:13.0},
+  'omega': {name:'Omega & Cartier Vault', price:3.99, pool:100000, watches:20, avgWatch:5000, watchValue:100000, prizePool:181360, winners:16667, odds:'~1 in 6', fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:9.7},
+  'rolex': {name:'Rolex Vault',      price:4.99, pool:100000, watches:10, avgWatch:15000,watchValue:150000, prizePool:226815, winners:12500, odds:'1 in 8',  fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:7.8},
+};
+
+function nvApplyPreset(key){
+  const p=VAULT_PRESETS[key]; if(!p) return;
+  document.querySelectorAll('.nv-preset-btn').forEach(b=>b.classList.remove('btn-gold'));
+  const btn=document.querySelector(`.nv-preset-btn[data-preset="${key}"]`);
+  if(btn) btn.classList.add('btn-gold');
+  document.getElementById('nv_name').value=p.name;
+  document.getElementById('nv_price').value=p.price;
+  document.getElementById('nv_pool').value=p.pool;
+  document.getElementById('nv_watches').value=p.watches;
+  document.getElementById('nv_avgwatch').value=p.avgWatch;
+  document.getElementById('nv_winners').value=p.winners;
+  document.getElementById('nv_odds').value=p.odds;
+  document.getElementById('nv_fixed').value=p.fixedMonth;
+  document.getElementById('nv_ads').value=p.adsMonth;
+  document.getElementById('nv_proc').value=p.processingPct;
+  document.getElementById('nv_plat').value=p.platformPct;
+  document.getElementById('nv_breakeven').textContent=p.breakEven+'%';
+  document.getElementById('nv_prizepool').textContent='£'+p.prizePool.toLocaleString('en-GB');
+  document.getElementById('nv_watchvalue').textContent='£'+p.watchValue.toLocaleString('en-GB');
+}
+
+function newVaultFromHub(){
+  const existing=DB.drops.filter(d=>d.type==='Vault').map(d=>parseInt((d.number||'').replace(/\D/g,''))).filter(n=>!isNaN(n));
+  const nextNum=existing.length?Math.max(...existing)+1:1;
+  openModal(`<div class="modal" style="max-width:580px"><div class="modal-h"><h3>⚡ New Vault</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field" style="margin-bottom:4px"><label>Vault Tier — pick a preset</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <button type="button" class="btn nv-preset-btn" data-preset="tag"   onclick="nvApplyPreset('tag')"   style="text-align:left;padding:10px 14px"><div style="font-weight:700;font-size:13px">TAG Heuer Vault</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">£1.99 · 100k entries · 1 in 4 · 40 watches</div></button>
+          <button type="button" class="btn nv-preset-btn" data-preset="tudor" onclick="nvApplyPreset('tudor')" style="text-align:left;padding:10px 14px"><div style="font-weight:700;font-size:13px">Tudor Vault</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">£2.99 · 100k entries · 1 in 5 · 30 watches</div></button>
+          <button type="button" class="btn nv-preset-btn" data-preset="omega" onclick="nvApplyPreset('omega')" style="text-align:left;padding:10px 14px"><div style="font-weight:700;font-size:13px">Omega & Cartier Vault</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">£3.99 · 100k entries · ~1 in 6 · 20 watches</div></button>
+          <button type="button" class="btn nv-preset-btn" data-preset="rolex" onclick="nvApplyPreset('rolex')" style="text-align:left;padding:10px 14px"><div style="font-weight:700;font-size:13px">Rolex Vault</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">£4.99 · 100k entries · 1 in 8 · 10 watches</div></button>
+        </div>
+      </div>
+      <div style="height:1px;background:var(--line);margin:16px 0"></div>
+      <div class="field-row">
+        <div class="field"><label>Vault Number</label>
+          <input id="nv_num" type="number" value="${nextNum}" min="1" style="font-size:18px;font-weight:700">
+        </div>
+        <div class="field"><label>Name / Edition</label>
+          <input id="nv_name" placeholder="e.g. TAG Heuer Vault…">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Entry Price (£ inc VAT)</label><input id="nv_price" type="number" step="0.01" value="1.99"></div>
+        <div class="field"><label>Pool Size</label><input id="nv_pool" type="number" value="100000"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Total Watches in Prize Pool</label><input id="nv_watches" type="number" value="40"></div>
+        <div class="field"><label>Avg Watch Value (£)</label><input id="nv_avgwatch" type="number" value="1500"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Total Winners</label><input id="nv_winners" type="number" value="25000"></div>
+        <div class="field"><label>Win Odds (display)</label><input id="nv_odds" value="1 in 4"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Launch Date</label><input id="nv_launch" type="date" value="${today()}"></div>
+        <div class="field"><label>Close Date (~90 days)</label><input id="nv_close" type="date" value="${addDays(today(),90)}"></div>
+      </div>
+      <div style="height:1px;background:var(--line);margin:14px 0"></div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-bottom:10px">Running Costs (90-day model)</div>
+      <div class="field-row">
+        <div class="field"><label>Fixed Cost / month (£)</label><input id="nv_fixed" type="number" value="4250" placeholder="4250"></div>
+        <div class="field"><label>Meta Ads / month (£)</label><input id="nv_ads" type="number" value="3000" placeholder="3000"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Processing % (3.1%)</label><input id="nv_proc" type="number" step="0.1" value="3.1"></div>
+        <div class="field"><label>Platform / fulfilment % (2.0%)</label><input id="nv_plat" type="number" step="0.1" value="2.0"></div>
+      </div>
+      <div style="display:flex;gap:24px;padding:12px 0 0">
+        <div><div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.7px">Break-even</div><div style="font-size:18px;font-weight:800;color:var(--gold2)" id="nv_breakeven">19.5%</div></div>
+        <div><div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.7px">Prize Pool</div><div style="font-size:18px;font-weight:800" id="nv_prizepool">£90,454</div></div>
+        <div><div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.7px">Watch Inventory</div><div style="font-size:18px;font-weight:800" id="nv_watchvalue">£60,000</div></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="createVaultFromHub()">Create Vault →</button>
+    </div>
+  </div>`);
+  // Auto-select TAG Heuer preset as default
+  setTimeout(()=>nvApplyPreset('tag'),10);
+}
+
+function createVaultFromHub(){
+  const num=parseInt(document.getElementById('nv_num').value);
+  if(!num||isNaN(num)){ alert('Enter a vault number'); return; }
+  const dropNum='V'+num;
+  if(DB.drops.find(d=>d.number===dropNum)){ alert(`${dropNum} already exists — pick a different number`); return; }
+  const name=(document.getElementById('nv_name').value||'').trim();
+  const price=Number(document.getElementById('nv_price').value)||1.99;
+  const pool=Number(document.getElementById('nv_pool').value)||100000;
+  const launch=document.getElementById('nv_launch').value||today();
+  const draw=document.getElementById('nv_close').value||addDays(today(),90);
+  const fixedMonth=Number(document.getElementById('nv_fixed').value)||4250;
+  const adsMonth=Number(document.getElementById('nv_ads').value)||3000;
+  const proc=(Number(document.getElementById('nv_proc').value)||3.1)/100;
+  const plat=(Number(document.getElementById('nv_plat').value)||2.0)/100;
+  const totalFeePct=proc+plat;
+  const totalFixed=(fixedMonth+adsMonth)*3; // 90-day = 3 months
+  const watches=Number(document.getElementById('nv_watches').value)||40;
+  const avgWatch=Number(document.getElementById('nv_avgwatch').value)||1500;
+  const winners=Number(document.getElementById('nv_winners').value)||25000;
+  const odds=(document.getElementById('nv_odds').value||'1 in 4').trim();
+  const d={id:uid('drop'),number:dropNum,name,type:'Vault',status:'Draft',watchId:'',supplierId:'',
+    launch,draw,price,discountPrice:0,pool,
+    entriesSold:0,discountEntriesSold:0,revenue:0,
+    costWatch:0,costFixed:0,variableCosts:[],
+    notes:'',websiteLink:'',dropId:'',
+    copy:{headline:'',body:'',seoKeyphrase:'',seoTitle:'',slug:'',metaDescription:''},
+    images:{main:'',cat1:'',cat2:'',cat3:'',webHero:'',phoneHero:''},
+    entrants:{filename:'',headers:[],rows:[]},marketing:[],perf:{},links:{drive:'',canva:''},winnerId:'',
+    vaultPrizes:[],vaultPriceHistory:[{id:uid('vph'),price,tickets:0,from:launch,locked:false}],
+    instantWinners:[],
+    tracker:{maxTickets:pool,fullTicketPrice:price,ticketsSoldTotal:0,
+      fixed:totalFixed,adsBudget:0,paymentFeePct:totalFeePct,platformFeePct:plat,processingFeePct:proc,
+      creditRedemptionPct:0,totalWinners:winners,watchCount:watches,avgWatchValue:avgWatch,winOdds:odds},
+    created:now()};
+  migrateDrop(d);
+  DB.drops.unshift(d);
+  logTL(d.id,`${dropNum} — ${name} created from Vault Hub`);
+  saveDB();closeModal();toast(`${dropNum}${name?' — '+name:''} created ✓`);
+  vaultHubTab=d.id; vaultHubView='tracker'; render();
+}
+
 function vaultWatchPoolView(vaults){
   DB.vaultWatches=DB.vaultWatches||[];
   const vaultIds=vaults.map(d=>d.id);
@@ -2835,7 +2967,13 @@ function vVaultHub(){
       </div>`;
   }
   return `
-    <div class="page-h"><h1>⚡ Vault Hub</h1><span class="muted" style="font-size:13px">${vaults.length} vault${vaults.length!==1?'s':''} · live prize &amp; winner tracking</span></div>
+    <div class="page-h" style="justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <h1 style="font-size:22px;font-weight:800;letter-spacing:-.4px">⚡ Vault Hub</h1>
+        <span class="muted" style="font-size:13px">${vaults.length} vault${vaults.length!==1?'s':''} · live prize &amp; winner tracking</span>
+      </div>
+      <button class="btn btn-gold" onclick="newVaultFromHub()">＋ New Vault</button>
+    </div>
     ${tabBar}
     ${switcher}
     ${vaultHubView==='watchpool'?vaultWatchPoolView(activeVaults):trackerView()}`;
@@ -4955,115 +5093,197 @@ function vSuppliers(){
 }
 
 /* ================= CUSTOMERS ================= */
-let custSort={col:'spend',dir:'desc'}, custSearch='';
+let custSort={col:'spend',dir:'desc'}, custSearch='', custSegFilter='all';
 function custSortBy(col){
   if(custSort.col===col) custSort.dir=custSort.dir==='asc'?'desc':'asc';
   else{ custSort.col=col; custSort.dir='desc'; }
   render();
 }
+function setCustSeg(s){ custSegFilter=s; render(); }
+
+function custDaysSince(dateStr){
+  if(!dateStr) return 9999;
+  return Math.floor((Date.now()-new Date(dateStr.slice(0,10)).getTime())/864e5);
+}
+
+function custTags(c){
+  const spend=Number(c.spend)||0, orders=Number(c.orders)||0;
+  const tags=[];
+  if(spend>=500) tags.push('vip');
+  else if(spend>=200) tags.push('bigspender');
+  if(orders===0||spend===0) tags.push('neverbought');
+  else if(orders===1) tags.push('onetime');
+  else tags.push('repeat');
+  if(custDaysSince(c.lastActive)>60&&spend>0) tags.push('lapsed');
+  if(custDaysSince(c.signUp)<=7) tags.push('new');
+  const drops=new Set((c.entries||[]).map(e=>e.dropId));
+  if(drops.size>=3) tags.push('multidrop');
+  return tags;
+}
+
+const CUST_SEGS=[
+  {k:'all',       label:'All',            color:'var(--ink2)'},
+  {k:'vip',       label:'VIP £500+',      color:'var(--gold2)'},
+  {k:'bigspender',label:'Big Spender',    color:'var(--blue)'},
+  {k:'onetime',   label:'One-time',       color:'var(--warn)'},
+  {k:'repeat',    label:'Repeat',         color:'var(--live)'},
+  {k:'lapsed',    label:'Lapsed 60d+',    color:'var(--danger)'},
+  {k:'neverbought',label:'Never Bought',  color:'var(--ink3)'},
+  {k:'new',       label:'New This Week',  color:'var(--purple)'},
+  {k:'multidrop', label:'Multi-Drop 3+',  color:'var(--gold)'},
+];
+
 function vCustomers(){
-  const imports = DB.customerImports||[];
-  const lastImport = imports.length? imports[imports.length-1] : null;
+  const custs=DB.customers||[];
+  const imports=DB.customerImports||[];
+  const lastImport=imports.length?imports[imports.length-1]:null;
 
-  const CLAUDE_PROMPT = `Please analyse this WooCommerce customers CSV and give me a summary covering:
+  // Counts per segment
+  const segCounts={all:custs.length};
+  CUST_SEGS.slice(1).forEach(s=>{ segCounts[s.k]=custs.filter(c=>custTags(c).includes(s.k)).length; });
 
-1. Total customers — how many unique buyers
-2. Top 10 spenders — name, email, total spend, number of orders
-3. Top 10 by order count — name, email, orders, total spend
-4. Average order value breakdown — overall AOV, and AOV for customers with 1 order vs 2+ orders
-5. New vs returning — how many customers placed their first order in the last 30 days
-6. Location breakdown — top 5 cities/regions by customer count
-7. High-value at-risk — customers who spent over £500 but haven't ordered in the last 60 days (flag by name + last active date)
-8. Any obvious multi-account patterns — duplicate names, same postcodes with different emails, or unusually high order counts
+  // KPIs
+  const totalSpend=custs.reduce((a,c)=>a+(Number(c.spend)||0),0);
+  const totalOrders=custs.reduce((a,c)=>a+(Number(c.orders)||0),0);
+  const avgSpend=custs.length?totalSpend/custs.length:0;
+  const newThisWeek=segCounts['new']||0;
+  const oneTimePct=custs.length?Math.round((segCounts['onetime']||0)/custs.length*100):0;
+  const repeatPct=custs.length?Math.round((segCounts['repeat']||0)/custs.length*100):0;
 
-Keep it concise — bullet points per section, numbers only, no filler.`;
+  // Filter by segment + search
+  const q=custSearch.trim().toLowerCase();
+  let filtered=custs.filter(c=>{
+    if(custSegFilter!=='all'&&!custTags(c).includes(custSegFilter)) return false;
+    if(q&&!(((c.name||'')+' '+(c.email||'')+' '+(c.city||'')).toLowerCase().includes(q))) return false;
+    return true;
+  });
 
-  // Sort and filter customers
-  let custs = [...DB.customers];
-  const q = custSearch.trim().toLowerCase();
-  if(q) custs = custs.filter(c=>(c.name+' '+c.email+' '+(c.city||'')).toLowerCase().includes(q));
-  custs.sort((a,b)=>{
+  // Sort
+  filtered=[...filtered].sort((a,b)=>{
     let va,vb;
-    if(custSort.col==='name'){ va=a.name||''; vb=b.name||''; return custSort.dir==='asc'?va.localeCompare(vb):vb.localeCompare(va); }
-    if(custSort.col==='orders'){ va=Number(a.orders)||0; vb=Number(b.orders)||0; }
-    else if(custSort.col==='aov'){ va=Number(a.aov)||0; vb=Number(b.aov)||0; }
-    else if(custSort.col==='lastActive'){ va=a.lastActive||''; vb=b.lastActive||''; return custSort.dir==='asc'?va.localeCompare(vb):vb.localeCompare(va); }
-    else { va=Number(a.spend)||0; vb=Number(b.spend)||0; }
+    if(custSort.col==='name'){va=a.name||'';vb=b.name||'';return custSort.dir==='asc'?va.localeCompare(vb):vb.localeCompare(va);}
+    if(custSort.col==='orders'){va=Number(a.orders)||0;vb=Number(b.orders)||0;}
+    else if(custSort.col==='aov'){va=Number(a.aov)||0;vb=Number(b.aov)||0;}
+    else if(custSort.col==='lastActive'){va=a.lastActive||'';vb=b.lastActive||'';return custSort.dir==='asc'?va.localeCompare(vb):vb.localeCompare(va);}
+    else if(custSort.col==='drops'){va=(a.entries||[]).length;vb=(b.entries||[]).length;}
+    else{va=Number(a.spend)||0;vb=Number(b.spend)||0;}
     return custSort.dir==='asc'?va-vb:vb-va;
   });
+
   const arrow=c=>custSort.col===c?(custSort.dir==='asc'?' ↑':' ↓'):'';
-  const th=(label,col)=>`<th style="cursor:pointer;user-select:none" onclick="custSortBy('${col}')">${label}${arrow(col)}</th>`;
+  const th=(label,col)=>`<th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="custSortBy('${col}')">${label}${arrow(col)}</th>`;
 
-  const totalSpend = DB.customers.reduce((a,c)=>a+(Number(c.spend)||0),0);
-  const totalOrders = DB.customers.reduce((a,c)=>a+(Number(c.orders)||0),0);
-  const avgAov = DB.customers.length? Math.round(totalSpend/DB.customers.length) : 0;
+  // Segment chips
+  const segChips=CUST_SEGS.map(s=>`
+    <div onclick="setCustSeg('${s.k}')" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${custSegFilter===s.k?s.color:'var(--line2)'};background:${custSegFilter===s.k?'rgba(0,0,0,.25)':'transparent'};color:${custSegFilter===s.k?s.color:'var(--ink3)'};transition:.12s">
+      ${esc(s.label)} <span style="opacity:.65;font-size:11px">${segCounts[s.k]||0}</span>
+    </div>`).join('');
 
-  return `<div class="page-head"><div><h2>Customers</h2><div class="desc">${DB.customers.length} customers · ${gbp(totalSpend)} lifetime value</div></div>
-    <div class="page-actions"><button class="btn btn-gold" onclick="openCustomerImport()">⬆ Import CSV</button><button class="btn" onclick="openCustomer()">＋ Add</button></div></div>
+  // Tag pill helper
+  function tagPill(tag){
+    const s=CUST_SEGS.find(x=>x.k===tag);
+    if(!s||tag==='all') return '';
+    return `<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,.2);color:${s.color};border:1px solid ${s.color};opacity:.85">${s.label}</span>`;
+  }
 
-  <div class="kpi-row" style="margin-bottom:18px">
-    <div class="kpi"><div class="label">Total Customers</div><div class="val">${DB.customers.length}</div></div>
-    <div class="kpi"><div class="label">Lifetime Value</div><div class="val gold">${gbp(totalSpend)}</div></div>
-    <div class="kpi"><div class="label">Total Orders</div><div class="val">${totalOrders}</div></div>
-    <div class="kpi"><div class="label">Avg Spend / Customer</div><div class="val">${gbp(avgAov)}</div></div>
-    ${lastImport?`<div class="kpi"><div class="label">Last Import</div><div class="val" style="font-size:14px">${fmtDate(lastImport.date)}</div><div class="sub">${lastImport.count} customers</div></div>`:''}
-  </div>
-
-  <!-- Import history -->
-  ${imports.length?`<div class="card" style="margin-bottom:16px"><div class="card-h"><h3>Import History</h3></div><div class="card-b">
-    ${imports.slice().reverse().slice(0,5).map(im=>`<div class="row-item">
-      <div class="txt"><div class="t">${esc(im.filename)}</div><div class="meta">${fmtDate(im.date)} · ${im.count} customers · ${im.added} new · ${im.updated} updated${im.dropId?' · '+esc((dropById(im.dropId)||{}).number||''):''}</div></div>
-      <button class="btn btn-sm btn-danger" onclick="deleteCustomerImport('${im.id}')">✕</button>
+  // Import history (last 5)
+  const importHistory=imports.length?`<div class="card" style="margin-bottom:16px">
+    <div class="card-h"><h3>Import History</h3><span class="muted" style="font-size:11.5px">Most recent first</span></div>
+    <div class="card-b">${imports.slice().reverse().slice(0,5).map(im=>`<div class="row-item">
+      <span class="pill" style="font-size:10px;background:${im.importType==='customers'?'var(--goldsoft)':im.importType==='drop'?'var(--live-bg)':'rgba(106,169,255,.12)'};color:${im.importType==='customers'?'var(--gold2)':im.importType==='drop'?'var(--live)':'var(--blue)'};border:1px solid ${im.importType==='customers'?'rgba(201,162,75,.2)':im.importType==='drop'?'rgba(74,222,128,.2)':'rgba(106,169,255,.2)'}">${im.importType==='customers'?'Customers':im.importType==='drop'?'Drop Entrants':'Import'}</span>
+      <div class="txt"><div class="t">${esc(im.filename)}</div>
+        <div class="meta">${fmtDate(im.date)} · ${im.count} rows · ${im.added||0} new · ${im.updated||0} updated${im.dropRef?' · '+esc(im.dropRef):''}</div>
+      </div>
+      <button class="btn-danger btn-sm" onclick="deleteCustomerImport('${im.id}')">✕</button>
     </div>`).join('')}
-  </div></div>`:''}
+    </div></div>`:'';
 
-  <!-- Claude analysis prompt -->
-  <div class="card" style="margin-bottom:16px;border-color:var(--gold)">
-    <div class="card-h"><h3>✦ Claude Analysis Prompt</h3><span class="muted" style="font-size:11.5px">Upload your CSV to Claude alongside this prompt for deep analysis</span></div>
-    <div style="padding:14px 18px">
-      <textarea readonly style="width:100%;min-height:130px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink2);border-radius:8px;padding:10px 12px;font-size:12px;resize:vertical;font-family:inherit" id="custClaudePrompt">${esc(CLAUDE_PROMPT)}</textarea>
-      <button class="btn btn-sm btn-gold" style="margin-top:8px" onclick="(()=>{const el=document.getElementById('custClaudePrompt');el.select();navigator.clipboard&&navigator.clipboard.writeText(el.value).then(()=>toast('Prompt copied'));})()">📋 Copy Prompt</button>
+  // Klaviyo strategy card
+  const klaviyoCard=`<div class="card" style="margin-bottom:16px">
+    <div class="card-h"><h3>📧 Klaviyo Segments</h3><span class="muted" style="font-size:11.5px">Click a segment to filter the list below</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;padding:14px 18px">
+      ${[
+        {k:'onetime', label:'One-time buyers', strategy:'Re-engagement sequence \u2014 you\u2019re this close to winning'},
+        {k:'repeat',  label:'Repeat buyers',   strategy:'VIP early access, loyalty messaging'},
+        {k:'vip',     label:'VIP £500+',        strategy:'Founders Club sends, exclusive previews'},
+        {k:'lapsed',  label:'Lapsed 60d+',      strategy:'Win-back — show recent winner stories'},
+        {k:'neverbought',label:'Never bought',  strategy:'First-time offer — "1 entry from £X"'},
+        {k:'new',     label:'New this week',    strategy:'Welcome sequence — build trust fast'},
+      ].map(s=>`<div onclick="setCustSeg('${s.k}')" style="cursor:pointer;padding:12px 14px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;transition:.12s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--line2)'">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">${esc(s.label)} <span style="color:var(--gold2);font-size:12px">${segCounts[s.k]||0}</span></div>
+        <div style="font-size:11.5px;color:var(--ink3)">${esc(s.strategy)}</div>
+      </div>`).join('')}
     </div>
-  </div>
+  </div>`;
 
-  <!-- Search + table -->
-  <div class="field" style="max-width:360px;margin-bottom:12px">
-    <input type="text" placeholder="Search by name, email or city…" value="${esc(custSearch)}" oninput="custSearch=this.value;render()">
-  </div>
-
-  ${custs.length?`<div class="card"><table class="tbl">
+  // Customer table
+  const table=filtered.length?`<div class="card"><div style="overflow-x:auto"><table class="tbl">
     <thead><tr>
       ${th('Name','name')}
       <th>Email</th>
+      <th>Segments</th>
       ${th('Orders','orders')}
-      ${th('Total Spend','spend')}
+      ${th('Spend','spend')}
       ${th('AOV','aov')}
+      ${th('Entries','drops')}
       <th>City</th>
       ${th('Last Active','lastActive')}
     </tr></thead>
-    <tbody>${custs.map(c=>`<tr onclick="openCustomer('${c.id}')">
-      <td class="strong">${esc(c.name)}</td>
-      <td class="muted" style="font-size:12px">${esc(c.email||'—')}</td>
-      <td class="mono">${c.orders||0}</td>
-      <td class="mono">${gbp(c.spend||0)}</td>
-      <td class="mono">${gbp(c.aov||0)}</td>
-      <td class="muted">${esc(c.city||'—')}</td>
-      <td class="muted" style="font-size:12px">${c.lastActive?fmtDate(c.lastActive.slice(0,10)):'—'}</td>
-    </tr>`).join('')}</tbody>
-  </table></div>`:`<div class="card"><div class="empty">No customers yet — import a WooCommerce CSV to get started.</div></div>`}`;
+    <tbody>${filtered.map(c=>{
+      const tags=custTags(c).filter(t=>t!=='all');
+      const entryCount=(c.entries||[]).length;
+      const dropNames=[...new Set((c.entries||[]).map(e=>e.dropRef||e.dropId))].slice(0,3).join(', ');
+      return `<tr onclick="openCustomer('${c.id}')" style="cursor:pointer">
+        <td class="strong" style="white-space:nowrap">${esc(c.name||'—')}</td>
+        <td class="muted" style="font-size:11.5px">${esc(c.email||'—')}</td>
+        <td style="white-space:nowrap">${tags.slice(0,2).map(t=>tagPill(t)).join(' ')}</td>
+        <td class="mono">${c.orders||0}</td>
+        <td class="mono">${gbp(c.spend||0)}</td>
+        <td class="mono">${gbp(c.aov||0)}</td>
+        <td class="mono" style="font-size:12px">${entryCount?`${entryCount}${dropNames?' <span class="muted" style="font-size:10px">'+esc(dropNames)+'</span>':''}`:''}</td>
+        <td class="muted">${esc(c.city||'—')}</td>
+        <td class="muted" style="font-size:12px">${c.lastActive?fmtDate(c.lastActive.slice(0,10)):'—'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div></div>`:`<div class="card"><div class="empty">${custs.length?'No customers match this filter.':'No customers yet — import a WooCommerce CSV to get started.'}</div></div>`;
+
+  return `<div class="page-head">
+    <div><h2>Customers</h2><div class="desc">${custs.length.toLocaleString()} customers · ${gbp(totalSpend)} lifetime value${lastImport?' · last import '+fmtDate(lastImport.date):''}</div></div>
+    <div class="page-actions" style="gap:8px">
+      <button class="btn" onclick="openDropEntrantImport()">📋 Import Drop Entrants</button>
+      <button class="btn btn-gold" onclick="openCustomerImport()">⬆ Import Customers CSV</button>
+      <button class="btn" onclick="openCustomer()">＋ Add</button>
+    </div></div>
+
+  <div class="kpi-row" style="margin-bottom:18px">
+    <div class="kpi"><div class="label">Total Customers</div><div class="val">${custs.length.toLocaleString()}</div></div>
+    <div class="kpi"><div class="label">Lifetime Value</div><div class="val gold">${gbp(totalSpend)}</div></div>
+    <div class="kpi"><div class="label">Total Orders</div><div class="val">${totalOrders.toLocaleString()}</div></div>
+    <div class="kpi"><div class="label">Avg Spend</div><div class="val">${gbp(avgSpend)}</div></div>
+    <div class="kpi"><div class="label">One-time</div><div class="val" style="color:var(--warn)">${oneTimePct}%</div><div class="sub">${(segCounts['onetime']||0).toLocaleString()} buyers</div></div>
+    <div class="kpi"><div class="label">Repeat</div><div class="val" style="color:var(--live)">${repeatPct}%</div><div class="sub">${(segCounts['repeat']||0).toLocaleString()} buyers</div></div>
+    <div class="kpi"><div class="label">New This Week</div><div class="val" style="color:var(--purple)">${newThisWeek}</div></div>
+  </div>
+
+  ${klaviyoCard}
+  ${importHistory}
+
+  <!-- Segment filter + search -->
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">${segChips}</div>
+  <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center">
+    <input type="text" placeholder="Search name, email or city…" value="${esc(custSearch)}" oninput="custSearch=this.value;render()" style="flex:1;max-width:340px;background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:9px 12px;color:var(--ink)">
+    <span class="muted" style="font-size:12.5px">${filtered.length} of ${custs.length} shown${custSegFilter!=='all'?' · '+CUST_SEGS.find(s=>s.k===custSegFilter)?.label:''}</span>
+    ${custSegFilter!=='all'?`<button class="btn btn-sm" onclick="setCustSeg('all')">Clear filter</button>`:''}
+  </div>
+
+  ${table}`;
 }
 
 function openCustomerImport(){
-  openModal(`<div class="modal"><div class="modal-h"><h3>Import WooCommerce Customers</h3><span class="x" onclick="closeModal()">×</span></div>
+  openModal(`<div class="modal"><div class="modal-h"><h3>⬆ Import WooCommerce Customers CSV</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
-      <div class="muted" style="font-size:12.5px;margin-bottom:14px">Export from WooCommerce → Analytics → Customers → Download. The CSV should have columns: Name, Email, Orders, Total Spend, AOV, Last Active, City.</div>
-      <div class="field"><label>Linked Drop <span class="muted" style="text-transform:none;font-weight:400">(which drop is this customer export from?)</span></label>
-        <select id="custImportDrop" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px">
-          <option value="">— Link to a drop (recommended) —</option>
-          ${[...DB.drops].sort((a,b)=>(b.draw||'').localeCompare(a.draw||'')).map(d=>`<option value="${d.id}">${esc(d.number)} — ${esc(watchName(d.watchId))}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field"><label>Customer CSV file</label><input type="file" accept=".csv" id="custImportFile"></div>
+      <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.6">Export from WooCommerce → Analytics → Customers → Download CSV. Upload every Monday to track new customers week on week.</div>
+      <div class="field"><label>Customers CSV file</label><input type="file" accept=".csv" id="custImportFile"></div>
       <div id="custImportPreview" class="muted" style="font-size:12px;margin-top:8px"></div>
     </div>
     <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="runCustomerImport()">Import →</button></div>
@@ -5071,75 +5291,130 @@ function openCustomerImport(){
 }
 
 function runCustomerImport(){
-  const file = document.getElementById('custImportFile').files[0];
-  if(!file){ alert('Select a CSV file first'); return; }
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    const parsed = parseCSV(reader.result);
-    if(!parsed.rows.length){ alert('No rows found in file'); return; }
-    const headers = parsed.headers.map(h=>h.toLowerCase().trim());
-    const col = (patterns)=>{
-      for(const p of patterns){
-        const h = parsed.headers.find(h=>p.test(h.toLowerCase()));
-        if(h) return h;
-      }
+  const file=document.getElementById('custImportFile').files[0];
+  if(!file){ alert('Select a CSV file'); return; }
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const parsed=parseCSV(reader.result);
+    if(!parsed.rows.length){ alert('No rows found'); return; }
+    const col=patterns=>{
+      for(const p of patterns){ const h=parsed.headers.find(h=>p.test(h.toLowerCase())); if(h) return h; }
       return null;
     };
-    const nameCol   = col([/^name$/,/customer.*name/,/full.*name/]);
-    const emailCol  = col([/^email$/,/customer.*email/,/billing.*email/]);
-    const ordersCol = col([/^orders$/,/order.*count/,/total.*orders/]);
-    const spendCol  = col([/total.*spend/,/^spend$/,/lifetime.*spend/]);
-    const aovCol    = col([/^aov$/,/avg.*order/,/average.*order/]);
-    const lastCol   = col([/last.*active/,/last.*order/,/last.*seen/]);
-    const cityCol   = col([/^city$/,/town/,/city.*region/]);
-    const postcodeCol = col([/postal/,/postcode/,/zip/]);
-    const signupCol = col([/sign.*up/,/registered/,/created/]);
-    const usernameCol = col([/username/,/user.*name/]);
-
+    const nameCol=col([/^name$/,/customer.*name/,/full.*name/]);
+    const emailCol=col([/^email$/,/customer.*email/,/billing.*email/]);
+    const ordersCol=col([/^orders$/,/order.*count/,/total.*orders/]);
+    const spendCol=col([/total.*spend/,/^spend$/,/lifetime.*spend/]);
+    const aovCol=col([/^aov$/,/avg.*order/,/average.*order/]);
+    const lastCol=col([/last.*active/,/last.*order/,/last.*seen/]);
+    const cityCol=col([/^city$/,/town/,/city.*region/]);
+    const postcodeCol=col([/postal/,/postcode/,/zip/]);
+    const signupCol=col([/sign.*up/,/registered/,/created/]);
+    const usernameCol=col([/username/,/user.*name/]);
     let added=0, updated=0;
-    DB.customerImports = DB.customerImports||[];
-
+    DB.customerImports=DB.customerImports||[];
     parsed.rows.forEach(row=>{
-      const email = emailCol? (row[emailCol]||'').trim().toLowerCase() : '';
-      const name  = nameCol? (row[nameCol]||'').trim() : '';
-      if(!email && !name) return;
-
-      const spend   = parseFloat((row[spendCol]||'').replace(/[^0-9.]/g,''))||0;
-      const orders  = parseInt(row[ordersCol])||0;
-      const aov     = parseFloat((row[aovCol]||'').replace(/[^0-9.]/g,''))||0;
-      const city    = cityCol? (row[cityCol]||'').trim() : '';
-      const postcode= postcodeCol? (row[postcodeCol]||'').trim() : '';
-      const lastActive = lastCol? (row[lastCol]||'').trim() : '';
-      const signUp  = signupCol? (row[signupCol]||'').trim() : '';
-      const username= usernameCol? (row[usernameCol]||'').trim() : '';
-
-      const existing = email? DB.customers.find(c=>c.email===email) : null;
+      const email=emailCol?(row[emailCol]||'').trim().toLowerCase():'';
+      const name=nameCol?(row[nameCol]||'').trim():'';
+      if(!email&&!name) return;
+      const spend=parseFloat((row[spendCol]||'').replace(/[^0-9.]/g,''))||0;
+      const orders=parseInt(row[ordersCol])||0;
+      const aov=parseFloat((row[aovCol]||'').replace(/[^0-9.]/g,''))||0;
+      const city=cityCol?(row[cityCol]||'').trim():'';
+      const postcode=postcodeCol?(row[postcodeCol]||'').trim():'';
+      const lastActive=lastCol?(row[lastCol]||'').trim():'';
+      const signUp=signupCol?(row[signupCol]||'').trim():'';
+      const username=usernameCol?(row[usernameCol]||'').trim():'';
+      const existing=email?DB.customers.find(c=>c.email===email):null;
       if(existing){
         existing.name=name||existing.name; existing.spend=spend||existing.spend;
         existing.orders=orders||existing.orders; existing.aov=aov||existing.aov;
         existing.city=city||existing.city; existing.postcode=postcode||existing.postcode;
         existing.lastActive=lastActive||existing.lastActive;
-        existing.signUp=signUp||existing.signUp;
+        existing.signUp=existing.signUp||signUp;
         existing.username=username||existing.username;
         updated++;
       } else {
-        DB.customers.push({id:uid('cust'),name,email,phone:'',spend,orders,aov,city,postcode,lastActive,signUp,username,notes:'',dropIds:linkedDropId?[linkedDropId]:[],created:now()});
+        DB.customers.push({id:uid('cust'),name,email,phone:'',spend,orders,aov,city,postcode,lastActive,signUp,username,notes:'',entries:[],created:now()});
         added++;
       }
     });
+    DB.customerImports.push({id:uid('ci'),filename:file.name,date:today(),count:parsed.rows.length,added,updated,importType:'customers'});
+    saveDB();closeModal();toast(`Imported ${parsed.rows.length} customers — ${added} new, ${updated} updated`);render();
+  };
+  reader.readAsText(file);
+}
 
-    const linkedDropId = (document.getElementById('custImportDrop')||{}).value||'';
-    DB.customerImports.push({id:uid('ci'),filename:file.name,date:today(),count:parsed.rows.length,added,updated,dropId:linkedDropId});
-    saveDB(); closeModal(); toast(`Imported ${parsed.rows.length} customers — ${added} new, ${updated} updated`); render();
+function openDropEntrantImport(){
+  const dropOpts=[...DB.drops].sort((a,b)=>(b.draw||'').localeCompare(a.draw||'')).map(d=>`<option value="${d.id}">${esc(d.number)} — ${esc(watchName(d.watchId)||d.name||'')}</option>`).join('');
+  openModal(`<div class="modal"><div class="modal-h"><h3>📋 Import Drop Entrants</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.6">Upload a WooCommerce order CSV for a specific drop. This links each entrant to their customer profile so you can see exactly which drops each person entered.</div>
+      <div class="field"><label>Which Drop / Vault?</label>
+        <select id="entrantDrop" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px">
+          <option value="">— select the drop —</option>${dropOpts}
+        </select>
+      </div>
+      <div class="field"><label>Order CSV file</label><input type="file" accept=".csv" id="entrantFile"></div>
+      <div class="muted" style="font-size:11.5px;margin-top:8px">The CSV needs an Email column. Ticket count is read from Quantity if present.</div>
+      <div id="entrantPreview" class="muted" style="font-size:12px;margin-top:8px"></div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="runDropEntrantImport()">Link Entrants →</button></div>
+  </div>`);
+}
+
+function runDropEntrantImport(){
+  const dropId=(document.getElementById('entrantDrop')||{}).value||'';
+  const file=(document.getElementById('entrantFile')||{}).files[0];
+  if(!dropId){ alert('Select a drop first'); return; }
+  if(!file){ alert('Select a CSV file'); return; }
+  const drop=dropById(dropId);
+  if(!drop){ alert('Drop not found'); return; }
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const parsed=parseCSV(reader.result);
+    if(!parsed.rows.length){ alert('No rows found'); return; }
+    const col=patterns=>{
+      for(const p of patterns){ const h=parsed.headers.find(h=>p.test(h.toLowerCase())); if(h) return h; }
+      return null;
+    };
+    const emailCol=col([/^email$/,/billing.*email/,/customer.*email/,/e-mail/]);
+    const nameCol=col([/^name$/,/billing.*name/,/customer.*name/,/full.*name/]);
+    const qtyCol=col([/quantity/,/qty/,/tickets/,/items/]);
+    if(!emailCol){ alert('No email column found in this CSV'); return; }
+    let matched=0, newAdded=0, alreadyLinked=0;
+    DB.customerImports=DB.customerImports||[];
+    const entryDate=drop.draw||today();
+    const dropRef=drop.number||(drop.name||'Vault');
+    const dropType=drop.type||'Main Drop';
+    parsed.rows.forEach(row=>{
+      const email=(row[emailCol]||'').trim().toLowerCase();
+      if(!email) return;
+      const tickets=qtyCol?parseInt(row[qtyCol])||1:1;
+      const name=nameCol?(row[nameCol]||'').trim():'';
+      let cust=DB.customers.find(c=>c.email===email);
+      if(!cust){
+        cust={id:uid('cust'),name,email,phone:'',spend:0,orders:0,aov:0,city:'',postcode:'',lastActive:'',signUp:'',username:'',notes:'',entries:[],created:now()};
+        DB.customers.push(cust);
+        newAdded++;
+      }
+      cust.entries=cust.entries||[];
+      const alreadyIn=cust.entries.find(e=>e.dropId===dropId);
+      if(alreadyIn){ alreadyIn.tickets=tickets; alreadyLinked++; }
+      else{ cust.entries.push({id:uid('en'),dropId,dropRef,dropType,tickets,date:entryDate}); matched++; }
+    });
+    DB.customerImports.push({id:uid('ci'),filename:file.name,date:today(),count:parsed.rows.length,added:newAdded,updated:matched+alreadyLinked,dropRef,importType:'drop'});
+    saveDB();closeModal();toast(`${drop.number}: ${matched} entrants linked, ${newAdded} new customers added`);render();
   };
   reader.readAsText(file);
 }
 
 function deleteCustomerImport(id){
-  if(!confirm('Remove this import record? (Customers already imported will remain.)')) return;
+  if(!confirm('Remove this import record? (Customers and entries already imported will remain.)')) return;
   DB.customerImports=(DB.customerImports||[]).filter(x=>x.id!==id);
-  saveDB(); render();
+  saveDB();render();
 }
+
 
 /* ================= NEW CONTENT (creation pipeline) ================= */
 let contentView='board', contentCat='All', contentStatusFilter='All', contentStageFilter='All';
