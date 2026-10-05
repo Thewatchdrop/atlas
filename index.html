@@ -1473,6 +1473,7 @@ function seed(){
       {id:uid('id'),text:'Compare Monaco to a football boot — "worn by legends" angle',created:now()},
     ],
     notes:[],
+    vaultWatches:[],
     timeline:[],
     settings:{team:['Felix','Leila']}
   };
@@ -2572,9 +2573,13 @@ function dropRow(d){
 /* ================= VAULT HUB ================= */
 let vaultHubTab='all'; // 'all' or a drop id
 let vaultPrizeFilter='all'; // 'all','watch','cash','credit'
+let vaultHubView='tracker'; // 'tracker' | 'watchpool'
+let vaultWatchFilter='all'; // 'all','available','won'
 
 function setVaultHubTab(v){ vaultHubTab=v; vaultPrizeFilter='all'; render(); }
 function setVaultPrizeFilter(f){ vaultPrizeFilter=f; render(); }
+function setVaultHubView(v){ vaultHubView=v; render(); }
+function setVaultWatchFilter(f){ vaultWatchFilter=f; render(); }
 
 function vaultHubKpiRow(vaults){
   const allPrizes=vaults.reduce((a,d)=>a.concat(d.vaultPrizes||[]),[]);
@@ -2670,6 +2675,123 @@ function vaultHubLogForm(vaults){
   </div>`;
 }
 
+function vaultWatchPoolView(vaults){
+  DB.vaultWatches=DB.vaultWatches||[];
+  const vaultIds=vaults.map(d=>d.id);
+  const poolAll=vaultHubTab==='all'?DB.vaultWatches:DB.vaultWatches.filter(w=>vaultIds.includes(w.vaultId));
+  const wonAll=poolAll.filter(w=>w.status==='won');
+  const availAll=poolAll.filter(w=>w.status!=='won');
+  const wonCost=wonAll.reduce((a,w)=>a+(Number(w.cost)||0),0);
+  const poolCost=poolAll.reduce((a,w)=>a+(Number(w.cost)||0),0);
+  const showBadge=vaultHubTab==='all';
+  const filtered=vaultWatchFilter==='all'?poolAll:poolAll.filter(w=>w.status===(vaultWatchFilter==='won'?'won':'available'));
+  const watchRows=filtered.length?[...filtered].reverse().map(w=>{
+    const vd=dropById(w.vaultId);
+    const vLabel=vd?(vd.number||vd.name||'Vault'):'—';
+    return `<div class="row-item" style="${w.status==='won'?'opacity:.75':''}">
+      ${showBadge?`<span class="pill" style="background:var(--goldsoft);color:var(--gold2);border:1px solid rgba(201,162,75,.2);font-size:10px">${esc(vLabel)}</span>`:''}
+      <div class="txt" style="flex:1;min-width:0">
+        <div class="t">${esc(w.brand)} ${esc(w.model)}${w.ref?` <span style="font-size:11px;color:var(--ink3);font-weight:400">${esc(w.ref)}</span>`:''}</div>
+        <div class="meta">${w.status==='won'?`Won by ${esc(w.winnerName||'—')} · ${w.dateWon?fmtDate(w.dateWon):''}`:w.notes?esc(w.notes):'Available'}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-right:4px">
+        <div class="mono" style="font-weight:700">${gbp(w.cost||0)}</div>
+        <div style="font-size:11px;color:var(--ink3)">RV ${gbp(w.advValue||0)}</div>
+      </div>
+      <span class="pill" style="font-size:10px;${w.status==='won'?'background:var(--live-bg);color:var(--live);border:1px solid rgba(74,222,128,.2)':'background:var(--panel2);color:var(--ink3);border:1px solid var(--line2)'}">${w.status==='won'?'✓ Won':'Available'}</span>
+      ${w.driveLink?`<a href="${esc(w.driveLink)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:7px;border:1px solid var(--line2);font-size:12px;font-weight:600;color:var(--ink2);text-decoration:none;background:var(--panel2)">📁 Drive</a>`:''}
+      ${w.status!=='won'
+        ?`<button class="btn btn-sm btn-gold" onclick="markVaultWatchWon('${w.id}')">Mark won</button>`
+        :`<button class="btn btn-sm" style="font-size:11px;color:var(--ink3)" onclick="unmarkVaultWatchWon('${w.id}')">Undo</button>`}
+      <button class="btn-danger btn-sm" onclick="delVaultWatch('${w.id}')">✕</button>
+    </div>`;
+  }).join(''):'<div class="empty">No watches match this filter.</div>';
+  const vaultOpts=vaults.map(d=>`<option value="${esc(d.id)}">${esc(d.number||d.name||'Vault')}</option>`).join('');
+  const filterBtns=[['all','All',poolAll.length],['available','Available',availAll.length],['won','Won',wonAll.length]].map(([f,l,c])=>
+    `<div onclick="setVaultWatchFilter('${f}')" style="padding:4px 13px;border-radius:20px;font-size:12px;cursor:pointer;font-weight:500;border:1px solid ${vaultWatchFilter===f?'var(--gold)':'var(--line2)'};background:${vaultWatchFilter===f?'var(--goldsoft)':'transparent'};color:${vaultWatchFilter===f?'var(--gold2)':'var(--ink3)'}">${l} <span style="opacity:.6">${c}</span></div>`
+  ).join('');
+  return `
+    <div class="kpi-row" style="margin-bottom:20px">
+      <div class="kpi"><div class="label">Total in Pool</div><div class="val">${poolAll.length}</div></div>
+      <div class="kpi"><div class="label">Available</div><div class="val" style="color:var(--live)">${availAll.length}</div></div>
+      <div class="kpi"><div class="label">Won</div><div class="val" style="color:var(--gold2)">${wonAll.length}</div></div>
+      <div class="kpi"><div class="label">Won — Cost Out</div><div class="val">${gbp(wonCost)}</div></div>
+      <div class="kpi"><div class="label">Full Pool Cost</div><div class="val">${gbp(poolCost)}</div></div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h"><h3>Watch Pool — ${poolAll.length} watches</h3><div style="display:flex;gap:6px;margin-left:auto">${filterBtns}</div></div>
+      <div class="card-b">${watchRows}</div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Add Watch to Pool</h3><span class="muted" style="font-size:11.5px">Builds your prize inventory — mark won when a ticket triggers it</span></div>
+      <div class="modal-b" style="max-height:none">
+        <div class="field-row">
+          <div class="field"><label>Vault</label><select id="vw_vault" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px">${vaultOpts}</select></div>
+          <div class="field"><label>Brand</label><input id="vw_brand" placeholder="e.g. Tudor, TAG Heuer, Omega…"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Model</label><input id="vw_model" placeholder="e.g. BB58 Blue, Formula 1 Cal.5…"></div>
+          <div class="field"><label>Reference (optional)</label><input id="vw_ref" placeholder="e.g. 79030B"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Cost Paid (£)</label><input id="vw_cost" type="number" placeholder="0"></div>
+          <div class="field"><label>Advertised Value (£)</label><input id="vw_adv" type="number" placeholder="0"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Drive Link (optional)</label><input id="vw_drive" placeholder="Paste Google Drive folder URL…" type="url"></div>
+          <div class="field"><label>Notes (optional)</label><input id="vw_notes" placeholder="Sourcing notes, supplier, condition…"></div>
+        </div>
+      </div>
+      <div style="padding:0 18px 14px;display:flex;justify-content:flex-end">
+        <button class="btn btn-gold" onclick="addVaultWatch()">＋ Add to Pool</button>
+      </div>
+    </div>`;
+}
+
+function addVaultWatch(){
+  const vaultId=(document.getElementById('vw_vault')||{}).value||''
+  const brand=(document.getElementById('vw_brand')||{}).value||''
+  const model=(document.getElementById('vw_model')||{}).value||''
+  const ref=(document.getElementById('vw_ref')||{}).value||''
+  const cost=Number((document.getElementById('vw_cost')||{}).value)||0
+  const advValue=Number((document.getElementById('vw_adv')||{}).value)||0
+  const notes=(document.getElementById('vw_notes')||{}).value||''
+  const driveLink=(document.getElementById('vw_drive')||{}).value||''
+  if(!brand||!model){ alert('Enter brand and model'); return; }
+  DB.vaultWatches=DB.vaultWatches||[];
+  DB.vaultWatches.push({id:uid('vw'),brand,model,ref,cost,advValue,vaultId,status:'available',prizeId:'',winnerName:'',dateWon:'',notes,driveLink,created:now()});
+  saveDB(); render();
+}
+
+function delVaultWatch(id){
+  if(!confirm('Remove this watch from the pool?')) return;
+  DB.vaultWatches=(DB.vaultWatches||[]).filter(w=>w.id!==id);
+  saveDB(); render();
+}
+
+function markVaultWatchWon(id){
+  const w=(DB.vaultWatches||[]).find(x=>x.id===id); if(!w) return;
+  const name=prompt('Winner name:'); if(!name) return;
+  const dateStr=prompt('Date won (YYYY-MM-DD):',today()); if(dateStr===null) return;
+  w.status='won'; w.winnerName=name.trim(); w.dateWon=dateStr||today();
+  const d=dropById(w.vaultId);
+  if(d){
+    d.vaultPrizes=d.vaultPrizes||[];
+    const pid=uid('vp');
+    d.vaultPrizes.push({id:pid,type:'watch',label:`${w.brand} ${w.model}`,cost:w.cost||0,amount:0,date:w.dateWon,created:now()});
+    w.prizeId=pid;
+  }
+  saveDB(); render();
+}
+
+function unmarkVaultWatchWon(id){
+  const w=(DB.vaultWatches||[]).find(x=>x.id===id); if(!w) return;
+  if(!confirm('Undo this win? It will also be removed from the Prize Log.')) return;
+  if(w.prizeId){ const d=dropById(w.vaultId); if(d) d.vaultPrizes=(d.vaultPrizes||[]).filter(p=>p.id!==w.prizeId); }
+  w.status='available'; w.winnerName=''; w.dateWon=''; w.prizeId='';
+  saveDB(); render();
+}
+
 function vVaultHub(){
   const vaults=(DB.drops||[]).filter(d=>d.type==='Vault');
   if(!vaults.length) return `
@@ -2679,44 +2801,44 @@ function vVaultHub(){
       <div style="font-weight:600;margin-bottom:8px">No Vault drops yet</div>
       <div style="color:var(--ink3);font-size:13px">Create a drop with type 'Vault' and it'll appear here automatically.</div>
     </div>`;
-
-  // Determine active set
   const activeVaults=vaultHubTab==='all'?vaults:vaults.filter(d=>d.id===vaultHubTab);
   const showVaultBadge=activeVaults.length>1;
-
-  // Tab bar
   const tabBar=`<div class="tabs" style="margin-bottom:20px">
     <div class="tab ${vaultHubTab==='all'?'active':''}" onclick="setVaultHubTab('all')">All Vaults <span style="font-size:11px;opacity:.6">${vaults.length}</span></div>
     ${vaults.map(d=>`<div class="tab ${vaultHubTab===d.id?'active':''}" onclick="setVaultHubTab('${d.id}')">${esc(d.number||d.name||'Vault')}<span style="font-size:11px;opacity:.6;margin-left:5px">${(d.vaultPrizes||[]).length}</span></div>`).join('')}
   </div>`;
-
-  // Prize filter chips
-  const allPrizesCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).length,0);
-  const watchCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).filter(p=>p.type==='watch').length,0);
-  const cashCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).filter(p=>p.type==='cash').length,0);
-  const creditCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).filter(p=>p.type==='credit').length,0);
-  const filterChips=`<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-    ${[['all','All',allPrizesCount],['watch','Watches',watchCount],['cash','Cash',cashCount],['credit','Credit',creditCount]].map(([f,l,c])=>`
-      <div onclick="setVaultPrizeFilter('${f}')" style="padding:5px 14px;border-radius:20px;font-size:13px;cursor:pointer;border:1px solid ${vaultPrizeFilter===f?'var(--gold)':'var(--line2)'};background:${vaultPrizeFilter===f?'var(--goldsoft)':'var(--panel)'};color:${vaultPrizeFilter===f?'var(--gold2)':'var(--ink2)'}">${l} <span style="opacity:.6">${c}</span></div>
-    `).join('')}
+  const switcher=`<div style="display:flex;gap:8px;margin-bottom:22px">
+    <button onclick="setVaultHubView('tracker')" class="btn ${vaultHubView==='tracker'?'btn-gold':''}">📊 Prize Tracker</button>
+    <button onclick="setVaultHubView('watchpool')" class="btn ${vaultHubView==='watchpool'?'btn-gold':''}">⌚ Watch Pool</button>
   </div>`;
-
-  const allWinners=activeVaults.reduce((a,d)=>a+(d.instantWinners||[]).length,0);
-
+  function trackerView(){
+    const allPrizesCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).length,0);
+    const watchCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).filter(p=>p.type==='watch').length,0);
+    const cashCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).filter(p=>p.type==='cash').length,0);
+    const creditCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).filter(p=>p.type==='credit').length,0);
+    const filterChips=`<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      ${[['all','All',allPrizesCount],['watch','Watches',watchCount],['cash','Cash',cashCount],['credit','Credit',creditCount]].map(([f,l,c])=>`
+        <div onclick="setVaultPrizeFilter('${f}')" style="padding:5px 14px;border-radius:20px;font-size:13px;cursor:pointer;border:1px solid ${vaultPrizeFilter===f?'var(--gold)':'var(--line2)'};background:${vaultPrizeFilter===f?'var(--goldsoft)':'var(--panel)'};color:${vaultPrizeFilter===f?'var(--gold2)':'var(--ink2)'}">${l} <span style="opacity:.6">${c}</span></div>
+      `).join('')}
+    </div>`;
+    const allWinners=activeVaults.reduce((a,d)=>a+(d.instantWinners||[]).length,0);
+    return `${vaultHubKpiRow(activeVaults)}
+      ${vaultHubLogForm(activeVaults)}
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h"><h3>Prize Log — ${allPrizesCount} won</h3></div>
+        ${filterChips}
+        <div class="card-b">${vaultHubPrizeRows(activeVaults,showVaultBadge)}</div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Instant Winners — ${allWinners} logged</h3><span class="muted" style="font-size:11.5px">Dispatch status across selected vaults</span></div>
+        <div class="card-b">${vaultHubWinnerRows(activeVaults,showVaultBadge)}</div>
+      </div>`;
+  }
   return `
     <div class="page-h"><h1>⚡ Vault Hub</h1><span class="muted" style="font-size:13px">${vaults.length} vault${vaults.length!==1?'s':''} · live prize &amp; winner tracking</span></div>
     ${tabBar}
-    ${vaultHubKpiRow(activeVaults)}
-    ${vaultHubLogForm(activeVaults)}
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-h"><h3>Prize Log — ${allPrizesCount} won</h3></div>
-      ${filterChips}
-      <div class="card-b">${vaultHubPrizeRows(activeVaults,showVaultBadge)}</div>
-    </div>
-    <div class="card">
-      <div class="card-h"><h3>Instant Winners — ${allWinners} logged</h3><span class="muted" style="font-size:11.5px">Dispatch status across all selected vaults</span></div>
-      <div class="card-b">${vaultHubWinnerRows(activeVaults,showVaultBadge)}</div>
-    </div>`;
+    ${switcher}
+    ${vaultHubView==='watchpool'?vaultWatchPoolView(activeVaults):trackerView()}`;
 }
 
 function onVHTypeChange(){
