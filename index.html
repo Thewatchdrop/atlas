@@ -1165,36 +1165,6 @@ const DEFAULT_RECURRING_TASKS = [
   {title:'Dispatch prize', type:'Prize Delivery', category:'Task'},
   {title:'Collect review', type:'Winner & Dispatch', category:'Admin'},
 ];
-const WATCH_BRANDS=['Audemars Piguet','Blancpain x Swatch','Breitling','Cartier','Casio / G-Shock','Christopher Ward','Garmin','Grand Seiko','H. Moser & Cie','Hublot','IWC','Jaeger-LeCoultre','Longines','NOMOS','Omega','Omega x Swatch','Panerai','Patek Philippe','Richard Mille','Rolex','Seiko','Swatch','TAG Heuer','Tissot','Tudor','Vacheron Constantin','Other'];
-const WATCH_FAMILIES={
-  'Rolex':['Air-King','Cellini','Cosmograph Daytona','DateJust','Day-Date','Explorer','Explorer II','GMT-Master II','Milgauss','Oyster Perpetual','Sea-Dweller','Sky-Dweller','Submariner','Yacht-Master'],
-  'Tudor':['1926','Black Bay','Black Bay 41','Black Bay 58','Black Bay Chrono','Black Bay GMT','Black Bay Pro','Clair de Rose','Fastrider','Glamour','Pelagos','Ranger','Royal','Submariner Heritage'],
-  'Omega':['Aqua Terra','Constellation','De Ville','Planet Ocean','Seamaster','Seamaster 300','Seamaster Diver 300M','Seamaster Planet Ocean','Speedmaster','Speedmaster Moonwatch','Speedmaster Racing'],
-  'TAG Heuer':['Aquaracer','Autavia','Carrera','Connected','Formula 1','Link','Monaco'],
-  'Cartier':['Ballon Bleu','Calibre','Drive','Pasha','Panthere','Ronde','Santos','Santos-Dumont','Tank','Tank Louis Cartier','Tank Must'],
-  'Omega x Swatch':['MoonSwatch Mission to Mars','MoonSwatch Mission to the Moon','MoonSwatch Mission to Mercury','MoonSwatch Mission to Venus','MoonSwatch Mission to Earth','MoonSwatch Mission to Jupiter','MoonSwatch Mission to Saturn','MoonSwatch Mission to Uranus','MoonSwatch Mission to Neptune','MoonSwatch Mission to Pluto','MoonSwatch Mission to Moonshine Gold'],
-  'Blancpain x Swatch':['Fifty Fathoms Atlantic Ocean','Fifty Fathoms Arctic Ocean','Fifty Fathoms Indian Ocean','Fifty Fathoms Pacific Ocean','Fifty Fathoms Antarctic Ocean'],
-  'Swatch':['Big Bold','Irony','Originals','Skin','Sistem51','Gent'],
-  'Tissot':['Chemin des Tourelles','Gentleman','Le Locle','PRX','PRX Powermatic 80','Seastar','T-Race','Tradition'],
-  'Breitling':['Avenger','Chronomat','Colt','Cockpit','Endurance Pro','Navitimer','Premier','Superocean','Superocean Heritage','Windrider'],
-  'IWC':['Aquatimer','Big Pilot','Ingenieur','Pilot','Portofino','Portugieser'],
-  'Panerai':['Luminor','Luminor Due','Luminor Marina','Radiomir','Submersible'],
-  'Seiko':['5 Sports','Astron','Presage','Prospex','SPB'],
-  'Grand Seiko':['Elegance','Heritage','Sport'],
-  'Patek Philippe':['Aquanaut','Calatrava','Complications','Grand Complications','Nautilus'],
-  'Audemars Piguet':['Jules Audemars','Millenary','Royal Oak','Royal Oak Offshore'],
-  'Jaeger-LeCoultre':['Master','Polaris','Rendez-Vous','Reverso'],
-  'Vacheron Constantin':['Fiftysix','Patrimony','Traditionnelle'],
-  'Hublot':['Big Bang','Classic Fusion','Spirit of Big Bang'],
-  'Richard Mille':['RM 005','RM 011','RM 027','RM 035','RM 055'],
-  'Longines':['Conquest','HydroConquest','La Grande Classique','Master Collection','Spirit'],
-  'H. Moser & Cie':['Endeavour','Heritage','Pioneer','Streamliner'],
-  'NOMOS':['Ahoi','Club','Lambda','Metro','Orion','Tangente','Tetra'],
-  'Christopher Ward':['C1','C3','C5','C60','C63','C65','C9'],
-  'Garmin':['Descent','Epix','Fenix','Forerunner','MARQ','Quatix','Tactix'],
-  'Casio / G-Shock':['DW-5600','GA-2100','GW-M5610','G-SHOCK Pro Trek','Edifice','Wave Ceptor'],
-  'Other':[],
-};
 const CONTENT_CATS=['Watch Photos','Watch Video','Delivery Video','Evergreen Video','Person Only'];
 function watchGalleryKeyForCategory(cat){ return slug(cat); }
 const CONTENT_STATUSES=['To Do','Done'];
@@ -1332,15 +1302,8 @@ function migrate(){
     DB.contentScheduleTemplates[ty]=(DB.contentScheduleTemplates[ty]||[]).map(it=>({...it,id:it.id||uid('tpl')}));
   });
   (DB.drops||[]).forEach(migrateDrop);
-  // Auto-resolve pending drop links
   (DB.watches||[]).forEach(w=>{
-    if(w.pendingDropNumber){
-      const d=DB.drops.find(x=>(x.number||'').toUpperCase()===w.pendingDropNumber.toUpperCase());
-      if(d&&!d.watchId){ d.watchId=w.id; if(d.tracker) d.tracker.watchCost=Number(w.cost)||0; delete w.pendingDropNumber; }
-    }
-  });
-  (DB.watches||[]).forEach(w=>{
-    w.serial=w.serial||''; w.mediaLink=w.mediaLink||''; w.canvaLink=w.canvaLink||''; w.driveLink=w.driveLink||''; w.retired=!!w.retired;
+    w.serial=w.serial||''; w.mediaLink=w.mediaLink||''; w.retired=!!w.retired;
     // Derive Model Family + Variant if missing, so Brand→Model→Variant drill-down works
     if(w.family===undefined || w.variant===undefined){
       const sp=splitModel(w.brand,w.model);
@@ -1769,24 +1732,31 @@ function trkKpiRow(d,t){
   </div>`;
 }
 function buildCheckpointTemplate(d){
-  if(d.type==='Free Drop') return [];
+  if(d.type==='Free Drop') return []; // no sales tracking needed for free drops
   const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const launch=new Date((d.launch||today())+'T00:00:00');
   const cps=[];
-  const push=(offsetDays,label)=>{
+  const pushEvening=(offsetDays)=>{
     const dt=new Date(launch); dt.setDate(dt.getDate()+offsetDays);
-    cps.push({id:uid('cp'), label:`${dayNames[dt.getDay()]} ${label}`, date:localISODate(dt), ticketsSold:0, filled:false, locked:true});
+    cps.push({id:uid('cp'), label:`${dayNames[dt.getDay()]} 8:30pm`, date:localISODate(dt), ticketsSold:0, filled:false, locked:true});
+  };
+  const pushFinalDay=(offsetDays)=>{
+    const dt=new Date(launch); dt.setDate(dt.getDate()+offsetDays);
+    const label=dayNames[dt.getDay()]; const dateStr=localISODate(dt);
+    cps.push({id:uid('cp'), label:`${label} 6pm`, date:dateStr, ticketsSold:0, filled:false, locked:true});
   };
   if(d.type==='Weekend Drop'){
-    push(1,'8:30pm'); push(2,'8:30pm');
+    // Fri 5:30pm launch (tracked at 8:30pm) -> Sun 8:30pm draw, 2-day span
+    pushEvening(1); // Saturday 8:30pm
+    pushFinalDay(2); // Sunday — intraday
   } else if(d.type==='Tech Drop'){
-    push(1,'8:30pm'); push(2,'8:30pm');
+    // Sun 5:30pm launch (tracked at 8:30pm) -> Tue 8:30pm draw, 2-day span
+    pushEvening(1); // Monday 8:30pm
+    pushFinalDay(2); // Tuesday — intraday
   } else {
-    // Main Drop: Thu–Tue at 8:30pm, then Wed every hour from 8am to 8:30pm
-    for(let i=1;i<=6;i++) push(i,'8:30pm'); // Thu 8:30pm … Tue 8:30pm
-    // Draw day (Wed) — hourly from 8am
-    const hours=['8:00am','9:00am','10:00am','11:00am','12:00pm','1:00pm','2:00pm','3:00pm','4:00pm','5:00pm','6:00pm','7:00pm','8:00pm','8:30pm'];
-    hours.forEach(h=>push(7,h));
+    // Main Drop and Vault: Wed 8:30pm -> next Wed 8:30pm, 7-day span
+    for(let i=1;i<=6;i++) pushEvening(i); // Thu..Tue 8:30pm
+    pushFinalDay(7); // final Wed — intraday
   }
   return cps;
 }
@@ -2224,6 +2194,9 @@ function go(view,id=null,tab='overview'){ route={view,id,tab}; render(); window.
 
 const NAV=[
   {group:null,items:[{k:'dashboard',label:'Dashboard',ico:'◆'}]},
+  {group:'Vault',items:[
+    {k:'vaulthub',label:'Vault Hub',ico:'⚡',count:()=>(DB.drops||[]).filter(d=>d.type==='Vault').length},
+  ]},
   {group:'Operations',items:[
     {k:'drops',label:'Drops',ico:'⬡',count:()=>DB.drops.length},
     {k:'tracker',label:'Drop Tracker',ico:'▤',count:()=>DB.drops.filter(d=>!['Closed','Complete'].includes(d.status)).length},
@@ -2239,12 +2212,13 @@ const NAV=[
     {k:'watches',label:'Watch Library',ico:'◷',count:()=>DB.watches.length},
     {k:'sourcing',label:'Watch Sourcing',ico:'◌',count:()=>DB.sourcing.filter(s=>!['Rejected','Purchased'].includes(s.status)).length},
     {k:'winners',label:'Winners',ico:'✦',count:()=>DB.winners.length},
-    {k:'winnerResults',label:'Winners Results',ico:'▦',count:()=>DB.winnerResults.length},
     {k:'suppliers',label:'Suppliers',ico:'▦',count:()=>DB.suppliers.length},
     {k:'customers',label:'Customers',ico:'◉',count:()=>DB.customers.length},
   ]},
   {group:'Finance',items:[
+    {k:'finance',label:'Finance Overview',ico:'₤'},
     {k:'fixedCosts',label:'Fixed Costs',ico:'◇',count:()=>DB.fixedCosts.length},
+    {k:'marketing',label:'Marketing & Ads',ico:'◈'},
   ]},
   {group:'Content',items:[
     {k:'content',label:'New Content',ico:'✎',count:()=>DB.content.length},
@@ -2298,7 +2272,7 @@ function render(){
   const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,planning:vPlanning,scripts:vAllScripts,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
     content:vContent,assets:vAssets,ideas:vIdeas,graphics:vGraphics,sops:vSops,kb:vKB,notes:vNotes,
-    projects:vProjects,project:vProject};
+    projects:vProjects,project:vProject,vaulthub:vVaultHub};
   c.innerHTML = (V[route.view]||vDashboard)();
   hydrateMedia();
   if(route.view==='graphics') ggBoot();
@@ -2468,7 +2442,28 @@ function vDashboard(){
 
   <div class="kpi-row">
     <div class="kpi"><div class="label">Live Drops</div><div class="val green">${live.length}</div><div class="sub">${upcoming.length} upcoming</div></div>
-
+    <div class="kpi" style="grid-column:span 2">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div class="label">Revenue this month</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${revPct!==null?`<span class="sub" style="margin:0;font-weight:700;color:${revPctColor}">${revPct}% of forecast</span>`:''}
+          <button class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px" onclick="openMonthlyRevenueUpload()">⬆ Upload</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:9px;align-items:flex-end">
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openMonthlyRevenueUpload()">
+          ${monthActual!==null
+            ? `<div class="val gold">${gbp(monthActual)}</div><div class="sub">Actual · DNA Payments</div>`
+            : `<div class="val" style="color:var(--ink3);font-size:18px">Not logged</div><div class="sub" style="color:var(--gold2)">Click Upload to add</div>`}
+        </div>
+        <div style="width:1px;align-self:stretch;background:var(--line2);margin-bottom:4px"></div>
+        <div style="flex:1;min-width:0">
+          <div class="val" style="color:var(--ink2)">${gbp(monthRev)}</div>
+          <div class="sub">Forecast · modelled</div>
+        </div>
+      </div>
+    </div>
+    <div class="kpi"><div class="label">Profit this month</div><div class="val">${gbp(monthProfit)}</div><div class="sub">rev − cost</div></div>
     <div class="kpi"><div class="label">Awaiting dispatch</div><div class="val">${awaitingDispatch.length}</div><div class="sub">winners</div></div>
   </div>
 
@@ -2574,6 +2569,180 @@ function dropRow(d){
 }
 
 /* ================= DROPS LIST ================= */
+/* ================= VAULT HUB ================= */
+let vaultHubTab='all'; // 'all' or a drop id
+let vaultPrizeFilter='all'; // 'all','watch','cash','credit'
+
+function setVaultHubTab(v){ vaultHubTab=v; vaultPrizeFilter='all'; render(); }
+function setVaultPrizeFilter(f){ vaultPrizeFilter=f; render(); }
+
+function vaultHubKpiRow(vaults){
+  const allPrizes=vaults.reduce((a,d)=>a.concat(d.vaultPrizes||[]),[]);
+  const watches=allPrizes.filter(p=>p.type==='watch');
+  const cash=allPrizes.filter(p=>p.type==='cash');
+  const credit=allPrizes.filter(p=>p.type==='credit');
+  const watchCost=watches.reduce((a,p)=>a+(Number(p.cost)||0),0);
+  const cashPaid=cash.reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const totalEntries=vaults.reduce((a,d)=>{
+    const h=d.vaultPriceHistory||[];
+    return a+h.reduce((b,s)=>b+(Number(s.tickets)||0),0);
+  },0);
+  const grossRev=vaults.reduce((a,d)=>{
+    const h=d.vaultPriceHistory||[];
+    return a+h.reduce((b,s)=>b+(Number(s.tickets)||0)*(Number(s.price)||0),0);
+  },0);
+  const allWinners=vaults.reduce((a,d)=>a.concat(d.instantWinners||[]),[]);
+  const pending=allWinners.filter(w=>!w.dispatched).length;
+  return `<div class="kpi-row" style="margin-bottom:20px">
+    <div class="kpi"><div class="label">Entries Sold</div><div class="val">${totalEntries.toLocaleString()}</div><div class="sub">across ${vaults.length} vault${vaults.length!==1?'s':''}</div></div>
+    <div class="kpi"><div class="label">Gross Revenue</div><div class="val gold">${gbp(grossRev)}</div></div>
+    <div class="kpi"><div class="label">Prizes Won</div><div class="val">${allPrizes.length}</div><div class="sub">${watches.length} watches · ${cash.length} cash · ${credit.length} credit</div></div>
+    <div class="kpi"><div class="label">Watch Cost Paid</div><div class="val">${gbp(watchCost)}</div></div>
+    <div class="kpi"><div class="label">Cash Paid Out</div><div class="val">${gbp(cashPaid)}</div></div>
+    <div class="kpi"><div class="label">Winners Pending</div><div class="val" style="${pending?'color:var(--warn)':''}">${pending}</div><div class="sub">${allWinners.length} total logged</div></div>
+  </div>`;
+}
+
+function vaultHubPrizeRows(vaults, showVaultBadge){
+  let prizes=vaults.reduce((a,d)=>a.concat((d.vaultPrizes||[]).map(p=>Object.assign({},p,{_dropNum:d.number||d.name||'Vault',_dropId:d.id}))),[]);
+  if(vaultPrizeFilter!=='all') prizes=prizes.filter(p=>p.type===vaultPrizeFilter);
+  prizes=prizes.slice().sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
+  if(!prizes.length) return '<div class="empty">No prizes logged yet.</div>';
+  return prizes.map(p=>`
+    <div class="row-item">
+      ${showVaultBadge?`<span class="pill pill-type" style="font-size:10px;white-space:nowrap">${esc(p._dropNum)}</span>`:''}
+      <span class="pill ${p.type==='watch'?'pill-done':p.type==='cash'?'pill-live':'pill-draft'}" style="font-size:10px;text-transform:capitalize">${esc(p.type)}</span>
+      <div class="txt"><div class="t">${esc(p.label||'')}</div><div class="meta">${p.date?fmtDate(p.date):''}</div></div>
+      <span class="mono" style="font-weight:700">${p.type==='watch'?gbp(p.cost||0):p.type==='cash'?gbp(p.amount||0):'Credit'}</span>
+      <span class="btn-danger btn-sm" onclick="delVaultPrize('${p._dropId}','${p.id}')">✕</span>
+    </div>`).join('');
+}
+
+function vaultHubWinnerRows(vaults, showVaultBadge){
+  let winners=vaults.reduce((a,d)=>a.concat((d.instantWinners||[]).map(w=>Object.assign({},w,{_dropNum:d.number||d.name||'Vault',_dropId:d.id}))),[]);
+  winners=winners.slice().sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
+  if(!winners.length) return '<div class="empty">No winners logged yet.</div>';
+  return winners.map(w=>`
+    <div class="row-item" style="flex-wrap:wrap;gap:8px">
+      ${showVaultBadge?`<span class="pill pill-type" style="font-size:10px;white-space:nowrap">${esc(w._dropNum)}</span>`:''}
+      <span class="pill ${w.prizeType==='watch'?'pill-done':w.prizeType==='cash'?'pill-live':'pill-draft'}" style="font-size:10px;text-transform:capitalize">${esc(w.prizeType||w.type||'prize')}</span>
+      <div class="txt" style="flex:1;min-width:160px">
+        <div class="t">${esc(w.name||'Unnamed')}</div>
+        <div class="meta">${esc(w.prize||'')}${w.email?' · '+esc(w.email):''}</div>
+      </div>
+      ${w.prizeType==='cash'&&!w.bankDone?`<span class="pill pill-warn" style="font-size:10px">Bank TBC</span>`:''}
+      <span class="pill ${w.dispatched?'pill-done':'pill-warn'}" style="font-size:10px">${w.dispatched?'✓ Dispatched':'Pending'}</span>
+      ${!w.dispatched?`<button class="btn btn-sm" onclick="markIWDispatched('${w._dropId}','${w.id}')">Mark sent</button>`:''}
+    </div>`).join('');
+}
+
+function vaultHubLogForm(vaults){
+  if(!vaults.length) return '';
+  const dropOpts=vaults.map(d=>`<option value="${esc(d.id)}">${esc(d.number||d.name||'Vault')}</option>`).join('');
+  return `<div class="card" style="margin-bottom:16px">
+    <div class="card-h"><h3>Log a Won Prize</h3><span class="muted" style="font-size:11.5px">Record each prize as it's triggered — keeps P&amp;L live</span></div>
+    <div class="modal-b" style="max-height:none">
+      <div class="field-row">
+        <div class="field"><label>Vault</label>
+          <select id="vh_vault" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px">
+            ${dropOpts}
+          </select>
+        </div>
+        <div class="field"><label>Prize Type</label>
+          <select id="vh_type" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px" onchange="onVHTypeChange()">
+            <option value="watch">Watch</option>
+            <option value="cash">Cash</option>
+            <option value="credit">Credit</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Prize Label</label><input id="vh_label" placeholder="e.g. Tudor BB58 Blue, £500 Cash…"></div>
+        <div class="field" id="vh_cost_wrap"><label id="vh_cost_lbl">Cost Paid (£)</label><input id="vh_cost" type="number" placeholder="0"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Date Won</label><input id="vh_date" type="date" value="${today()}"></div>
+      </div>
+    </div>
+    <div style="padding:0 18px 14px;display:flex;justify-content:flex-end">
+      <button class="btn btn-gold" onclick="addVaultHubPrize()">＋ Log Prize</button>
+    </div>
+  </div>`;
+}
+
+function vVaultHub(){
+  const vaults=(DB.drops||[]).filter(d=>d.type==='Vault');
+  if(!vaults.length) return `
+    <div class="page-h"><h1>⚡ Vault Hub</h1></div>
+    <div class="empty" style="margin:60px auto;text-align:center;max-width:400px">
+      <div style="font-size:32px;margin-bottom:12px">⚡</div>
+      <div style="font-weight:600;margin-bottom:8px">No Vault drops yet</div>
+      <div style="color:var(--ink3);font-size:13px">Create a drop with type 'Vault' and it'll appear here automatically.</div>
+    </div>`;
+
+  // Determine active set
+  const activeVaults=vaultHubTab==='all'?vaults:vaults.filter(d=>d.id===vaultHubTab);
+  const showVaultBadge=activeVaults.length>1;
+
+  // Tab bar
+  const tabBar=`<div class="tabs" style="margin-bottom:20px">
+    <div class="tab ${vaultHubTab==='all'?'active':''}" onclick="setVaultHubTab('all')">All Vaults <span style="font-size:11px;opacity:.6">${vaults.length}</span></div>
+    ${vaults.map(d=>`<div class="tab ${vaultHubTab===d.id?'active':''}" onclick="setVaultHubTab('${d.id}')">${esc(d.number||d.name||'Vault')}<span style="font-size:11px;opacity:.6;margin-left:5px">${(d.vaultPrizes||[]).length}</span></div>`).join('')}
+  </div>`;
+
+  // Prize filter chips
+  const allPrizesCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).length,0);
+  const watchCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).filter(p=>p.type==='watch').length,0);
+  const cashCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).filter(p=>p.type==='cash').length,0);
+  const creditCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).filter(p=>p.type==='credit').length,0);
+  const filterChips=`<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    ${[['all','All',allPrizesCount],['watch','Watches',watchCount],['cash','Cash',cashCount],['credit','Credit',creditCount]].map(([f,l,c])=>`
+      <div onclick="setVaultPrizeFilter('${f}')" style="padding:5px 14px;border-radius:20px;font-size:13px;cursor:pointer;border:1px solid ${vaultPrizeFilter===f?'var(--gold)':'var(--line2)'};background:${vaultPrizeFilter===f?'var(--goldsoft)':'var(--panel)'};color:${vaultPrizeFilter===f?'var(--gold2)':'var(--ink2)'}">${l} <span style="opacity:.6">${c}</span></div>
+    `).join('')}
+  </div>`;
+
+  const allWinners=activeVaults.reduce((a,d)=>a+(d.instantWinners||[]).length,0);
+
+  return `
+    <div class="page-h"><h1>⚡ Vault Hub</h1><span class="muted" style="font-size:13px">${vaults.length} vault${vaults.length!==1?'s':''} · live prize &amp; winner tracking</span></div>
+    ${tabBar}
+    ${vaultHubKpiRow(activeVaults)}
+    ${vaultHubLogForm(activeVaults)}
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h"><h3>Prize Log — ${allPrizesCount} won</h3></div>
+      ${filterChips}
+      <div class="card-b">${vaultHubPrizeRows(activeVaults,showVaultBadge)}</div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Instant Winners — ${allWinners} logged</h3><span class="muted" style="font-size:11.5px">Dispatch status across all selected vaults</span></div>
+      <div class="card-b">${vaultHubWinnerRows(activeVaults,showVaultBadge)}</div>
+    </div>`;
+}
+
+function onVHTypeChange(){
+  const sel=document.getElementById('vh_type');
+  const wrap=document.getElementById('vh_cost_wrap');
+  const lbl=document.getElementById('vh_cost_lbl');
+  const inp=document.getElementById('vh_cost');
+  if(!sel||!wrap) return;
+  if(sel.value==='watch'){ lbl.textContent='Cost Paid (£)'; inp.placeholder='What you paid'; wrap.style.display=''; }
+  else if(sel.value==='cash'){ lbl.textContent='Amount (£)'; inp.placeholder='Cash prize amount'; wrap.style.display=''; }
+  else { wrap.style.display='none'; }
+}
+
+function addVaultHubPrize(){
+  const dropId=(document.getElementById('vh_vault')||{}).value||'';
+  const d=dropById(dropId); if(!d){ alert('Select a vault first'); return; }
+  const type=(document.getElementById('vh_type')||{}).value||'watch';
+  const label=(document.getElementById('vh_label')||{}).value||'';
+  const cost=Number((document.getElementById('vh_cost')||{}).value)||0;
+  const date=(document.getElementById('vh_date')||{}).value||today();
+  if(!label){ alert('Enter a label for this prize'); return; }
+  d.vaultPrizes=d.vaultPrizes||[];
+  d.vaultPrizes.push({id:uid('vp'),type,label,cost:type==='watch'?cost:0,amount:type==='cash'?cost:0,date,created:now()});
+  saveDB(); render();
+}
+
 let dropFilter='All';
 const DROP_TYPE_FILTERS={'Main':'Main Drop','Weekend':'Weekend Drop','Tech':'Tech Drop','Vault':'Vault'};
 function vDrops(){
@@ -2615,7 +2784,7 @@ function vDrops(){
 }
 
 /* ================= DROP HUB ================= */
-const DROP_TABS=['overview','watch','tasks','winner','scripts','financials','calculator'];
+const DROP_TABS=['overview','watch','tasks','marketing','performance','winner','content','ads','scripts','files','timeline','financials','calculator'];
 const VAULT_EXTRA_TABS=['instantwinners'];
 function vDropHub(){
   const d=dropById(route.id);
@@ -3064,15 +3233,6 @@ function updTrackerPct(dropId,field,val){
   d.tracker=d.tracker||{}; d.tracker[field]=(Number(val)||0)/100;
   queueSave(); render();
 }
-function regenCheckpoints(dropId){
-  if(!confirm('Rebuild checkpoints from template? This will clear all existing checkpoint data.')) return;
-  const d=dropById(dropId); if(!d) return;
-  d.tracker=d.tracker||{};
-  d.tracker.checkpoints=buildCheckpointTemplate(d);
-  d.tracker.checkpointsGeneratedV2=true;
-  d.tracker.checkpointsCollapsedV1=true;
-  saveDB(); render(); toast('Checkpoints rebuilt ✅');
-}
 function addCheckpoint(dropId){
   const d=dropById(dropId); if(!d) return;
   d.tracker.checkpoints=d.tracker.checkpoints||[];
@@ -3247,7 +3407,7 @@ function trackerBody(d){
   }).join('');
   const cpTotal=trkCheckpointTotal(t), cpPct=maxT?(cpTotal/maxT*100):0;
   const paceChart = cps.length? barChart(cps.map(cp=>({label:cp.label.replace(/\s*\d+(am|pm)$/i,'').trim().slice(0,3),value:Number(cp.ticketsSold)||0,display:Number(cp.ticketsSold)||0}))) : '';
-  const dailyData=`<div class="card"><div class="card-h"><h3>Daily Data</h3><div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" onclick="regenCheckpoints('${d.id}')" title="Rebuild from template">↺ Regenerate</button><button class="btn btn-sm btn-gold" onclick="addCheckpoint('${d.id}')">＋ Add</button></div></div><div class="modal-b" style="max-height:none">
+  const dailyData=`<div class="card"><div class="card-h"><h3>Daily Data</h3><button class="btn btn-sm btn-gold" onclick="addCheckpoint('${d.id}')">＋ Add Checkpoint</button></div><div class="modal-b" style="max-height:none">
     ${paceChart?`<div class="muted" style="font-size:11px;margin-bottom:-4px">Pace — tickets sold at each checkpoint</div>${paceChart}`:''}
     <table class="tbl"><thead><tr><th>Checkpoint</th><th>Tickets Sold</th><th>Total %</th><th></th></tr></thead>
     <tbody>${cpRows||'<tr><td colspan=4 class="empty">No checkpoints logged yet.</td></tr>'}</tbody>
@@ -5780,96 +5940,27 @@ function openWatch(id){
       ${id?`<button type="button" class="btn btn-sm ${w.retired?'btn-gold':''}" id="w_retired_btn" data-val="${w.retired?'1':'0'}" onclick="toggleWatchRetiredBtn()">${w.retired?'Retired':'Mark Retired'}</button>`:''}
       <span class="x" onclick="closeModal()">×</span>
     </div></div>
-    <div class="modal-b">
-    <div class="section-sub" style="margin-top:0">Drop Allocation</div>
-    <div style="margin-bottom:12px">${drops.length?drops.map(d=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
-        <div style="flex:1;cursor:pointer" onclick="closeModal();go('drop','${d.id}')">
-          <div style="font-weight:600;font-size:13.5px">${esc(d.number)} <span style="color:var(--ink3);font-weight:400">— ${esc(watchName(d.watchId))}</span></div>
-          <div style="font-size:11.5px;color:var(--ink3)">${esc(d.status)} · Draw ${fmtDate(d.draw)}</div>
-        </div>
-        <button class="btn btn-sm btn-danger" onclick="unlinkWatchFromDrop('${d.id}','${id}')">Unlink</button>
-      </div>`).join(''):(w.pendingDropNumber?'':'<div class="muted" style="font-size:12.5px;padding:6px 0">Not allocated to any drop yet.</div>')}</div>
-    ${w.pendingDropNumber?`<div style="padding:8px 12px;margin-bottom:10px;background:rgba(245,165,36,.1);border:1px solid var(--warn);border-radius:8px;display:flex;align-items:center;gap:10px"><span style="font-size:13px">⏳ Pending: <strong>${esc(w.pendingDropNumber)}</strong> — auto-links when that drop is created</span><button class="btn btn-sm btn-danger" onclick="clearPendingDrop('${id}')">Clear</button></div>`:''}
-    <div style="margin-bottom:10px">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;margin-bottom:8px">Series</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${['D','W','V','T','O'].map(s=>`<button class="fbtn ${watchAllocSeries===s?'active':''}" onclick="setWatchAllocSeries('${id}','${s}')" style="padding:5px 14px;font-size:13px;font-weight:700">${s} <span style="font-size:10px;font-weight:400;opacity:.7">${{D:'Main',W:'Weekend',V:'Vault',T:'Tech',O:'Other'}[s]}</span></button>`).join('')}
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-      ${(()=>{ const sf={D:d=>/^D\d/.test(d.number||''),W:d=>/^W/.test(d.number||''),V:d=>d.type==='Vault'||/^V/.test(d.number||''),T:d=>/^T/.test(d.number||''),O:d=>!['D','W','V','T'].some(p=>(d.number||'').toUpperCase().startsWith(p))}; const lbl={D:'main drop',W:'weekend drop',V:'vault drop',T:'tech drop',O:'other drop'}; const filtered=[...DB.drops].filter(sf[watchAllocSeries]||(_=>true)).sort((a,b)=>({Live:0,Upcoming:1,Draft:2,Complete:3,Closed:4}[a.status]||9)-({Live:0,Upcoming:1,Draft:2,Complete:3,Closed:4}[b.status]||9)); return dd('w_assign_drop',[{value:'',label:`— pick a ${lbl[watchAllocSeries]||'drop'} —`},...filtered.map(d=>({value:d.id,label:`${esc(d.number)} · ${esc(d.status)}${d.watchId&&d.watchId!==id?' (has watch)':d.watchId===id?' ✓':''}`}))],''+''); })()}
-      <button class="btn btn-sm btn-gold" onclick="allocateWatchToDrop('${id||''}')">Assign</button>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <input id="w_manual_drop" placeholder="Or type future drop number e.g. D43…" style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px;font-size:13px" onkeydown="if(event.key==='Enter')allocateWatchToDropManual('${id}')">
-      <button class="btn btn-sm btn-ghost" onclick="allocateWatchToDropManual('${id}')">Link</button>
-    </div>
-    </div>
-    <div class="two-col">
-      <div><div class="field"><label>Brand</label>${dd('w_brand_dd',[...WATCH_BRANDS.map(b=>({value:b,label:b}))],w.brand||'','onWatchBrandChange')}</div>${mInput('w_model','Full Model Name',w.model)}
-        <div class="field-row"><div class="field"><label>Model Family</label><input id="w_family" list="w_family_list" value="${esc(w.family||'')}" placeholder="Select or type…" style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;outline:none"><datalist id="w_family_list">${(WATCH_FAMILIES[w.brand]||[]).map(f=>`<option value="${f}">`).join('')}</datalist></div>${mInput('w_variant','Variant / Spec (e.g. Moonwatch)',w.variant)}</div>
+    <div class="modal-b"><div class="two-col">
+      <div>${mInput('w_brand','Brand',w.brand)}${mInput('w_model','Full Model Name',w.model)}
+        <div class="field-row">${mInput('w_family','Model Family (e.g. Speedmaster)',w.family)}${mInput('w_variant','Variant / Spec (e.g. Moonwatch)',w.variant)}</div>
         <div class="muted" style="font-size:11px;margin-top:-8px;margin-bottom:12px">Family + Variant power the Brand → Model → Variant drill-down. Leave blank and Atlas will split the full model name for you.</div>
         <div class="field-row-3">${mInput('w_ref','Reference',w.ref)}${mInput('w_serial','Serial Number',w.serial)}${mInput('w_year','Year',w.year,'number')}</div>
         ${mInput('w_move','Movement',w.movement)}
         <div class="field"><label>Supplier</label>${dd('w_supplier',[{value:'',label:'— select —'},...DB.suppliers.map(s=>({value:s.id,label:s.name}))], w.supplierId||'')}</div></div>
       <div><div class="field-row">${mInput('w_retail','Retail (£)',w.retail,'number')}${mInput('w_cost','Cost (£)',w.cost,'number')}</div>
         ${mInput('w_specs','Specs',w.specs)}
-        <div class="field-row">
-          <div class="field"><label>Canva Link</label><div style="display:flex;gap:6px;align-items:center"><input id="w_canvalink" value="${esc(w.canvaLink||'')}" placeholder="Paste Canva link…" style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px">${w.canvaLink?`<a href="${esc(w.canvaLink)}" target="_blank" class="btn btn-sm btn-ghost" style="white-space:nowrap">Open ↗</a>`:''}</div></div>
-          <div class="field"><label>Drive Link</label><div style="display:flex;gap:6px;align-items:center"><input id="w_drivelink" value="${esc(w.driveLink||'')}" placeholder="Paste Drive link…" style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px">${w.driveLink?`<a href="${esc(w.driveLink)}" target="_blank" class="btn btn-sm btn-ghost" style="white-space:nowrap">Open ↗</a>`:''}</div></div>
-        </div>
+        ${mInput('w_medialink','Media folder link (Drive/Canva)',w.mediaLink)}
         ${mediaField('w_thumb','Thumbnail Image (shown in Watch Library)',w.img)}
         ${fileField('w_invoice','Invoice',w.invoiceUrl)}
       </div>
     </div>${mArea('w_desc','Description',w.desc)}
+    ${CONTENT_CATS.map(cat=>galleryHTML(slug(cat),cat,'image/*,video/*',id)).join('')}
+    ${drops.length?`<div class="section-sub">Used in ${drops.length} drop(s)</div><div style="display:flex;flex-wrap:wrap;gap:6px">${drops.map(d=>`<span class="pill pill-type" style="cursor:pointer" onclick="closeModal();go('drop','${d.id}')">${esc(d.number)}</span>`).join('')}</div>`:''}
     ${linkedContent.length?`<div class="section-sub">In New Content (${linkedContent.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${linkedContent.map(c=>`<span class="pill pill-upcoming" style="cursor:pointer" onclick="closeModal();go('content');setTimeout(()=>openContent('${c.id}'),50)">${esc(c.title)}</span>`).join('')}</div>`:''}
     ${linkedMedia.length?`<div class="section-sub">In Asset Library (${linkedMedia.length})</div><div class="asset-grid">${linkedMedia.map(i=>libTile(i)).join('')}</div>`:''}
     </div>
     <div class="modal-f">${id?`<button class="btn btn-danger" onclick="delWatch('${id}')">Delete</button>`:''}
       <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveWatch('${id||''}')">Save</button></div></div>`);
-}
-function onWatchBrandChange(id,val){
-  const dl=document.getElementById('w_family_list'); if(!dl) return;
-  const families=WATCH_FAMILIES[val]||[];
-  dl.innerHTML=families.map(f=>`<option value="${f}">`).join('');
-  const fi=document.getElementById('w_family'); if(fi) fi.value='';
-}
-let watchAllocSeries='D';
-function setWatchAllocSeries(watchId,series){ watchAllocSeries=series; openWatch(watchId); }
-function allocateWatchToDrop(watchId){
-  const dropId=ddVal('w_assign_drop'); if(!dropId){toast('Select a drop first');return;}
-  const d=dropById(dropId); if(!d) return;
-  if(d.watchId&&d.watchId!==watchId&&!confirm(d.number+' already has a watch linked. Replace it?')) return;
-  d.watchId=watchId;
-  if(d.tracker) d.tracker.watchCost=Number((watchById(watchId)||{}).cost)||0;
-  saveDB(); openWatch(watchId); toast('Allocated to '+d.number+' ✅');
-}
-function allocateWatchToDropManual(watchId){
-  const input=document.getElementById('w_manual_drop'); if(!input) return;
-  const num=input.value.trim().toUpperCase(); if(!num){toast('Enter a drop number');return;}
-  const d=DB.drops.find(x=>(x.number||'').toUpperCase()===num);
-  if(d){
-    if(d.watchId&&d.watchId!==watchId&&!confirm(d.number+' already has a watch. Replace it?')) return;
-    d.watchId=watchId;
-    if(d.tracker) d.tracker.watchCost=Number((watchById(watchId)||{}).cost)||0;
-    const w=watchById(watchId); if(w) delete w.pendingDropNumber;
-    saveDB(); openWatch(watchId); toast('Linked to '+d.number+' ✅');
-  } else {
-    const w=watchById(watchId); if(!w) return;
-    w.pendingDropNumber=num;
-    saveDB(); openWatch(watchId); toast('Pending link saved for '+num+' — will auto-link when drop is created');
-  }
-}
-function clearPendingDrop(watchId){
-  const w=watchById(watchId); if(!w) return;
-  delete w.pendingDropNumber; saveDB(); openWatch(watchId); toast('Pending link cleared');
-}
-function unlinkWatchFromDrop(dropId,watchId){
-  const d=dropById(dropId); if(!d) return;
-  if(!confirm('Unlink this watch from '+d.number+'?')) return;
-  d.watchId='';
-  saveDB(); openWatch(watchId); toast('Unlinked from '+d.number);
 }
 function saveWatch(id){const g=k=>document.getElementById(k).value;
   const media=JSON.parse(JSON.stringify(watchMediaDraft));
@@ -5879,9 +5970,9 @@ function saveWatch(id){const g=k=>document.getElementById(k).value;
   const coverImg=explicitThumb||((media[slug('Watch Photos')]||[]).map(x=>x.ref).find(Boolean))||'';
   const retiredBtn=document.getElementById('w_retired_btn');
   let fam=g('w_family').trim(), variant=g('w_variant').trim();
-  if(!fam && !variant){ const sp=splitModel(ddVal('w_brand_dd')||'',g('w_model')); fam=sp.family; variant=sp.variant; }
-  const data={brand:ddVal('w_brand_dd')||g('w_model'),model:g('w_model'),family:fam,variant:variant,ref:g('w_ref'),serial:g('w_serial'),year:Number(g('w_year'))||null,movement:g('w_move'),
-    retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),canvaLink:g('w_canvalink'),driveLink:g('w_drivelink'),mediaLink:(g('w_canvalink')||g('w_drivelink')||''),desc:g('w_desc'),
+  if(!fam && !variant){ const sp=splitModel(g('w_brand'),g('w_model')); fam=sp.family; variant=sp.variant; }
+  const data={brand:g('w_brand'),model:g('w_model'),family:fam,variant:variant,ref:g('w_ref'),serial:g('w_serial'),year:Number(g('w_year'))||null,movement:g('w_move'),
+    retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),mediaLink:g('w_medialink'),desc:g('w_desc'),
     supplierId:ddVal('w_supplier'), retired: retiredBtn? retiredBtn.dataset.val==='1' : false,
     media, img:coverImg, invoiceUrl};
   if(!data.brand){alert('Brand required');return;}
