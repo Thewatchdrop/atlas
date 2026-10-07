@@ -2613,14 +2613,83 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
   if(vaultPrizeFilter!=='all') prizes=prizes.filter(p=>p.type===vaultPrizeFilter);
   prizes=prizes.slice().sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
   if(!prizes.length) return '<div class="empty">No prizes logged yet.</div>';
-  return prizes.map(p=>`
-    <div class="row-item">
-      ${showVaultBadge?`<span class="pill pill-type" style="font-size:10px;white-space:nowrap">${esc(p._dropNum)}</span>`:''}
-      <span class="pill ${p.type==='watch'?'pill-done':p.type==='cash'?'pill-live':'pill-draft'}" style="font-size:10px;text-transform:capitalize">${esc(p.type)}</span>
-      <div class="txt"><div class="t">${esc(p.label||'')}</div><div class="meta">${p.date?fmtDate(p.date):''}</div></div>
-      <span class="mono" style="font-weight:700">${p.type==='watch'?gbp(p.cost||0):p.type==='cash'?gbp(p.amount||0):'Credit'}</span>
-      <span class="btn-danger btn-sm" onclick="delVaultPrize('${p._dropId}','${p.id}')">✕</span>
-    </div>`).join('');
+  return prizes.map(p=>{
+    const isCash=p.type==='cash';
+    const isWatch=p.type==='watch';
+    const paid=p.paid||false;
+    const dispatched=p.dispatched||false;
+    const winnerName=p.winnerName||'';
+    const ticket=p.ticket||'';
+    // Status pill
+    let statusPill='';
+    if(isCash){
+      if(paid) statusPill=`<span class="pill" style="background:var(--live-bg);color:var(--live);border:1px solid rgba(74,222,128,.2);font-size:10px">✓ Paid</span>`;
+      else if(p.sortCode||p.accountNo) statusPill=`<span class="pill" style="background:rgba(245,165,36,.12);color:var(--warn);border:1px solid rgba(245,165,36,.2);font-size:10px">Bank details saved</span>`;
+      else statusPill=`<span class="pill" style="background:rgba(242,109,109,.12);color:var(--danger);border:1px solid rgba(242,109,109,.2);font-size:10px">⚠ Bank TBC</span>`;
+    } else if(isWatch){
+      if(dispatched) statusPill=`<span class="pill" style="background:var(--live-bg);color:var(--live);border:1px solid rgba(74,222,128,.2);font-size:10px">✓ Dispatched</span>`;
+      else statusPill=`<span class="pill" style="background:rgba(245,165,36,.12);color:var(--warn);border:1px solid rgba(245,165,36,.2);font-size:10px">Pending dispatch</span>`;
+    }
+    return `
+    <div style="border-bottom:1px solid var(--line);padding:12px 18px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        ${showVaultBadge?`<span class="pill pill-type" style="font-size:10px;white-space:nowrap">${esc(p._dropNum)}</span>`:''}
+        <span class="pill ${p.type==='watch'?'pill-done':p.type==='cash'?'pill-live':'pill-draft'}" style="font-size:10px;text-transform:capitalize">${esc(p.type)}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${esc(p.label||'')}${ticket?` <span style="font-size:11px;color:var(--ink3)">· Ticket ${esc(ticket)}</span>`:''}</div>
+          <div style="font-size:11.5px;color:var(--ink3);margin-top:1px">${p.date?fmtDate(p.date):''}${winnerName?' · <span style="color:var(--ink2);font-weight:500">'+esc(winnerName)+'</span>':' · <span style="color:var(--danger)">No winner linked</span>'}</div>
+        </div>
+        <span class="mono" style="font-weight:700">${p.type==='watch'?gbp(p.cost||0):p.type==='cash'?gbp(p.amount||0):'Credit'}</span>
+        ${statusPill}
+        ${isCash&&!paid?`<button class="btn btn-sm btn-gold" style="font-size:11px" onclick="markVaultPrizePaid('${p._dropId}','${p.id}')">Mark paid ✓</button>`:''}
+        ${isWatch&&!dispatched?`<button class="btn btn-sm btn-gold" style="font-size:11px" onclick="markVaultPrizeDispatched('${p._dropId}','${p.id}')">Mark dispatched ✓</button>`:''}
+        <button class="btn-danger btn-sm" onclick="delVaultPrize('${p._dropId}','${p.id}')">✕</button>
+      </div>
+      ${isCash&&!paid?`<div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Sort Code</div>
+          <input value="${esc(p.sortCode||'')}" placeholder="00-00-00"
+            style="width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:13px;color:var(--ink)"
+            oninput="updVaultPrizeField('${p._dropId}','${p.id}','sortCode',this.value)">
+        </div>
+        <div style="flex:1;min-width:140px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Account Number</div>
+          <input value="${esc(p.accountNo||'')}" placeholder="12345678"
+            style="width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:13px;color:var(--ink)"
+            oninput="updVaultPrizeField('${p._dropId}','${p.id}','accountNo',this.value)">
+        </div>
+        <div style="flex:1;min-width:180px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Payment Reference</div>
+          <input value="${esc(p.payRef||'')}" placeholder="e.g. WatchDrop Prize"
+            style="width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:13px;color:var(--ink)"
+            oninput="updVaultPrizeField('${p._dropId}','${p.id}','payRef',this.value)">
+        </div>
+      </div>`:''}
+      ${isCash&&paid?`<div style="font-size:11.5px;color:var(--live);margin-top:6px">✓ Payment sent${p.paidDate?' · '+fmtDate(p.paidDate):''}</div>`:''}
+      ${isWatch&&!dispatched&&winnerName?`<div style="margin-top:8px"><input value="${esc(p.trackingNo||'')}" placeholder="Tracking number (optional)" style="background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:12.5px;color:var(--ink);width:260px" oninput="updVaultPrizeField('${p._dropId}','${p.id}','trackingNo',this.value)"></div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function updVaultPrizeField(dropId,prizeId,field,value){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  p[field]=value; queueSave();
+}
+
+function markVaultPrizePaid(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  if(!p.sortCode&&!p.accountNo){ if(!confirm('No bank details saved — mark as paid anyway?')) return; }
+  p.paid=true; p.paidDate=today();
+  saveDB(); render(); toast('Cash prize marked as paid ✓');
+}
+
+function markVaultPrizeDispatched(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  p.dispatched=true; p.dispatchDate=today();
+  saveDB(); render(); toast('Watch marked as dispatched ✓');
 }
 
 function vaultHubWinnerRows(vaults, showVaultBadge){
@@ -3131,7 +3200,7 @@ function vDrops(){
 }
 
 /* ================= DROP HUB ================= */
-const DROP_TABS=['overview','watch','tasks','marketing','performance','winner','content','ads','scripts','files','timeline','financials','calculator'];
+const DROP_TABS=['overview','copy','watch','tasks','winner','scripts','files','timeline','calculator'];
 const VAULT_EXTRA_TABS=['instantwinners'];
 function vDropHub(){
   const d=dropById(route.id);
@@ -3173,18 +3242,14 @@ function vDropHub(){
 }
 function dropTab(d,tab){
   if(tab==='overview') return dropOverview(d);
+  if(tab==='copy') return dropCopyTab(d);
   if(tab==='watch') return dropWatchTab(d);
   if(tab==='tasks') return dropTasks(d);
-  if(tab==='marketing') return dropMarketing(d);
-  if(tab==='performance') return dropPerformance(d);
   if(tab==='winner') return dropWinner(d);
-  if(tab==='content') return dropContent(d);
   if(tab==='files') return dropFiles(d);
   if(tab==='timeline') return dropTimeline(d);
-  if(tab==='financials') return `<div class="muted" style="font-size:11.5px;margin-bottom:16px">✎ All figures below are fully editable — changes update the drop's numbers everywhere in the app immediately.</div>`+trackerBody(d);
   if(tab==='calculator') return dropCalculator(d);
   if(tab==='scripts') return dropScripts(d);
-  if(tab==='ads') return dropAds(d);
   if(tab==='instantwinners') return dropInstantWinners(d);
 }
 function dropWatchTab(d){
@@ -3219,7 +3284,10 @@ function dropWatchTab(d){
       </div>
       ${w.variant?roRow('Variant / Spec',w.variant):''}
       ${w.specs?roRow('Specs',w.specs):''}
-      ${w.mediaLink?`<div class="field"><label>Media Folder</label><a href="${esc(w.mediaLink)}" target="_blank" class="link" style="display:block;padding:9px 11px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px">Open Drive/Canva folder ↗</a></div>`:''}
+      ${(w.driveLink||w.canvaLink)?`<div class="field"><label>Media Links</label><div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${w.driveLink?`<a href="${esc(w.driveLink)}" target="_blank" rel="noopener" class="btn btn-sm" style="text-decoration:none">📁 Google Drive ↗</a>`:''}
+        ${w.canvaLink?`<a href="${esc(w.canvaLink)}" target="_blank" rel="noopener" class="btn btn-sm" style="text-decoration:none">🎨 Canva ↗</a>`:''}
+      </div></div>`:''}
       ${w.invoiceUrl?`<div class="field"><label>Invoice</label><a href="${esc(mediaUrl(w.invoiceUrl))}" target="_blank" class="link" style="display:block;padding:9px 11px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px">📎 View invoice ↗</a></div>`:''}
       <div class="muted" style="font-size:11.5px;margin-top:8px">This is the same watch record used across every drop it's linked to — editing it here or in the Watch Library updates both.</div>
     </div>
@@ -3323,29 +3391,16 @@ function trkSnapshotStrip(d){
 function dropOverview(d){
   d.images=d.images||{}; d.copy=d.copy||{};
   const t=d.tracker||{};
-  const dropImages=`<div class="card"><div class="card-h"><h3>Photos</h3><span class="muted" style="font-size:11px">Master + homepage, then catalogue</span></div>
+  const dropImages=`<div class="card"><div class="card-h"><h3>Media</h3><span class="muted" style="font-size:11px">Links to Canva and Drive folders for this drop</span></div>
     <div class="modal-b" style="max-height:none">
-      ${mediaField(`di_${d.id}_main`,'Main Image (Master)',d.images.main,{type:'drop-image',id:d.id,field:'main'})}
       <div class="field-row">
-        ${mediaField(`di_${d.id}_webHero`,'Homepage — Web',d.images.webHero,{type:'drop-image',id:d.id,field:'webHero'})}
-        ${mediaField(`di_${d.id}_phoneHero`,'Homepage — Phone',d.images.phoneHero,{type:'drop-image',id:d.id,field:'phoneHero'})}
+        ${fld('Google Drive Folder',d.links&&d.links.drive?d.links.drive:'','links.drive','url')}
+        ${fld('Canva Folder',d.links&&d.links.canva?d.links.canva:'','links.canva','url')}
       </div>
-      <div class="field-row-3">
-        ${mediaField(`di_${d.id}_cat1`,'Catalogue 1',d.images.cat1,{type:'drop-image',id:d.id,field:'cat1'})}
-        ${mediaField(`di_${d.id}_cat2`,'Catalogue 2',d.images.cat2,{type:'drop-image',id:d.id,field:'cat2'})}
-        ${mediaField(`di_${d.id}_cat3`,'Catalogue 3',d.images.cat3,{type:'drop-image',id:d.id,field:'cat3'})}
-      </div>
-    </div></div>`;
-  const dropCopy=`<div class="card"><div class="card-h"><h3>Website Copy</h3></div><div class="modal-b" style="max-height:none">
-      ${fld('Headline', d.copy.headline,'copy.headline')}
-      <div class="field"><label>Body</label><textarea onchange="updDrop('copy.body',this.value)">${esc(d.copy.body)}</textarea></div>
-      <div class="section-sub">SEO</div>
-      <div class="field-row">
-        ${fld('Focus Keyphrase', d.copy.seoKeyphrase,'copy.seoKeyphrase')}
-        ${fld('SEO Title', d.copy.seoTitle,'copy.seoTitle')}
-      </div>
-      ${fld('Slug', d.copy.slug,'copy.slug')}
-      <div class="field"><label>Meta Description</label><textarea onchange="updDrop('copy.metaDescription',this.value)">${esc(d.copy.metaDescription)}</textarea></div>
+      ${(d.links&&d.links.drive)||(d.links&&d.links.canva)?`<div style="display:flex;gap:10px;margin-top:4px">
+        ${d.links&&d.links.drive?`<a href="${esc(d.links.drive)}" target="_blank" rel="noopener" class="btn btn-sm" style="text-decoration:none">📁 Open Drive ↗</a>`:''}
+        ${d.links&&d.links.canva?`<a href="${esc(d.links.canva)}" target="_blank" rel="noopener" class="btn btn-sm" style="text-decoration:none">🎨 Open Canva ↗</a>`:''}
+      </div>`:''}
     </div></div>`;
   return `${trkSnapshotStrip(d)}<div class="two-col">
     <div class="card"><div class="card-h"><h3>Details</h3></div><div class="modal-b" style="max-height:none">
@@ -3383,13 +3438,33 @@ function dropOverview(d){
             ${trkFld(d,'Total Tickets (Pool)','maxTickets')}
             ${roFld('Full Sell-Out Value (£)', trkSellOutRevenue(t).toFixed(2))}
           </div>
-          <div class="muted" style="font-size:11px">This is the plan, not performance — tickets sold, costs, ads and profit all live in the <span class="link" onclick="go('drop','${d.id}','financials')" style="cursor:pointer">Financials tab →</span></div>
+          <div class="muted" style="font-size:11px">This is the plan — use the <span class="link" onclick="go('drop','${d.id}','calculator')" style="cursor:pointer">Calculator tab →</span> to model ticket prices and profit scenarios.</div>
         </div>
       </div>
     </div>
   </div>
-  ${dropCopy}
   ${dropImages}`;
+}
+function dropCopyTab(d){
+  d.copy=d.copy||{};
+  return `<div class="card">
+    <div class="card-h"><h3>Website Copy</h3><span class="muted" style="font-size:11.5px">Headline, body and SEO for the live drop page</span></div>
+    <div class="modal-b" style="max-height:none">
+      ${fld('Headline',d.copy.headline,'copy.headline')}
+      <div class="field"><label>Body</label><textarea onchange="updDrop('copy.body',this.value)">${esc(d.copy.body||'')}</textarea></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-h"><h3>SEO</h3></div>
+    <div class="modal-b" style="max-height:none">
+      <div class="field-row">
+        ${fld('Focus Keyphrase',d.copy.seoKeyphrase,'copy.seoKeyphrase')}
+        ${fld('SEO Title',d.copy.seoTitle,'copy.seoTitle')}
+      </div>
+      ${fld('Slug',d.copy.slug,'copy.slug')}
+      <div class="field"><label>Meta Description</label><textarea onchange="updDrop('copy.metaDescription',this.value)">${esc(d.copy.metaDescription||'')}</textarea></div>
+    </div>
+  </div>`;
 }
 function dropTasks(d){
   const ts=DB.tasks.filter(t=>t.dropId===d.id);
@@ -4761,6 +4836,10 @@ function watchCard(w){
       <span class="pill pill-type">${w.cost?gbp(w.cost)+' paid':'No cost logged'}</span>
       ${drops.length?`<span class="pill pill-done" style="cursor:pointer" onclick="event.stopPropagation();go('drops')" title="View drops using this watch">${drops.length} drop${drops.length>1?'s':''}</span>`:''}
     </div>
+    ${(w.driveLink||w.canvaLink)?`<div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap">
+      ${w.driveLink?`<a href="${esc(w.driveLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:var(--panel2);border:1px solid var(--line2);color:var(--ink2);text-decoration:none">📁 Drive</a>`:''}
+      ${w.canvaLink?`<a href="${esc(w.canvaLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;background:var(--panel2);border:1px solid var(--line2);color:var(--ink2);text-decoration:none">🎨 Canva</a>`:''}
+    </div>`:''}
     ${showFamilyTotal?`<div style="font-size:10.5px;color:var(--ink3);margin-top:5px">⟳ ${esc(w.family)}: used in ${familyDropTotal} drops across all ${esc(w.family)} watches</div>`:''}
     </div></div>`;
 }
@@ -6492,12 +6571,12 @@ function openWatch(id){
         <div class="field"><label>Supplier</label>${dd('w_supplier',[{value:'',label:'— select —'},...DB.suppliers.map(s=>({value:s.id,label:s.name}))], w.supplierId||'')}</div></div>
       <div><div class="field-row">${mInput('w_retail','Retail (£)',w.retail,'number')}${mInput('w_cost','Cost (£)',w.cost,'number')}</div>
         ${mInput('w_specs','Specs',w.specs)}
-        ${mInput('w_medialink','Media folder link (Drive/Canva)',w.mediaLink)}
+        <div class="field-row">${mInput('w_drivelink','Google Drive Link',w.driveLink)}${mInput('w_canvalink','Canva Link',w.canvaLink)}</div>
         ${mediaField('w_thumb','Thumbnail Image (shown in Watch Library)',w.img)}
         ${fileField('w_invoice','Invoice',w.invoiceUrl)}
       </div>
     </div>${mArea('w_desc','Description',w.desc)}
-    ${CONTENT_CATS.map(cat=>galleryHTML(slug(cat),cat,'image/*,video/*',id)).join('')}
+    ${CONTENT_CATS.filter(cat=>cat!=='Watch Photos').map(cat=>galleryHTML(slug(cat),cat,'image/*,video/*',id)).join('')}
     ${drops.length?`<div class="section-sub">Used in ${drops.length} drop(s)</div><div style="display:flex;flex-wrap:wrap;gap:6px">${drops.map(d=>`<span class="pill pill-type" style="cursor:pointer" onclick="closeModal();go('drop','${d.id}')">${esc(d.number)}</span>`).join('')}</div>`:''}
     ${linkedContent.length?`<div class="section-sub">In New Content (${linkedContent.length})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${linkedContent.map(c=>`<span class="pill pill-upcoming" style="cursor:pointer" onclick="closeModal();go('content');setTimeout(()=>openContent('${c.id}'),50)">${esc(c.title)}</span>`).join('')}</div>`:''}
     ${linkedMedia.length?`<div class="section-sub">In Asset Library (${linkedMedia.length})</div><div class="asset-grid">${linkedMedia.map(i=>libTile(i)).join('')}</div>`:''}
@@ -6515,8 +6594,9 @@ function saveWatch(id){const g=k=>document.getElementById(k).value;
   let fam=g('w_family').trim(), variant=g('w_variant').trim();
   if(!fam && !variant){ const sp=splitModel(g('w_brand'),g('w_model')); fam=sp.family; variant=sp.variant; }
   const data={brand:g('w_brand'),model:g('w_model'),family:fam,variant:variant,ref:g('w_ref'),serial:g('w_serial'),year:Number(g('w_year'))||null,movement:g('w_move'),
-    retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),mediaLink:g('w_medialink'),desc:g('w_desc'),
+    retail:Number(g('w_retail'))||0,cost:Number(g('w_cost'))||0,specs:g('w_specs'),desc:g('w_desc'),
     supplierId:ddVal('w_supplier'), retired: retiredBtn? retiredBtn.dataset.val==='1' : false,
+    driveLink:g('w_drivelink'), canvaLink:g('w_canvalink'),
     media, img:coverImg, invoiceUrl};
   if(!data.brand){alert('Brand required');return;}
   if(id){Object.assign(watchById(id),data);}else{DB.watches.unshift({id:uid('watch'),...data,links:{},created:now()});}
@@ -7632,7 +7712,66 @@ function dropCalculator(d){
       :`<div class="empty">No previous ${esc(d.type)}s to benchmark against yet.</div>`}
     </div>
   </div>
+
+  <!-- Price Comparison Tool -->
+  <div class="card">
+    <div class="card-h"><h3>Price Comparisons</h3><span class="muted" style="font-size:11.5px">Work out the best ticket price — log each option and compare below</span></div>
+    <div class="modal-b" style="max-height:none">
+      <div class="field-row">
+        <div class="field"><label>Label (e.g. Option A)</label><input id="pc_label_${d.id}" placeholder="e.g. Option A, £19.99 version…"></div>
+        <div class="field"><label>Ticket Price (£)</label><input id="pc_price_${d.id}" type="number" step="0.01" placeholder="19.99"></div>
+        <div class="field"><label>Pool Size</label><input id="pc_pool_${d.id}" type="number" placeholder="${s.pool||499}"></div>
+      </div>
+    </div>
+    <div style="padding:0 18px 14px;display:flex;justify-content:flex-end">
+      <button class="btn btn-gold" onclick="logPriceComparison('${d.id}','${sid}')">＋ Log Comparison</button>
+    </div>
+    ${(d.priceComparisons&&d.priceComparisons.length)?`<div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr>
+          <th>Label</th><th>Price</th><th>Pool</th>
+          <th>Full Rev</th><th>Net Rev</th><th>Break-even</th>
+          <th>Profit @50%</th><th>Profit @100%</th><th></th>
+        </tr></thead>
+        <tbody>${d.priceComparisons.map(pc=>{
+          const tmpS={...s,price:pc.price,pool:pc.pool};
+          const r50=calcP(tmpS,50), r100=calcP(tmpS,100);
+          let be=0; for(let p=1;p<=100;p++){if(calcP(tmpS,p).netProfit>=0){be=p;break;}}
+          return `<tr>
+            <td class="strong">${esc(pc.label)}</td>
+            <td class="mono">${gbp(pc.price)}</td>
+            <td class="mono">${pc.pool}</td>
+            <td class="mono">${gbp(r100.grossRev)}</td>
+            <td class="mono">${gbp(r100.netRev)}</td>
+            <td class="mono"><span class="pill ${be>0&&be<=50?'pill-done':be>0&&be<=70?'pill-upcoming':'pill-closed'}" style="font-size:11px">${be>0?be+'%':'Never'}</span></td>
+            <td class="mono" style="color:${r50.netProfit>=0?'var(--live)':'var(--danger)'}">${gbp(r50.netProfit)}</td>
+            <td class="mono" style="color:${r100.netProfit>=0?'var(--live)':'var(--danger)'};font-weight:700">${gbp(r100.netProfit)}</td>
+            <td><button class="btn-danger btn-sm" onclick="delPriceComparison('${d.id}','${pc.id}')">✕</button></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`:'<div class="empty" style="padding:16px 18px">No comparisons logged yet — enter a ticket price above and click Log Comparison.</div>'}
+  </div>
   </div>`;
+}
+
+function logPriceComparison(dropId, sid){
+  const d=dropById(dropId); if(!d) return;
+  const label=(document.getElementById('pc_label_'+dropId)||{}).value||'Option';
+  const price=Number((document.getElementById('pc_price_'+dropId)||{}).value)||0;
+  const pool=Number((document.getElementById('pc_pool_'+dropId)||{}).value)||(calcState[sid]&&calcState[sid].pool)||499;
+  if(!price){ alert('Enter a ticket price'); return; }
+  d.priceComparisons=d.priceComparisons||[];
+  d.priceComparisons.push({id:uid('pc'),label,price,pool,date:today()});
+  saveDB();
+  const d2=dropById(dropId);
+  document.getElementById('hubtab').innerHTML=dropCalculator(d2);
+  toast('Comparison logged');
+}
+function delPriceComparison(dropId, pcId){
+  const d=dropById(dropId); if(!d) return;
+  d.priceComparisons=(d.priceComparisons||[]).filter(p=>p.id!==pcId);
+  saveDB(); document.getElementById('hubtab').innerHTML=dropCalculator(dropById(dropId));
 }
 
 function updCalc(sid, field, val){
