@@ -4585,7 +4585,7 @@ function toggleUrgentBtn(){
   b.textContent = (!on? '⚡ Urgent':'⚡ Mark urgent');
 }
 function newTask(){
-  const t={id:uid('t'),title:'New task',dropId:'',due:today(),done:false,category:'Task',type:'Admin',projectId:'',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',estMins:0,scheduledDate:'',scheduledHour:null,created:now()};
+  const t={id:uid('t'),title:'',dropId:'',due:today(),done:false,category:'Task',type:'Admin',projectId:'',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',estMins:0,scheduledDate:'',scheduledHour:null,created:now()};
   DB.tasks.unshift(t); saveDB(); openTask(t.id);
 }
 function taskTypeOptions(cat){
@@ -7563,7 +7563,7 @@ function delProject(id){
 }
 
 function newProjectTask(projId){
-  const t={id:uid('t'),title:'New task',dropId:'',projectId:projId,due:today(),done:false,category:'Task',type:'Drops',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()};
+  const t={id:uid('t'),title:'',dropId:'',projectId:projId,due:today(),done:false,category:'Task',type:'Drops',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()};
   DB.tasks.unshift(t); saveDB(); openTask(t.id);
 }
 
@@ -9664,7 +9664,7 @@ function planShowCreatePopup(x, y, day, hour, durationMins){
 
 function planCreateTask(day, hour, durationMins){
   const pop=document.getElementById('plan_create_popup'); if(pop) pop.remove();
-  const t={id:uid('t'),title:'New task',dropId:'',due:day,done:false,category:'Task',
+  const t={id:uid('t'),title:'',dropId:'',due:day,done:false,category:'Task',
     type:'Admin',projectId:'',assignedTo:getPresenceName()||teamList()[0],
     time:Math.floor(hour)+':'+(Number(hour)%1?'30':'00'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
     estMins:durationMins,scheduledDate:day,scheduledHour:Number(hour),
