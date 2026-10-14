@@ -3655,7 +3655,7 @@ function dropWatchTab(d){
           <div class="field-row-3">
             ${roRow('Retail Value',w.retail?gbp(w.retail):'')}
             ${roRow('Cost Paid',w.cost?gbp(w.cost):'')}
-            ${roRow('Year / Date',w.watchDate)}
+            ${roRow('Year / Date',w.year)}
           </div>
         </div>
       </div>
@@ -3826,9 +3826,229 @@ function dropOverview(d){
   </div>
   ${dropImages}`;
 }
+/* ─── Marketing Master Prompt ─────────────────────────────────────────────── */
+const MARKETING_MASTER_PROMPT = `You are the Head of Marketing, senior luxury-watch copywriter and advertising strategist for The Watch Drop (thewatchdrop.co.uk), a UK luxury watch prize competition company.
+
+Your job is to create a complete, professional marketing package for this watch competition.
+
+All competition details are pre-filled above. Proceed directly to Step 1: research the watch. Then generate every deliverable below without asking for further information. If any detail is marked [TO CONFIRM], flag it clearly at the end rather than inventing it.
+
+BRAND IDENTITY
+Brand: The Watch Drop | Website: thewatchdrop.co.uk | Tagline: Don't just watch… win.
+Tone: Premium, knowledgeable, exciting, confident and trustworthy. Natural British English. Never pretentious, never desperate. Short impactful opening lines. Fresh creative approach every week.
+Never use the word "raffle". Always use: competition, drop, entries, winner, draw.
+Never imply official endorsement or affiliation with any watch manufacturer.
+
+STEP 1 — RESEARCH THE WATCH
+Using the reference number provided, research and verify:
+Case size and material · Dial colour and design · Movement and calibre · Power reserve · Bezel · Strap or bracelet · Water resistance · Crystal · Complications · History, heritage and interesting facts · Whether discontinued
+Prioritise official manufacturer information and reputable watch sources.
+Never invent specifications. Use the supplied advertised value as the competition value.
+If the reference conflicts with specifications, flag the discrepancy before writing any copy.
+
+OUTPUT FORMAT — produce everything in this exact order:
+
+═══════════════════════════════════
+SECTION 1 — WEBSITE COPY
+═══════════════════════════════════
+
+Competition information block (copy-ready):
+£[WATCH VALUE] — Watch value
+£[STANDARD TICKET PRICE] — Ticket price
+[MAX ENTRIES] — Total Tickets
+[DRAW DATE DD.MM.YYYY] — Live Draw / Auto Draw
+7 DAY / WEEKEND — DROP
+LIVE DRAW / AUTO DRAW — INSTAGRAM / AUTOMATIC
+
+Watch title:
+BRAND Model | Variant / Dial | Case Size & Material | Ref. XXXXX | Value £X,XXX
+
+Product description (150–200 words):
+Introduce the watch engagingly. Explain what makes this model desirable. Discuss design, history and heritage. Highlight technical specifications. Include interesting or unusual features. Mention year and condition where confirmed. Write as professional luxury watch editorial. Avoid unnecessary sales language.
+
+Finish with a single-line specification list:
+• 41mm stainless-steel case • Black dial • Automatic movement • 70hr power reserve • Sapphire crystal • 200m WR
+
+═══════════════════════════════════
+SECTION 2 — SEO
+═══════════════════════════════════
+
+1. Focus Keyphrase — most relevant search phrase for this exact watch competition
+2. SEO Title — 50–60 characters, clear and optimised
+3. URL Slug — short, lowercase, hyphen-separated
+4. Meta Description — 145–160 characters, watch model + competition opportunity + keywords
+
+═══════════════════════════════════
+SECTION 3 — META ADS (9 COMPLETE ADS)
+═══════════════════════════════════
+
+Three campaign stages × three ad styles = nine ads.
+
+CAMPAIGN A — LAUNCH DAY (use launch discount price if applicable)
+CAMPAIGN B — ONGOING (standard price, no launch or closing urgency)
+CAMPAIGN C — CLOSING TODAY (strong final-day urgency, correct closing time)
+
+THREE STYLES FOR EVERY CAMPAIGN STAGE:
+
+AD STYLE 1 — DETAILED, ENGAGING & ODDS-FOCUSED
+Strong attention-grabbing opening. Tasteful emojis (⌚ 🎟️ 🔥). Explain the watch and its features. Mention advertised value. Ticket price and maximum entries. Odds breakdown for 1, 5, 10 and 25 tickets with correct bundle prices. Easy to scan. Include odds disclaimer.
+
+AD STYLE 2 — CLASSY & SOPHISTICATED
+Elegant, refined language. Focus on design, craftsmanship and heritage. Why the watch is special. Technical features mentioned naturally. No emojis. No gimmicky phrases. Competition details included without cheapening the copy.
+
+AD STYLE 3 — SHORT, CONCISE & PUNCHY
+Approximately 30–50 words of main copy (excluding disclaimer). Strong hook. Watch introduction. Value, price and entry cap. Clear CTA. Minimal detail.
+
+FORMAT FOR EVERY AD:
+PRIMARY TEXT: [complete ad copy + mandatory disclaimer]
+HEADLINE: [short compelling headline]
+DESCRIPTION: [identical within each campaign stage — format below]
+
+IDENTICAL DESCRIPTION RULE: All three ads within the same campaign stage must use exactly the same description:
+£[TICKET PRICE] per entry | [MAX ENTRIES] max entries | Closes [DAY, DATE] at [TIME]
+Use launch price for Campaign A. Standard price for B and C.
+
+MANDATORY DISCLAIMER — include on every single ad:
+18+ UK only. Skill-based competition. Free postal entry available. T&Cs apply. The Watch Drop is independent and is not affiliated with, endorsed by or sponsored by any featured watch brands.
+
+For odds-focused ads also add:
+Odds based on all maximum entries being sold and one winning ticket. Actual odds may be better if fewer entries are sold.
+
+═══════════════════════════════════
+SECTION 4 — VIDEO SCRIPTS (3 SCRIPTS)
+═══════════════════════════════════
+
+Presenter-led, spoken to camera. Natural, conversational and credible. Knowledgeable and enthusiastic. Not scripted-sounding.
+
+VIDEO 1 — THE DROP IS LIVE (30–45 seconds)
+Hook in first 3 seconds · Introduce watch · 2–3 unique features · Advertised value · Maximum entries · Launch discount price if applicable · Strong CTA
+
+VIDEO 2 — ONGOING (30–45 seconds)
+Completely different hook · Unusual watch facts or history · What makes it special · Standard ticket price · Maximum entries · CTA · Must not sound like launch or closing day
+
+VIDEO 3 — CLOSES TONIGHT (20–35 seconds)
+Immediate urgency · Entries close tonight · Watch and value · Standard ticket price · Maximum entries · Correct closing time and draw information · Direct CTA
+
+FOR EACH VIDEO PROVIDE:
+1. Complete spoken script
+2. Opening hook
+3. Suggested B-roll / camera shots
+4. On-screen captions
+5. Approximate runtime
+
+═══════════════════════════════════
+SECTION 5 — EMAIL CAMPAIGNS (4 EMAILS)
+═══════════════════════════════════
+
+For every email provide:
+- 3 subject line options + recommended choice
+- 2 preview text options
+- Complete email body
+- CTA button text
+
+EMAIL 1 — LAUNCHED TODAY
+Exciting launch announcement · Watch introduction and key features · Advertised value · Launch discount price · Maximum entries · Odds comparison table (bundles: 1, 5, 10, 20, 25 tickets) · Strong CTA
+
+EMAIL 2 — CLOSING TOMORROW
+Draw is tomorrow · Reintroduce watch from a different angle · Heritage or craftsmanship focus · Standard ticket price · Entries and odds · Closing time and draw details · Different feel from launch email
+
+EMAIL 3 — DRAW DAY MORNING
+Someone wins tonight · Strong urgency · Short and mobile-friendly · Value, standard price, entries · Odds · Closing time · CTA
+
+EMAIL 4 — DRAW DAY 4PM
+Shorter than others · Very strong subject line · Remaining time until close · Watch value and ticket price · 8:30PM closing deadline · One clear CTA · Genuine urgency without being cheap
+
+CREATIVE FREEDOM: Do not produce four emails with identical structure. Vary hooks, storytelling, length and angles. Some weeks lead with watch history; others with design, rarity, odds or value. The goal is strong opens and clicks while maintaining premium brand image.
+
+═══════════════════════════════════
+SECTION 6 — FINAL CHECK
+═══════════════════════════════════
+
+Confirm:
+- Watch reference and verified specifications
+- Advertised value
+- Ticket prices (launch and standard)
+- Maximum entries
+- Calculated odds for 1, 5, 10 and 25 tickets
+- Competition dates and closing times
+- Any details marked [TO CONFIRM] that need input from Felix
+
+ODDS CALCULATION RULES:
+For N max entries and K tickets purchased: probability = K/N, displayed as approximately 1 in (N/K).
+Bundle price = K × ticket price. Always use launch price for launch materials, standard price for ongoing and closing.
+Never invent sold-entry counts or improved odds based on assumed sales levels.
+Standard wording: "Odds based on all [N] entries being sold and one winning ticket. Actual odds may be better if fewer entries are sold."`;
+
+function buildMarketingPrompt(d){
+  const w = watchById(d.watchId) || {};
+  const t = d.tracker || {};
+  const na = v => v || '[TO CONFIRM]';
+  const fmtD = str => {
+    if(!str) return '[TO CONFIRM]';
+    const dt = new Date(str + 'T12:00:00');
+    return dt.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  };
+  const standardPrice = Number(t.fullTicketPrice) || Number(d.price) || 0;
+  const discountPct   = Number(t.launchDiscountPct) || 0;
+  const launchPrice   = discountPct > 0 ? (standardPrice * (1 - discountPct)).toFixed(2) : null;
+  const pool = Number(d.pool) || 0;
+  const rv   = Number(w.retail) || 0;
+  const dropType = d.type || 'Main Drop';
+  const drawMethod = dropType === 'Main Drop'    ? 'Live on Instagram at 9PM'
+                   : dropType === 'Weekend Drop' ? 'Automatic draw at 8:30PM'
+                   : '[TO CONFIRM]';
+
+  const lines = [
+    `DROP:                   ${d.number || '[TO CONFIRM]'} · ${dropType}`,
+    `WATCH:                  ${w.brand ? w.brand + ' ' + w.model : '[TO CONFIRM]'}`,
+    `REFERENCE:              ${na(w.ref)}`,
+    `YEAR:                   ${na(w.year)}`,
+    `CONDITION & BOX/PAPERS: [TO CONFIRM — add manually before pasting]`,
+    `ADVERTISED VALUE:       ${rv ? '£' + Number(rv).toLocaleString('en-GB') : '[TO CONFIRM]'}`,
+    `STANDARD TICKET PRICE:  ${standardPrice ? '£' + standardPrice.toFixed(2) : '[TO CONFIRM]'}`,
+    launchPrice
+      ? `LAUNCH DISCOUNT PRICE:  £${launchPrice} (${Math.round(discountPct * 100)}% off — first 24 hours only)`
+      : `LAUNCH DISCOUNT:        None`,
+    `MAXIMUM ENTRIES:        ${pool || '[TO CONFIRM]'}`,
+    `LAUNCH DATE:            ${fmtD(d.launch)}`,
+    `DRAW DATE:              ${fmtD(d.draw)}`,
+    `ENTRIES CLOSE:          8:30PM`,
+    `DRAW METHOD:            ${drawMethod}`,
+    w.movement ? `MOVEMENT:               ${w.movement}` : null,
+    w.family   ? `MODEL FAMILY:           ${w.family}`   : null,
+    w.variant  ? `VARIANT:                ${w.variant}`  : null,
+    w.specs    ? `KNOWN SPECS:            ${w.specs}`    : null,
+    d.notes    ? `NOTES:                  ${d.notes}`    : null,
+  ].filter(Boolean).join('\n');
+
+  return `THE WATCH DROP — MARKETING PACK REQUEST\n\nAll competition details are pre-filled below from Atlas. Skip the detail-gathering step and proceed directly to researching the watch and generating the complete marketing pack.\n\nBefore starting: check any [TO CONFIRM] fields and fill them in manually if you have the information.\n\n${'─'.repeat(60)}\nCOMPETITION DETAILS\n${'─'.repeat(60)}\n\n${lines}\n\n${'─'.repeat(60)}\n\n${MARKETING_MASTER_PROMPT}`;
+}
+
+function copyMarketingPrompt(dropId){
+  const d = dropById(dropId);
+  if(!d){ toast('Drop not found'); return; }
+  const prompt = buildMarketingPrompt(d);
+  navigator.clipboard.writeText(prompt)
+    .then(()=> toast('✓ Prompt copied — paste into Claude'))
+    .catch(()=> toast('Copy failed — try again'));
+}
+
 function dropCopyTab(d){
   d.copy=d.copy||{};
-  return `<div class="card">
+  return `
+  <div style="margin-bottom:18px">
+    <button onclick="copyMarketingPrompt('${d.id}')" style="
+      width:100%;padding:14px 20px;border-radius:10px;border:none;cursor:pointer;
+      background:linear-gradient(135deg,var(--gold),#a9852f);
+      color:#0B1220;font-size:14px;font-weight:700;letter-spacing:.3px;
+      display:flex;align-items:center;justify-content:center;gap:10px">
+      📋 Copy Marketing Prompt
+    </button>
+    <div style="margin-top:8px;font-size:12px;color:var(--ink3);text-align:center;line-height:1.5">
+      Copies a pre-filled prompt with this drop's details — paste straight into Claude to generate the full marketing pack
+    </div>
+  </div>
+  <div class="card">
     <div class="card-h"><h3>Website Copy</h3><span class="muted" style="font-size:11.5px">Headline, body and SEO for the live drop page</span></div>
     <div class="modal-b" style="max-height:none">
       ${fld('Headline',d.copy.headline,'copy.headline')}
