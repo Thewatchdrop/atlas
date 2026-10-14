@@ -3446,7 +3446,10 @@ function vDrops(){
 /* ================= DROP HUB ================= */
 const DROP_TABS=['overview','copy','watch','tasks','winner','scripts','files','timeline','calculator','adcopy'];
 let dropAdCopyVersion=0; // 0–4 (V1–V5)
+let dropAdCopyPhase='firstday'; // 'firstday' | 'live' | 'lastday'
 function setDropAdCopyVersion(i){ dropAdCopyVersion=i; render(); }
+function setDropAdCopyPhase(p){ dropAdCopyPhase=p; render(); }
+const AD_PHASES=[['firstday','First Day'],['live','Live'],['lastday','Last Day']];
 const VAULT_EXTRA_TABS=['instantwinners'];
 function vDropHub(){
   const d=dropById(route.id);
@@ -3501,32 +3504,55 @@ function dropTab(d,tab){
   if(tab==='adcopy') return dropAdCopyTab(d);
 }
 /* ---------- Drop Hub — Ad Copy tab ---------- */
+function initDropAdCopy(d){
+  // Migrate old array format to new phase-keyed format
+  if(Array.isArray(d.adCopy)){
+    const old=d.adCopy;
+    d.adCopy={firstday:old,live:[],lastday:[]};
+  }
+  d.adCopy=d.adCopy||{};
+  AD_PHASES.forEach(([key])=>{
+    d.adCopy[key]=d.adCopy[key]||[];
+    while(d.adCopy[key].length<5) d.adCopy[key].push({primaryText:'',headline:'',description:''});
+  });
+}
+
 function dropAdCopyTab(d){
-  const VERSION_COUNT=5;
-  d.adCopy=d.adCopy||Array.from({length:VERSION_COUNT},()=>({primaryText:'',headline:'',description:''}));
-  while(d.adCopy.length<VERSION_COUNT) d.adCopy.push({primaryText:'',headline:'',description:''});
-  const v=d.adCopy[dropAdCopyVersion]||{};
+  initDropAdCopy(d);
   const vid=d.id;
+  const phaseVersions=d.adCopy[dropAdCopyPhase];
+  const v=phaseVersions[dropAdCopyVersion]||{};
   const pLen=(v.primaryText||'').length;
   const hLen=(v.headline||'').length;
   const dLen=(v.description||'').length;
+  const phaseLabel=AD_PHASES.find(([k])=>k===dropAdCopyPhase)?.[1]||'';
 
-  const versionTabs=Array.from({length:VERSION_COUNT},(_,i)=>`
-    <div onclick="setDropAdCopyVersion(${i})" style="
-      padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
-      background:${dropAdCopyVersion===i?'linear-gradient(135deg,var(--gold),#a9852f)':'var(--panel)'};
-      color:${dropAdCopyVersion===i?'#0B1220':'var(--ink2)'};
-      border:1px solid ${dropAdCopyVersion===i?'transparent':'var(--line2)'};
-      transition:.12s">V${i+1}</div>`).join('');
+  const phaseTabs=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;background:var(--panel);border:1px solid var(--line2);border-radius:10px;overflow:hidden;margin-bottom:14px">
+    ${AD_PHASES.map(([key,label])=>`
+      <div onclick="setDropAdCopyPhase('${key}')" style="
+        padding:11px 0;text-align:center;font-size:13px;font-weight:600;cursor:pointer;
+        background:${dropAdCopyPhase===key?'linear-gradient(135deg,var(--gold),#a9852f)':'transparent'};
+        color:${dropAdCopyPhase===key?'#0B1220':'var(--ink2)'};
+        transition:.12s">${label}</div>`).join('')}
+  </div>`;
+
+  const versionPills=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+    ${Array.from({length:5},(_,i)=>`
+      <div onclick="setDropAdCopyVersion(${i})" style="
+        padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+        background:${dropAdCopyVersion===i?'linear-gradient(135deg,var(--gold),#a9852f)':'var(--panel)'};
+        color:${dropAdCopyVersion===i?'#0B1220':'var(--ink2)'};
+        border:1px solid ${dropAdCopyVersion===i?'transparent':'var(--line2)'};
+        transition:.12s">V${i+1}</div>`).join('')}
+  </div>`;
 
   return `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
-      ${versionTabs}
-    </div>
+    ${phaseTabs}
+    ${versionPills}
     <div class="card">
       <div class="card-h">
-        <h3>📣 Ad Copy — V${dropAdCopyVersion+1}</h3>
-        <button class="btn btn-sm" style="margin-left:auto" onclick="copyDropAdAll('${vid}',${dropAdCopyVersion})">Copy All ↗</button>
+        <h3>📣 ${phaseLabel} — V${dropAdCopyVersion+1}</h3>
+        <button class="btn btn-sm" style="margin-left:auto" onclick="copyDropAdAll('${vid}','${dropAdCopyPhase}',${dropAdCopyVersion})">Copy All ↗</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:18px;padding:4px 0 2px">
 
@@ -3535,11 +3561,11 @@ function dropAdCopyTab(d){
             <label style="font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--ink3);font-weight:600">Primary Text</label>
             <div style="display:flex;align-items:center;gap:8px">
               <span style="font-size:11px;color:var(--ink3)">${pLen} chars</span>
-              <button class="btn btn-sm btn-ghost" onclick="copyDropAdField('${vid}',${dropAdCopyVersion},'primaryText')">Copy</button>
+              <button class="btn btn-sm btn-ghost" onclick="copyDropAdField('${vid}','${dropAdCopyPhase}',${dropAdCopyVersion},'primaryText')">Copy</button>
             </div>
           </div>
-          <textarea id="dac_${vid}_${dropAdCopyVersion}_pt" rows="5"
-            oninput="patchDropAdCopy('${vid}',${dropAdCopyVersion},'primaryText',this.value)"
+          <textarea id="dac_${vid}_${dropAdCopyPhase}_${dropAdCopyVersion}_pt" rows="5"
+            oninput="patchDropAdCopy('${vid}','${dropAdCopyPhase}',${dropAdCopyVersion},'primaryText',this.value)"
             style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 13px;font-size:13.5px;line-height:1.6;resize:vertical;outline:none"
             placeholder="Write the main ad body copy here…">${esc(v.primaryText||'')}</textarea>
         </div>
@@ -3549,11 +3575,11 @@ function dropAdCopyTab(d){
             <label style="font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--ink3);font-weight:600">Headline</label>
             <div style="display:flex;align-items:center;gap:8px">
               <span style="font-size:11px;color:${hLen>40?'var(--warn)':'var(--ink3)'}">${hLen}/40</span>
-              <button class="btn btn-sm btn-ghost" onclick="copyDropAdField('${vid}',${dropAdCopyVersion},'headline')">Copy</button>
+              <button class="btn btn-sm btn-ghost" onclick="copyDropAdField('${vid}','${dropAdCopyPhase}',${dropAdCopyVersion},'headline')">Copy</button>
             </div>
           </div>
-          <input id="dac_${vid}_${dropAdCopyVersion}_hl" type="text"
-            oninput="patchDropAdCopy('${vid}',${dropAdCopyVersion},'headline',this.value)"
+          <input id="dac_${vid}_${dropAdCopyPhase}_${dropAdCopyVersion}_hl" type="text"
+            oninput="patchDropAdCopy('${vid}','${dropAdCopyPhase}',${dropAdCopyVersion},'headline',this.value)"
             style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 13px;font-size:13.5px;font-weight:600;outline:none"
             placeholder="One-line headline…"
             value="${esc(v.headline||'')}">
@@ -3564,11 +3590,11 @@ function dropAdCopyTab(d){
             <label style="font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--ink3);font-weight:600">Description</label>
             <div style="display:flex;align-items:center;gap:8px">
               <span style="font-size:11px;color:${dLen>30?'var(--warn)':'var(--ink3)'}">${dLen}/30</span>
-              <button class="btn btn-sm btn-ghost" onclick="copyDropAdField('${vid}',${dropAdCopyVersion},'description')">Copy</button>
+              <button class="btn btn-sm btn-ghost" onclick="copyDropAdField('${vid}','${dropAdCopyPhase}',${dropAdCopyVersion},'description')">Copy</button>
             </div>
           </div>
-          <input id="dac_${vid}_${dropAdCopyVersion}_dc" type="text"
-            oninput="patchDropAdCopy('${vid}',${dropAdCopyVersion},'description',this.value)"
+          <input id="dac_${vid}_${dropAdCopyPhase}_${dropAdCopyVersion}_dc" type="text"
+            oninput="patchDropAdCopy('${vid}','${dropAdCopyPhase}',${dropAdCopyVersion},'description',this.value)"
             style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 13px;font-size:13.5px;outline:none"
             placeholder="One-line description…"
             value="${esc(v.description||'')}">
@@ -3578,26 +3604,25 @@ function dropAdCopyTab(d){
     </div>`;
 }
 
-function patchDropAdCopy(dropId,versionIdx,field,value){
+function patchDropAdCopy(dropId,phase,versionIdx,field,value){
   const d=dropById(dropId); if(!d) return;
-  d.adCopy=d.adCopy||Array.from({length:5},()=>({primaryText:'',headline:'',description:''}));
-  while(d.adCopy.length<5) d.adCopy.push({primaryText:'',headline:'',description:''});
-  d.adCopy[versionIdx]=d.adCopy[versionIdx]||{};
-  d.adCopy[versionIdx][field]=value;
+  initDropAdCopy(d);
+  d.adCopy[phase][versionIdx]=d.adCopy[phase][versionIdx]||{};
+  d.adCopy[phase][versionIdx][field]=value;
   queueSave();
 }
 
-function copyDropAdField(dropId,versionIdx,field){
+function copyDropAdField(dropId,phase,versionIdx,field){
   const d=dropById(dropId); if(!d) return;
-  const v=(d.adCopy||[])[versionIdx]||{};
+  const v=((d.adCopy||{})[phase]||[])[versionIdx]||{};
   const text=v[field]||'';
   if(!text){toast('Nothing to copy');return;}
   navigator.clipboard.writeText(text).then(()=>toast('Copied ✓')).catch(()=>toast('Copy failed'));
 }
 
-function copyDropAdAll(dropId,versionIdx){
+function copyDropAdAll(dropId,phase,versionIdx){
   const d=dropById(dropId); if(!d) return;
-  const v=(d.adCopy||[])[versionIdx]||{};
+  const v=((d.adCopy||{})[phase]||[])[versionIdx]||{};
   const lines=[];
   if(v.primaryText) lines.push('PRIMARY TEXT\n'+v.primaryText);
   if(v.headline) lines.push('HEADLINE\n'+v.headline);
