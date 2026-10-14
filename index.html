@@ -2666,12 +2666,14 @@ function dropRow(d){
 /* ================= VAULT HUB ================= */
 let vaultHubTab='all'; // 'all' or a drop id
 let vaultPrizeFilter='all'; // 'all','watch','cash','credit'
-let vaultHubView='tracker'; // 'tracker' | 'watchpool'
+let vaultHubView='tracker'; // 'tracker' | 'watchpool' | 'adcopy'
+let vaultAdCopyVersion=0; // 0–4 (V1–V5)
 let vaultWatchFilter='all'; // 'all','available','won'
 
 function setVaultHubTab(v){ vaultHubTab=v; vaultPrizeFilter='all'; render(); }
 function setVaultPrizeFilter(f){ vaultPrizeFilter=f; render(); }
 function setVaultHubView(v){ vaultHubView=v; render(); }
+function setVaultAdCopyVersion(i){ vaultAdCopyVersion=i; render(); }
 function setVaultWatchFilter(f){ vaultWatchFilter=f; render(); }
 
 function vaultHubKpiRow(vaults){
@@ -3192,6 +3194,7 @@ function vVaultHub(){
   const switcher=`<div style="display:flex;gap:8px;margin-bottom:22px">
     <button onclick="setVaultHubView('tracker')" class="btn ${vaultHubView==='tracker'?'btn-gold':''}">📊 Prize Tracker</button>
     <button onclick="setVaultHubView('watchpool')" class="btn ${vaultHubView==='watchpool'?'btn-gold':''}">⌚ Watch Pool</button>
+    <button onclick="setVaultHubView('adcopy')" class="btn ${vaultHubView==='adcopy'?'btn-gold':''}">📣 Ad Copy</button>
   </div>`;
   function trackerView(){
     const allPrizesCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).length,0);
@@ -3226,7 +3229,118 @@ function vVaultHub(){
     </div>
     ${tabBar}
     ${switcher}
-    ${vaultHubView==='watchpool'?vaultWatchPoolView(activeVaults):trackerView()}`;
+    ${vaultHubView==='watchpool'?vaultWatchPoolView(activeVaults):vaultHubView==='adcopy'?vaultAdCopyView(activeVaults):trackerView()}`;
+}
+
+/* ---------- Vault Hub — Ad Copy view ---------- */
+function vaultAdCopyView(vaults){
+  const VERSION_COUNT = 5;
+  const versionTabs = Array.from({length:VERSION_COUNT},(_,i)=>`
+    <div onclick="setVaultAdCopyVersion(${i})" style="
+      padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+      background:${vaultAdCopyVersion===i?'linear-gradient(135deg,var(--gold),#a9852f)':'var(--panel)'};
+      color:${vaultAdCopyVersion===i?'#0B1220':'var(--ink2)'};
+      border:1px solid ${vaultAdCopyVersion===i?'transparent':'var(--line2)'};
+      transition:.12s">V${i+1}</div>`).join('');
+
+  function vaultBlock(d){
+    const copy = (d.vaultAdCopy = d.vaultAdCopy || Array.from({length:VERSION_COUNT},()=>({primaryText:'',headline:'',description:''})));
+    while(copy.length < VERSION_COUNT) copy.push({primaryText:'',headline:'',description:''});
+    const v = copy[vaultAdCopyVersion] || {};
+    const vid = d.id;
+    const label = esc(d.number || d.name || 'Vault');
+    const pLen = (v.primaryText||'').length;
+    const hLen = (v.headline||'').length;
+    const dLen = (v.description||'').length;
+
+    return `<div class="card" style="margin-bottom:16px">
+      <div class="card-h">
+        <h3>⚡ ${label} — V${vaultAdCopyVersion+1}</h3>
+        <button class="btn btn-sm" style="margin-left:auto" onclick="copyVaultAdAll('${vid}',${vaultAdCopyVersion})">Copy All ↗</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:18px;padding:4px 0 2px">
+
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+            <label style="font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--ink3);font-weight:600">Primary Text</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11px;color:var(--ink3)">${pLen} chars</span>
+              <button class="btn btn-sm btn-ghost" onclick="copyVaultAdField('${vid}',${vaultAdCopyVersion},'primaryText')">Copy</button>
+            </div>
+          </div>
+          <textarea id="vac_${vid}_${vaultAdCopyVersion}_pt" rows="5"
+            oninput="patchVaultAdCopy('${vid}',${vaultAdCopyVersion},'primaryText',this.value)"
+            style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 13px;font-size:13.5px;line-height:1.6;resize:vertical;outline:none"
+            placeholder="Write the main ad body copy here…">${esc(v.primaryText||'')}</textarea>
+        </div>
+
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+            <label style="font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--ink3);font-weight:600">Headline</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11px;color:${hLen>40?'var(--warn)':'var(--ink3)'}">${hLen}/40</span>
+              <button class="btn btn-sm btn-ghost" onclick="copyVaultAdField('${vid}',${vaultAdCopyVersion},'headline')">Copy</button>
+            </div>
+          </div>
+          <input id="vac_${vid}_${vaultAdCopyVersion}_hl" type="text"
+            oninput="patchVaultAdCopy('${vid}',${vaultAdCopyVersion},'headline',this.value)"
+            style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 13px;font-size:13.5px;font-weight:600;outline:none"
+            placeholder="One-line headline…"
+            value="${esc(v.headline||'')}">
+        </div>
+
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+            <label style="font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--ink3);font-weight:600">Description</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11px;color:${dLen>30?'var(--warn)':'var(--ink3)'}">${dLen}/30</span>
+              <button class="btn btn-sm btn-ghost" onclick="copyVaultAdField('${vid}',${vaultAdCopyVersion},'description')">Copy</button>
+            </div>
+          </div>
+          <input id="vac_${vid}_${vaultAdCopyVersion}_dc" type="text"
+            oninput="patchVaultAdCopy('${vid}',${vaultAdCopyVersion},'description',this.value)"
+            style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 13px;font-size:13.5px;outline:none"
+            placeholder="One-line description…"
+            value="${esc(v.description||'')}">
+        </div>
+
+      </div>
+    </div>`;
+  }
+
+  return `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+      ${versionTabs}
+    </div>
+    ${vaults.map(vaultBlock).join('')}`;
+}
+
+function patchVaultAdCopy(dropId, versionIdx, field, value){
+  const d = dropById(dropId); if(!d) return;
+  d.vaultAdCopy = d.vaultAdCopy || Array.from({length:5},()=>({primaryText:'',headline:'',description:''}));
+  while(d.vaultAdCopy.length < 5) d.vaultAdCopy.push({primaryText:'',headline:'',description:''});
+  d.vaultAdCopy[versionIdx] = d.vaultAdCopy[versionIdx] || {};
+  d.vaultAdCopy[versionIdx][field] = value;
+  queueSave();
+}
+
+function copyVaultAdField(dropId, versionIdx, field){
+  const d = dropById(dropId); if(!d) return;
+  const v = (d.vaultAdCopy||[])[versionIdx]||{};
+  const text = v[field]||'';
+  if(!text){ toast('Nothing to copy'); return; }
+  navigator.clipboard.writeText(text).then(()=>toast('Copied ✓')).catch(()=>toast('Copy failed'));
+}
+
+function copyVaultAdAll(dropId, versionIdx){
+  const d = dropById(dropId); if(!d) return;
+  const v = (d.vaultAdCopy||[])[versionIdx]||{};
+  const lines = [];
+  if(v.primaryText) lines.push('PRIMARY TEXT\n'+v.primaryText);
+  if(v.headline) lines.push('HEADLINE\n'+v.headline);
+  if(v.description) lines.push('DESCRIPTION\n'+v.description);
+  if(!lines.length){ toast('Nothing to copy'); return; }
+  navigator.clipboard.writeText(lines.join('\n\n')).then(()=>toast('Copied all ✓')).catch(()=>toast('Copy failed'));
 }
 
 function onVHTypeChange(){
@@ -3394,7 +3508,7 @@ function dropWatchTab(d){
     </div>
     <div class="modal-b" style="max-height:none">
       <div style="display:flex;gap:18px;align-items:flex-start;margin-bottom:6px">
-        ${w.img?`<img src="${esc(w.img)}" style="width:110px;height:110px;object-fit:cover;border-radius:10px;border:1px solid var(--line2);flex-shrink:0">`:''}
+        ${w.img?`<img data-mediaref="${esc(w.img)}" style="width:110px;height:110px;object-fit:cover;border-radius:10px;border:1px solid var(--line2);flex-shrink:0">`:''}
         <div style="flex:1;min-width:0">
           <div class="field-row-3">
             ${roRow('Reference',w.ref)}
@@ -4585,7 +4699,7 @@ function toggleUrgentBtn(){
   b.textContent = (!on? '⚡ Urgent':'⚡ Mark urgent');
 }
 function newTask(){
-  const t={id:uid('t'),title:'',dropId:'',due:today(),done:false,category:'Task',type:'Admin',projectId:'',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',estMins:0,scheduledDate:'',scheduledHour:null,created:now()};
+  const t={id:uid('t'),title:'New task',dropId:'',due:today(),done:false,category:'Task',type:'Admin',projectId:'',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',estMins:0,scheduledDate:'',scheduledHour:null,created:now()};
   DB.tasks.unshift(t); saveDB(); openTask(t.id);
 }
 function taskTypeOptions(cat){
@@ -7563,7 +7677,7 @@ function delProject(id){
 }
 
 function newProjectTask(projId){
-  const t={id:uid('t'),title:'',dropId:'',projectId:projId,due:today(),done:false,category:'Task',type:'Drops',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()};
+  const t={id:uid('t'),title:'New task',dropId:'',projectId:projId,due:today(),done:false,category:'Task',type:'Drops',assignedTo:teamList()[0],time:'',urgent:false,personRef:'',notes:'',file:'',repeat:'None',created:now()};
   DB.tasks.unshift(t); saveDB(); openTask(t.id);
 }
 
@@ -9664,7 +9778,7 @@ function planShowCreatePopup(x, y, day, hour, durationMins){
 
 function planCreateTask(day, hour, durationMins){
   const pop=document.getElementById('plan_create_popup'); if(pop) pop.remove();
-  const t={id:uid('t'),title:'',dropId:'',due:day,done:false,category:'Task',
+  const t={id:uid('t'),title:'New task',dropId:'',due:day,done:false,category:'Task',
     type:'Admin',projectId:'',assignedTo:getPresenceName()||teamList()[0],
     time:Math.floor(hour)+':'+(Number(hour)%1?'30':'00'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
     estMins:durationMins,scheduledDate:day,scheduledHour:Number(hour),
