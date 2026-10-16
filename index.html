@@ -2590,16 +2590,7 @@ function vDashboard(){
 
         return purchaseCard+cashCard+dispatchCard;
       })()}
-      <div class="card">
-        <div class="card-h"><h3>Recent Activity</h3></div>
-        <div class="card-b">
-          ${DB.timeline.length? DB.timeline.slice(0,6).map(t=>`
-            <div class="row-item">
-              <div class="txt"><div class="t">${esc(t.event)}</div>
-              <div class="meta">${t.dropId?esc((dropById(t.dropId)||{}).number||''):''} · ${timeAgo(t.at)}</div></div></div>`).join('')
-            : `<div class="empty">Activity will appear here as you work.</div>`}
-        </div>
-      </div>
+
     </div>
   </div>
   ${taskBoardHTML()}`;
@@ -2881,10 +2872,14 @@ function vaultHubLogForm(vaults){
 }
 
 const VAULT_PRESETS={
-  'tag':   {name:'TAG Heuer Vault',  price:1.99, pool:100000, watches:40, avgWatch:1500, watchValue:60000,  prizePool:90454,  winners:25000, odds:'1 in 4',  fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:19.5},
-  'tudor': {name:'Tudor Vault',      price:2.99, pool:100000, watches:30, avgWatch:3500, watchValue:105000, prizePool:135909, winners:20000, odds:'1 in 5',  fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:13.0},
-  'omega': {name:'Omega & Cartier Vault', price:3.99, pool:100000, watches:20, avgWatch:5000, watchValue:100000, prizePool:181360, winners:16667, odds:'~1 in 6', fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:9.7},
-  'rolex': {name:'Rolex Vault',      price:4.99, pool:100000, watches:10, avgWatch:15000,watchValue:150000, prizePool:226815, winners:12500, odds:'1 in 8',  fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:7.8},
+  // TAG Heuer Vault — 40 watches, 100k entries, 1 in 4, £1.99 entry
+  'tag':   {name:'TAG Heuer Vault',       price:1.99, pool:100000, watches:40, avgWatch:1634,  watchValue:111930, prizePool:90454,  winners:25000, odds:'1 in 4',   fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:20},
+  // Tudor Vault — 30 watches, 100k entries, 1 in 5, £2.99 entry
+  'tudor': {name:'Tudor Vault',           price:2.99, pool:100000, watches:30, avgWatch:2973,  watchValue:121740, prizePool:135909, winners:20000, odds:'1 in 5',   fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:20},
+  // Omega & Cartier Vault — 20 watches, 100k entries, ~1 in 6, £3.49 entry
+  'omega': {name:'Omega & Cartier Vault', price:3.49, pool:100000, watches:20, avgWatch:4392,  watchValue:129900, prizePool:158635, winners:16667, odds:'~1 in 6',  fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:20},
+  // Rolex Vault — 10 watches, 125k entries, 1 in 10, £3.99 entry
+  'rolex': {name:'Rolex Vault',           price:3.99, pool:125000, watches:10, avgWatch:13625, watchValue:159000, prizePool:226815, winners:12500, odds:'1 in 10',  fixedMonth:4250, adsMonth:3000, processingPct:3.1, platformPct:2.0, breakEven:20},
 };
 
 function nvApplyPreset(key){
@@ -2917,8 +2912,8 @@ function newVaultFromHub(){
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
           <button type="button" class="btn nv-preset-btn" data-preset="tag"   onclick="nvApplyPreset('tag')"   style="text-align:left;padding:10px 14px"><div style="font-weight:700;font-size:13px">TAG Heuer Vault</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">£1.99 · 100k entries · 1 in 4 · 40 watches</div></button>
           <button type="button" class="btn nv-preset-btn" data-preset="tudor" onclick="nvApplyPreset('tudor')" style="text-align:left;padding:10px 14px"><div style="font-weight:700;font-size:13px">Tudor Vault</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">£2.99 · 100k entries · 1 in 5 · 30 watches</div></button>
-          <button type="button" class="btn nv-preset-btn" data-preset="omega" onclick="nvApplyPreset('omega')" style="text-align:left;padding:10px 14px"><div style="font-weight:700;font-size:13px">Omega & Cartier Vault</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">£3.99 · 100k entries · ~1 in 6 · 20 watches</div></button>
-          <button type="button" class="btn nv-preset-btn" data-preset="rolex" onclick="nvApplyPreset('rolex')" style="text-align:left;padding:10px 14px"><div style="font-weight:700;font-size:13px">Rolex Vault</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">£4.99 · 100k entries · 1 in 8 · 10 watches</div></button>
+          <button type="button" class="btn nv-preset-btn" data-preset="omega" onclick="nvApplyPreset('omega')" style="text-align:left;padding:10px 14px"><div style="font-weight:700;font-size:13px">Omega & Cartier Vault</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">£3.49 · 100k entries · ~1 in 6 · 20 watches</div></button>
+          <button type="button" class="btn nv-preset-btn" data-preset="rolex" onclick="nvApplyPreset('rolex')" style="text-align:left;padding:10px 14px"><div style="font-weight:700;font-size:13px">Rolex Vault</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">£3.99 · 125k entries · 1 in 10 · 10 watches</div></button>
         </div>
       </div>
       <div style="height:1px;background:var(--line);margin:16px 0"></div>
