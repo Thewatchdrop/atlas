@@ -2572,11 +2572,17 @@ function vDashboard(){
                     ${anyAction?'':pillWarn('All clear ✓')}
                   </div>
 
-                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${totalPool?'12px':'0'}">
-                    ${statBubble(toPurchase,'var(--gold2)','🛒 To purchase')}
-                    ${statBubble(toDispatch,'var(--warn)','📦 To dispatch')}
-                    ${statBubble(bankMissing,'var(--danger)','🏦 Bank details')}
-                    ${statBubble(readyToPay,'#4ade80','💸 Ready to pay')}
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:${totalPool?'12px':'0'}">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                      ${statBubble(toPurchase,'var(--gold2)','🛒 To purchase')}
+                      ${statBubble(toDispatch,'var(--warn)','📦 To dispatch')}
+                      ${statBubble(bankMissing,'var(--danger)','🏦 Bank details')}
+                      ${statBubble(readyToPay,'#4ade80','💸 Ready to pay')}
+                    </div>
+                    <button onclick="event.stopPropagation();vaultHubTab='${d.id}';vaultHubView='tracker';go('vaulthub')"
+                      style="flex-shrink:0;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;background:linear-gradient(135deg,var(--gold),#a9852f);color:#0B1220;font-size:12px;font-weight:700;white-space:nowrap">
+                      ＋ Log Prize
+                    </button>
                   </div>
 
                   ${totalPool?`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding-top:10px;border-top:1px solid var(--line2)">
@@ -2936,8 +2942,6 @@ function vaultHubLogForm(vaults){
     ?`<option value="">— select from pool —</option>${availWatches.map(w=>`<option value="${esc(w.id)}" data-label="${esc(w.brand+' '+w.model)}" data-cost="${Number(w.cost)||0}">${esc(w.brand+' '+w.model)}${w.ref?' ('+esc(w.ref)+')':''} — £${Number(w.cost)||0}</option>`).join('')}`
     :`<option value="">— no available watches in pool —</option>`;
   // Customer lookup
-  const custOpts=`<option value="">— no customer linked —</option>`+
-    [...(DB.customers||[])].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(c=>`<option value="${esc(c.id)}">${esc(c.name||'Unnamed')}${c.email?' — '+esc(c.email):''}</option>`).join('');
   const fldStyle='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px';
   return `<div class="card" style="margin-bottom:16px">
     <div class="card-h"><h3>Log a Won Prize</h3><span class="muted" style="font-size:11.5px">Record each prize as it's triggered — keeps P&amp;L live</span></div>
@@ -2975,11 +2979,7 @@ function vaultHubLogForm(vaults){
         <div class="field" id="vh_cost_wrap"><label id="vh_cost_lbl">Cost Paid (£)</label><input id="vh_cost" type="number" placeholder="0"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Winner — Customer Lookup</label>
-          <select id="vh_cust" style="${fldStyle}">
-            ${custOpts}
-          </select>
-        </div>
+        ${customerSearchField('vh_cust','Winner — Customer Lookup')}
         <div class="field"><label>Winner Ticket #</label><input id="vh_ticket" placeholder="e.g. #4521"></div>
       </div>
       <div class="field-row">
@@ -3252,13 +3252,11 @@ function delVaultWatch(id){
 
 function markVaultWatchWon(id){
   const w=(DB.vaultWatches||[]).find(x=>x.id===id); if(!w) return;
-  const custOpts=`<option value="">— no customer linked —</option>`+
-    [...(DB.customers||[])].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(c=>`<option value="${esc(c.id)}">${esc(c.name||'Unnamed')}${c.email?' — '+esc(c.email):''}</option>`).join('');
   const fld='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;margin-top:5px';
   const estCost=Number(w.estimatedCost||w.cost)||0;
   openModal(`<div class="modal" style="max-width:520px"><div class="modal-h"><h3>Mark as Won — ${esc(w.brand)} ${esc(w.model)}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
-      <div class="field"><label>Winner — Customer Lookup</label><select id="mww_cust" style="${fld}">${custOpts}</select></div>
+      ${customerSearchField('mww_cust','Winner — Customer Lookup')}
       <div class="field"><label>Winner Name (if not in customer list)</label><input id="mww_name" placeholder="Leave blank if selected above" style="${fld}"></div>
       <div class="field-row" style="margin-top:0">
         <div class="field"><label>Winner Ticket #</label><input id="mww_ticket" placeholder="e.g. #4521" style="${fld}"></div>
@@ -3301,7 +3299,7 @@ function mwwUpdateVariance(estCost){
 
 function confirmMarkVaultWatchWon(id){
   const w=(DB.vaultWatches||[]).find(x=>x.id===id); if(!w) return;
-  const custId=(document.getElementById('mww_cust')||{}).value||'';
+  const custId=(document.getElementById('mww_cust_id')||{}).value||'';
   const manualName=(document.getElementById('mww_name')||{}).value||'';
   const ticket=(document.getElementById('mww_ticket')||{}).value||'';
   const dateStr=(document.getElementById('mww_date')||{}).value||today();
@@ -3571,13 +3569,11 @@ function delCashTier(dropId,tierId){
 
 function openAllocateCashWin(dropId,tierId,amount){
   const d=dropById(dropId); if(!d) return;
-  const custOpts=`<option value="">— no customer linked —</option>`+
-    [...(DB.customers||[])].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(c=>`<option value="${esc(c.id)}">${esc(c.name||'Unnamed')}${c.email?' — '+esc(c.email):''}</option>`).join('');
   const fld='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;margin-top:5px';
   openModal(`<div class="modal" style="max-width:480px">
     <div class="modal-h"><h3>Allocate £${amount} Cash Win</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
-      <div class="field"><label>Winner — Customer Lookup</label><select id="acw_cust" style="${fld}">${custOpts}</select></div>
+      ${customerSearchField('acw_cust','Winner — Customer Lookup')}
       <div class="field"><label>Winner Name (if not in list)</label><input id="acw_name" placeholder="Leave blank if selected above" style="${fld}"></div>
       <div class="field-row" style="margin-top:0">
         <div class="field"><label>Winning Ticket #</label><input id="acw_ticket" placeholder="e.g. #4521" style="${fld}"></div>
@@ -3601,7 +3597,7 @@ function openAllocateCashWin(dropId,tierId,amount){
 function confirmAllocateCashWin(dropId,tierId,amount){
   const d=dropById(dropId); if(!d) return;
   vaultCashInit(d);
-  const custId=(document.getElementById('acw_cust')||{}).value||'';
+  const custId=(document.getElementById('acw_cust_id')||{}).value||'';
   const manualName=(document.getElementById('acw_name')||{}).value||'';
   const ticket=(document.getElementById('acw_ticket')||{}).value||'';
   const dateWon=(document.getElementById('acw_date')||{}).value||today();
@@ -3815,6 +3811,117 @@ function onVHCashTierSelect(){
   if(labelEl) labelEl.value=`£${amount} Cash Prize`;
 }
 
+/* ── Customer search field ─────────────────────────────────────────── */
+function customerSearchField(fieldId, label, extraStyle){
+  const s=extraStyle||'';
+  return `<div class="field">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+      <label style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:600">${label}</label>
+      <button type="button" onclick="openQuickAddCustomer('${fieldId}')"
+        style="font-size:11px;color:var(--gold2);background:none;border:none;cursor:pointer;padding:0;font-weight:600">＋ Add Customer</button>
+    </div>
+    <div style="position:relative;${s}" data-csearch="${fieldId}">
+      <input type="text" id="${fieldId}_search" autocomplete="off" placeholder="Search name or email…"
+        oninput="filterCustomerSearch('${fieldId}',this.value)"
+        onfocus="filterCustomerSearch('${fieldId}',this.value)"
+        style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 34px 9px 12px;font-size:13px;outline:none;box-sizing:border-box">
+      <input type="hidden" id="${fieldId}_id" value="">
+      <span id="${fieldId}_clear" onclick="clearCustomerSearch('${fieldId}')"
+        style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--ink3);font-size:18px;line-height:1">×</span>
+      <div id="${fieldId}_results"
+        style="display:none;position:absolute;z-index:300;width:100%;top:calc(100% + 4px);left:0;
+               background:var(--panel);border:1px solid var(--line2);border-radius:8px;
+               box-shadow:0 6px 24px rgba(0,0,0,.5);max-height:220px;overflow-y:auto"></div>
+    </div>
+  </div>`;
+}
+
+function filterCustomerSearch(fieldId, query){
+  const res=document.getElementById(fieldId+'_results'); if(!res) return;
+  const q=(query||'').trim().toLowerCase();
+  if(!q){ res.style.display='none'; return; }
+  const matches=(DB.customers||[])
+    .filter(c=>(c.name||'').toLowerCase().includes(q)||(c.email||'').toLowerCase().includes(q))
+    .slice(0,8);
+  res.innerHTML=matches.length
+    ? matches.map(c=>`<div
+        onclick="selectCustomerResult('${fieldId}',this)"
+        data-id="${esc(c.id)}" data-name="${esc(c.name||'Unnamed')}" data-email="${esc(c.email||'')}"
+        style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--line2)"
+        onmouseover="this.style.background='var(--panel2)'" onmouseout="this.style.background=''">
+        <div style="font-size:13px;font-weight:600;color:var(--ink)">${esc(c.name||'Unnamed')}</div>
+        ${c.email?`<div style="font-size:11px;color:var(--ink3)">${esc(c.email)}</div>`:''}
+      </div>`).join('')
+    : `<div style="padding:12px 14px;font-size:13px;color:var(--ink3)">No customers found — use <b>＋ Add Customer</b> above</div>`;
+  res.style.display='';
+  // close on outside click
+  const closer=e=>{
+    const wrap=document.querySelector('[data-csearch="'+fieldId+'"]');
+    if(wrap&&!wrap.contains(e.target)){ res.style.display='none'; document.removeEventListener('click',closer); }
+  };
+  setTimeout(()=>document.addEventListener('click',closer),0);
+}
+
+function selectCustomerResult(fieldId, el){
+  const id=el.dataset.id, name=el.dataset.name, email=el.dataset.email;
+  const inp=document.getElementById(fieldId+'_search');
+  const hid=document.getElementById(fieldId+'_id');
+  const clr=document.getElementById(fieldId+'_clear');
+  const res=document.getElementById(fieldId+'_results');
+  if(inp) inp.value=name+(email?' — '+email:'');
+  if(hid) hid.value=id;
+  if(clr) clr.style.display='';
+  if(res) res.style.display='none';
+}
+
+function clearCustomerSearch(fieldId){
+  const inp=document.getElementById(fieldId+'_search');
+  const hid=document.getElementById(fieldId+'_id');
+  const clr=document.getElementById(fieldId+'_clear');
+  const res=document.getElementById(fieldId+'_results');
+  if(inp){ inp.value=''; inp.focus(); }
+  if(hid) hid.value='';
+  if(clr) clr.style.display='none';
+  if(res) res.style.display='none';
+}
+
+function openQuickAddCustomer(returnFieldId){
+  const fld='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;margin-top:5px';
+  openModal(`<div class="modal" style="max-width:420px">
+    <div class="modal-h"><h3>Add Customer</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Name</label><input id="qac_name" placeholder="Full name" style="${fld}" autofocus></div>
+      <div class="field"><label>Email</label><input id="qac_email" type="email" placeholder="email@example.com" style="${fld}"></div>
+      <div class="field"><label>Phone (optional)</label><input id="qac_phone" type="tel" placeholder="+44…" style="${fld}"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="confirmQuickAddCustomer('${returnFieldId}')">Add & Select →</button>
+    </div>
+  </div>`);
+}
+
+function confirmQuickAddCustomer(fieldId){
+  const name=((document.getElementById('qac_name')||{}).value||'').trim();
+  const email=((document.getElementById('qac_email')||{}).value||'').trim();
+  const phone=((document.getElementById('qac_phone')||{}).value||'').trim();
+  if(!name){ alert('Enter a name'); return; }
+  DB.customers=DB.customers||[];
+  const c={id:uid('cust'),name,email,phone,orders:0,totalSpend:0,created:now()};
+  DB.customers.push(c);
+  saveDB(); closeModal();
+  // Pre-select the new customer in the search field
+  setTimeout(()=>{
+    const inp=document.getElementById(fieldId+'_search');
+    const hid=document.getElementById(fieldId+'_id');
+    const clr=document.getElementById(fieldId+'_clear');
+    if(inp) inp.value=name+(email?' — '+email:'');
+    if(hid) hid.value=c.id;
+    if(clr) clr.style.display='';
+  },100);
+  toast(`${name} added`);
+}
+
 function onVHVaultChange(){
   const vaultId=(document.getElementById('vh_vault')||{}).value||'';
   const sel=document.getElementById('vh_watch_pool'); if(!sel) return;
@@ -3841,7 +3948,7 @@ function addVaultHubPrize(){
   const label=(document.getElementById('vh_label')||{}).value||'';
   const cost=Number((document.getElementById('vh_cost')||{}).value)||0;
   const date=(document.getElementById('vh_date')||{}).value||today();
-  const custId=(document.getElementById('vh_cust')||{}).value||'';
+  const custId=(document.getElementById('vh_cust_id')||{}).value||'';
   const ticket=(document.getElementById('vh_ticket')||{}).value||'';
   const manualName=(document.getElementById('vh_winner_name')||{}).value||'';
   const watchPoolId=(document.getElementById('vh_watch_pool')||{}).value||'';
