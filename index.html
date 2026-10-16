@@ -2963,6 +2963,13 @@ function vaultHubLogForm(vaults){
           </select>
         </div>
       </div>
+      <div class="field-row" id="vh_cash_pool_row" style="display:none">
+        <div class="field" style="grid-column:1/-1"><label>Pick Cash Prize from Pool</label>
+          <select id="vh_cash_tier" style="${fldStyle}" onchange="onVHCashTierSelect()">
+            <option value="">— select vault first —</option>
+          </select>
+        </div>
+      </div>
       <div class="field-row">
         <div class="field"><label>Prize Label</label><input id="vh_label" placeholder="e.g. Tudor BB58 Blue — auto-filled from pool"></div>
         <div class="field" id="vh_cost_wrap"><label id="vh_cost_lbl">Cost Paid (£)</label><input id="vh_cost" type="number" placeholder="0"></div>
@@ -3769,12 +3776,43 @@ function onVHTypeChange(){
   const lbl=document.getElementById('vh_cost_lbl');
   const inp=document.getElementById('vh_cost');
   const poolRow=document.getElementById('vh_pool_row');
+  const cashPoolRow=document.getElementById('vh_cash_pool_row');
   if(wrap){
     if(type==='watch'){ lbl.textContent='Cost Paid (£)'; inp.placeholder='What you paid'; wrap.style.display=''; }
-    else if(type==='cash'){ lbl.textContent='Amount (£)'; inp.placeholder='Cash prize amount'; wrap.style.display=''; }
+    else if(type==='cash'){ lbl.textContent='Amount (£)'; inp.placeholder='Auto-filled from pool'; wrap.style.display=''; }
     else { wrap.style.display='none'; }
   }
   if(poolRow) poolRow.style.display=type==='watch'?'':'none';
+  if(cashPoolRow){
+    cashPoolRow.style.display=type==='cash'?'':'none';
+    if(type==='cash') refreshVHCashTiers();
+  }
+}
+
+function refreshVHCashTiers(){
+  const sel=document.getElementById('vh_cash_tier'); if(!sel) return;
+  const vaultId=(document.getElementById('vh_vault')||{}).value||'';
+  const d=dropById(vaultId);
+  if(!d){ sel.innerHTML='<option value="">— select vault first —</option>'; return; }
+  vaultCashInit(d);
+  const opts=d.cashTiers.map(t=>{
+    const used=(d.cashWins||[]).filter(w=>w.tierId===t.id).length;
+    const rem=t.total-used;
+    return `<option value="${esc(t.id)}" data-amount="${t.amount}" ${rem<=0?'disabled':''}>£${t.amount} cash prize — ${rem} remaining of ${t.total}</option>`;
+  });
+  sel.innerHTML=opts.length
+    ?`<option value="">— pick a cash prize —</option>${opts.join('')}`
+    :`<option value="">— no cash tiers set up — go to Cash Pool tab —</option>`;
+}
+
+function onVHCashTierSelect(){
+  const sel=document.getElementById('vh_cash_tier'); if(!sel||!sel.value) return;
+  const opt=sel.options[sel.selectedIndex];
+  const amount=opt.dataset.amount||'';
+  const costEl=document.getElementById('vh_cost');
+  const labelEl=document.getElementById('vh_label');
+  if(costEl) costEl.value=amount;
+  if(labelEl) labelEl.value=`£${amount} Cash Prize`;
 }
 
 function onVHVaultChange(){
@@ -3784,6 +3822,7 @@ function onVHVaultChange(){
   sel.innerHTML=avail.length
     ?`<option value="">— select from pool —</option>${avail.map(w=>`<option value="${esc(w.id)}" data-label="${esc(w.brand+' '+w.model)}" data-cost="${Number(w.cost)||0}">${esc(w.brand+' '+w.model)}${w.ref?' ('+esc(w.ref)+')':''} — £${Number(w.cost)||0}</option>`).join('')}`
     :`<option value="">— no available watches in pool —</option>`;
+  refreshVHCashTiers();
 }
 
 function onVHWatchSelect(){
@@ -3806,21 +3845,25 @@ function addVaultHubPrize(){
   const ticket=(document.getElementById('vh_ticket')||{}).value||'';
   const manualName=(document.getElementById('vh_winner_name')||{}).value||'';
   const watchPoolId=(document.getElementById('vh_watch_pool')||{}).value||'';
-  if(!label){ alert('Enter a prize label — or pick from the watch pool above'); return; }
-  // Resolve winner name: prefer linked customer, then manual
+  const cashTierId=(document.getElementById('vh_cash_tier')||{}).value||'';
+  if(!label){ alert('Enter a prize label — or pick from the pool above'); return; }
   const linkedCust=custId?DB.customers.find(c=>c.id===custId):null;
   const winnerName=linkedCust?linkedCust.name:manualName;
-  // Log the prize
   d.vaultPrizes=d.vaultPrizes||[];
   const pid=uid('vp');
   d.vaultPrizes.push({id:pid,type,label,cost:type==='watch'?cost:0,amount:type==='cash'?cost:0,date,winnerName,custId,ticket,created:now()});
-  // If linked to watch pool, mark it as won there too
+  // If linked to watch pool, mark it won
   if(watchPoolId){
     const w=(DB.vaultWatches||[]).find(x=>x.id===watchPoolId);
     if(w){ w.status='won'; w.winnerName=winnerName; w.dateWon=date; w.prizeId=pid; w.custId=custId; w.ticket=ticket; }
   }
+  // If linked to cash tier, create a cashWin record
+  if(type==='cash'&&cashTierId){
+    vaultCashInit(d);
+    d.cashWins.push({id:uid('cw'),tierId:cashTierId,amount:cost,winnerName,custId,ticket,dateWon:date,sortCode:'',accountNo:'',paid:false,chasing:false,chasingDate:'',created:now()});
+  }
   saveDB(); render();
-  toast(`Prize logged${winnerName?' — '+winnerName:''}`);
+  toast(`Prize logged${winnerName?' — '+winnerName:''}${type==='cash'&&!cashTierId?' (tip: set up Cash Pool tiers to track bank details)':''}`);
 }
 
 let dropFilter='All';
