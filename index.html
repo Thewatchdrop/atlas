@@ -2437,33 +2437,37 @@ function vDashboard(){
     <div class="page-actions"><button class="btn btn-gold" onclick="newDrop()">＋ New Drop</button></div>
   </div>
 
-  ${todayCount?`<div class="card" style="border-color:var(--warn)">
-    <div class="card-h"><h3>📋 Today — ${todayCount}</h3></div>
-    <div class="card-b">
-      ${dueTasks.map(t=>`
-      <div class="row-item">
-        <div class="tick" onclick="event.stopPropagation();toggleTask('${t.id}')"></div>
-        <div class="txt" onclick="openTask('${t.id}')"><div class="t">${esc(t.title)}</div>
-          <div class="meta">Task${t.assignedTo?' · '+esc(t.assignedTo):''}${t.urgent?' · ⚡ Urgent':''}</div></div>
-      </div>`).join('')}
-
-      ${dueCp.map(item=>`
-      <div class="row-item">
-        <div class="txt"><div class="t">${esc(item.dropNumber)} — ${esc(item.watch)}</div>
-          <div class="meta">Checkpoint · ${esc(item.cp.label)} — enter today's tickets sold</div></div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="number" placeholder="Tickets" style="width:90px" onchange="fillCheckpointQuick('${item.dropId}','${item.cp.id}',this.value)">
-          <button class="btn btn-sm" onclick="openTrackerFor('${item.dropId}')">Open tracker →</button>
-        </div>
-      </div>`).join('')}
-      ${dueCs.map(({d,item})=>`
-      <div class="row-item">
-        <div class="tick" onclick="event.stopPropagation();toggleContentItem('${d.id}','${item.id}')"></div>
-        <div class="txt" onclick="go('contentSchedule')"><div class="t">${esc(item.title)}</div>
-          <div class="meta">Content · ${esc(d.number)} — ${esc(watchName(d.watchId))} · ${item.time} · ${item.channel}</div></div>
-      </div>`).join('')}
-    </div>
-  </div>`:''}
+  ${(()=>{
+    const liveAll=[...DB.drops.filter(d=>d.status==='Live')];
+    if(!liveAll.length) return '';
+    return `<div style="margin-bottom:20px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--ink3);font-weight:600;margin-bottom:12px">📊 Daily Sales Update</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+        ${liveAll.map(d=>{
+          const isVault=d.type==='Vault';
+          const label=isVault?(d.name||d.number||'Vault'):(d.number||'Drop');
+          const sub=isVault?'Vault':esc(watchName(d.watchId)||d.type||'');
+          const log=d.ticketsLog||[];
+          const last=log[0]||null;
+          const todayTotal=(log.filter(e=>e.date===today()).reduce((a,e)=>a+(Number(e.tickets)||0),0));
+          return `<div class="card" style="padding:0">
+            <div style="padding:14px 16px 10px">
+              <div style="font-weight:700;font-size:13px;color:var(--ink)">${esc(label)}</div>
+              <div style="font-size:11.5px;color:var(--ink3);margin-top:2px">${sub}</div>
+              ${todayTotal?`<div style="font-size:11px;color:var(--gold2);margin-top:4px">+${todayTotal} recorded today</div>`:''}
+              ${last&&!todayTotal?`<div style="font-size:11px;color:var(--ink3);margin-top:4px">Last: ${last.tickets} · ${timeAgo(last.at)}</div>`:''}
+            </div>
+            <div style="padding:0 16px 14px;display:flex;gap:8px;align-items:center">
+              <input id="dtix_${d.id}" type="number" min="0" placeholder="Tickets sold today…"
+                style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:13px;outline:none"
+                onkeydown="if(event.key==='Enter')recordDailyTickets('${d.id}')">
+              <button class="btn btn-sm btn-gold" onclick="recordDailyTickets('${d.id}')">Record</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  })()}
 
   <div class="kpi-row">
     <div class="kpi"><div class="label">Live Drops</div><div class="val green">${live.length}</div><div class="sub">${upcoming.length} upcoming</div></div>
@@ -2519,23 +2523,61 @@ function vDashboard(){
             </div>
             <div style="display:flex;flex-direction:column;gap:0">
               ${vaultDrops.length?vaultDrops.map((d,i)=>{
-                const prizes=d.vaultPrizes||[];
-                const toPurchase =prizes.filter(p=>p.type==='watch'&&p.needsPurchasing&&!p.dispatched).length;
-                const toDispatch =prizes.filter(p=>p.type==='watch'&&!p.dispatched&&!p.needsPurchasing&&p.winnerName).length;
-                const bankMissing=prizes.filter(p=>p.type==='cash'&&!p.paid&&!p.sortCode&&!p.accountNo).length;
-                const readyToPay =prizes.filter(p=>p.type==='cash'&&!p.paid&&(p.sortCode||p.accountNo)).length;
-                const vaultLabel =esc(d.name||d.number||'Vault');
-                const anyAction  =toPurchase||toDispatch||bankMissing||readyToPay;
+                const prizes      = d.vaultPrizes||[];
+                const t           = d.tracker||{};
+                const toPurchase  = prizes.filter(p=>p.type==='watch'&&p.needsPurchasing&&!p.dispatched).length;
+                const toDispatch  = prizes.filter(p=>p.type==='watch'&&!p.dispatched&&!p.needsPurchasing&&p.winnerName).length;
+                const bankMissing = prizes.filter(p=>p.type==='cash'&&!p.paid&&!p.sortCode&&!p.accountNo).length;
+                const readyToPay  = prizes.filter(p=>p.type==='cash'&&!p.paid&&(p.sortCode||p.accountNo)).length;
+                const vaultLabel  = esc(d.name||d.number||'Vault');
+                const anyAction   = toPurchase||toDispatch||bankMissing||readyToPay;
+
+                // Progress stats
+                const totalPool    = Number(d.pool)||0;
+                const soldEntries  = Number(d.entriesSold)||0;
+                const entriesPct   = totalPool ? Math.round(soldEntries/totalPool*100) : 0;
+                const totalWatches = Number(t.watchCount)||0;
+                const watchesWon   = prizes.filter(p=>p.type==='watch').length;
+                const watchesPct   = totalWatches ? Math.round(watchesWon/totalWatches*100) : 0;
+                const totalCash    = Number(t.totalWinners||0) - totalWatches; // rough
+                const cashWon      = prizes.filter(p=>p.type==='cash').length;
+
+                // Comparison: is the watch win rate higher than sell-through? (bad = over-winning)
+                const delta        = watchesPct - entriesPct;
+                const deltaColor   = delta > 5 ? 'var(--danger)' : delta < -5 ? '#4ade80' : 'var(--ink3)';
+                const deltaLabel   = delta > 5 ? `▲ ${delta}% over` : delta < -5 ? `▼ ${Math.abs(delta)}% under` : '≈ on track';
+
+                const statBar=(label,won,total,pct,color)=>`
+                  <div style="min-width:140px">
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+                      <span style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.7px">${label}</span>
+                      <span style="font-size:11px;font-weight:700;color:${color}">${won}${total?'/'+total:''} <span style="font-weight:400;color:var(--ink3)">(${pct}%)</span></span>
+                    </div>
+                    <div style="height:4px;border-radius:2px;background:var(--bg2);overflow:hidden">
+                      <div style="height:100%;width:${Math.min(pct,100)}%;background:${color};border-radius:2px;transition:.3s"></div>
+                    </div>
+                  </div>`;
+
                 return `<div style="padding:14px 18px;${i>0?'border-top:1px solid var(--line2)':''};cursor:pointer" onclick="go('vaulthub','${d.id}')">
-                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
                     <div style="font-size:13px;font-weight:700;color:${anyAction?'var(--ink)':'var(--ink2)'}">⚡ ${vaultLabel}</div>
                     ${anyAction?'':pillWarn('All clear ✓')}
                   </div>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    ${statBubble(toPurchase,'var(--gold2)','🛒 To purchase')}
-                    ${statBubble(toDispatch,'var(--warn)','📦 To dispatch')}
-                    ${statBubble(bankMissing,'var(--danger)','🏦 Bank details')}
-                    ${statBubble(readyToPay,'#4ade80','💸 Ready to pay')}
+                  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
+                      ${statBubble(toPurchase,'var(--gold2)','🛒 To purchase')}
+                      ${statBubble(toDispatch,'var(--warn)','📦 To dispatch')}
+                      ${statBubble(bankMissing,'var(--danger)','🏦 Bank details')}
+                      ${statBubble(readyToPay,'#4ade80','💸 Ready to pay')}
+                    </div>
+                    ${totalPool?`<div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:10px;padding-left:8px;border-left:1px solid var(--line2)">
+                      ${statBar('Entries sold',soldEntries.toLocaleString('en-GB'),totalPool.toLocaleString('en-GB'),entriesPct,'var(--gold2)')}
+                      ${statBar('Watches won',watchesWon,totalWatches,watchesPct,'#818cf8')}
+                      ${statBar('Cash prizes',cashWon,'',cashWon,'#4ade80')}
+                      <div style="font-size:11px;color:${deltaColor};font-weight:600;margin-top:2px">
+                        Watch win rate vs sell-through: ${deltaLabel}
+                      </div>
+                    </div>`:''}
                   </div>
                 </div>`;
               }).join(''):`<div class="empty" style="padding:20px">No vaults created yet.</div>`}
@@ -2643,6 +2685,21 @@ let vaultAdCopyVersion=0; // 0–4 (V1–V5)
 let vaultWatchFilter='all'; // 'all','available','won'
 
 function setVaultHubTab(v){ vaultHubTab=v; vaultPrizeFilter='all'; vaultRenamingId=null; render(); }
+
+function recordDailyTickets(dropId){
+  const d=dropById(dropId); if(!d) return;
+  const inp=document.getElementById('dtix_'+dropId);
+  if(!inp) return;
+  const val=parseInt(inp.value)||0;
+  if(!val){ toast('Enter a ticket count first'); return; }
+  d.ticketsLog=d.ticketsLog||[];
+  d.ticketsLog.unshift({at:new Date().toISOString(),tickets:val,date:today()});
+  // Also update entriesSold on the drop
+  d.entriesSold=(Number(d.entriesSold)||0)+val;
+  inp.value='';
+  queueSave(); render();
+  toast(`✓ Recorded ${val} tickets for ${d.number||d.name}`);
+}
 let vaultRenamingId=null;
 function startVaultRename(id,e){ e.stopPropagation(); vaultRenamingId=id; render(); setTimeout(()=>{ const el=document.getElementById('vaultRenameInput'); if(el){el.focus();el.select();} },30); }
 function commitVaultRename(id){ const el=document.getElementById('vaultRenameInput'); if(!el) return; const v=el.value.trim(); if(v){ const d=dropById(id); if(d){ d.name=v; queueSave(); } } vaultRenamingId=null; render(); }
@@ -3821,7 +3878,28 @@ function dropOverview(d){
       </div>
     </div>
   </div>
-  ${dropImages}`;
+  ${dropImages}
+  ${(()=>{
+    const log=d.ticketsLog||[];
+    if(!log.length) return '';
+    const todayTotal=log.filter(e=>e.date===today()).reduce((a,e)=>a+(Number(e.tickets)||0),0);
+    return `<div class="card">
+      <div class="card-h">
+        <h3>📊 Daily Sales Log</h3>
+        <span class="muted" style="font-size:11.5px">${log.length} entries · Today: +${todayTotal} tickets</span>
+      </div>
+      <div class="card-b" style="max-height:320px;overflow-y:auto">
+        ${log.map(e=>`
+          <div class="row-item">
+            <div class="txt">
+              <div class="t" style="font-size:13px">+${Number(e.tickets).toLocaleString()} tickets recorded</div>
+              <div class="meta">${new Date(e.at).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})} · ${new Date(e.at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
+            </div>
+            <span style="font-weight:700;font-size:14px;color:var(--gold2)">+${Number(e.tickets).toLocaleString()}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  })()}`;
 }
 /* ─── Marketing Master Prompt ─────────────────────────────────────────────── */
 const MARKETING_MASTER_PROMPT = `You are the Head of Marketing, senior luxury-watch copywriter and advertising strategist for The Watch Drop (thewatchdrop.co.uk), a UK luxury watch prize competition company.
