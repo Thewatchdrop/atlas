@@ -2642,7 +2642,11 @@ let vaultHubView='tracker'; // 'tracker' | 'watchpool' | 'adcopy'
 let vaultAdCopyVersion=0; // 0–4 (V1–V5)
 let vaultWatchFilter='all'; // 'all','available','won'
 
-function setVaultHubTab(v){ vaultHubTab=v; vaultPrizeFilter='all'; render(); }
+function setVaultHubTab(v){ vaultHubTab=v; vaultPrizeFilter='all'; vaultRenamingId=null; render(); }
+let vaultRenamingId=null;
+function startVaultRename(id,e){ e.stopPropagation(); vaultRenamingId=id; render(); setTimeout(()=>{ const el=document.getElementById('vaultRenameInput'); if(el){el.focus();el.select();} },30); }
+function commitVaultRename(id){ const el=document.getElementById('vaultRenameInput'); if(!el) return; const v=el.value.trim(); if(v){ const d=dropById(id); if(d){ d.name=v; queueSave(); } } vaultRenamingId=null; render(); }
+function cancelVaultRename(){ vaultRenamingId=null; render(); }
 function setVaultPrizeFilter(f){ vaultPrizeFilter=f; render(); }
 function setVaultHubView(v){ vaultHubView=v; render(); }
 function setVaultAdCopyVersion(i){ vaultAdCopyVersion=i; render(); }
@@ -3165,7 +3169,24 @@ function vVaultHub(){
   const showVaultBadge=activeVaults.length>1;
   const tabBar=`<div class="tabs" style="margin-bottom:20px">
     <div class="tab ${vaultHubTab==='all'?'active':''}" onclick="setVaultHubTab('all')">All Vaults <span style="font-size:11px;opacity:.6">${vaults.length}</span></div>
-    ${vaults.map(d=>`<div class="tab ${vaultHubTab===d.id?'active':''}" onclick="setVaultHubTab('${d.id}')">${esc(d.number||d.name||'Vault')}<span style="font-size:11px;opacity:.6;margin-left:5px">${(d.vaultPrizes||[]).length}</span></div>`).join('')}
+    ${vaults.map(d=>{
+      const isActive=vaultHubTab===d.id;
+      const label=esc(d.name||d.number||'Vault');
+      const count=`<span style="font-size:11px;opacity:.6;margin-left:5px">${(d.vaultPrizes||[]).length}</span>`;
+      if(isActive && vaultRenamingId===d.id){
+        return `<div class="tab active" style="padding:0;overflow:visible">
+          <input id="vaultRenameInput" value="${label}"
+            style="background:transparent;border:none;outline:none;color:var(--gold);font-size:13px;font-weight:600;width:160px;padding:10px 12px"
+            onkeydown="if(event.key==='Enter')commitVaultRename('${d.id}');if(event.key==='Escape')cancelVaultRename();"
+            onblur="commitVaultRename('${d.id}')">
+          ${count}
+        </div>`;
+      }
+      return `<div class="tab ${isActive?'active':''}" onclick="setVaultHubTab('${d.id}')" style="display:flex;align-items:center;gap:6px">
+        ${label}${count}
+        ${isActive?`<span onclick="startVaultRename('${d.id}',event)" title="Rename" style="opacity:.5;cursor:pointer;font-size:11px;margin-left:2px">✏️</span>`:''}
+      </div>`;
+    }).join('')}
   </div>`;
   const switcher=`<div style="display:flex;gap:8px;margin-bottom:22px">
     <button onclick="setVaultHubView('tracker')" class="btn ${vaultHubView==='tracker'?'btn-gold':''}">📊 Prize Tracker</button>
