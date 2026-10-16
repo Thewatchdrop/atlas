@@ -2491,106 +2491,109 @@ function vDashboard(){
         </div>
       </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:20px">
       ${(()=>{
-        // Main drop winners awaiting dispatch
-        const mainDispatch=DB.winners.filter(w=>!w.dispatched);
-        // Vault prizes awaiting payment (cash)
-        const vaultCash=DB.drops.filter(d=>d.type==='Vault')
-          .flatMap(d=>(d.vaultPrizes||[]).filter(p=>p.type==='cash'&&!p.paid)
-            .map(p=>Object.assign({},p,{_dropNum:d.number||d.name||'Vault',_dropId:d.id})));
-        // Vault prizes awaiting dispatch (watch)
-        const vaultWatch=DB.drops.filter(d=>d.type==='Vault')
-          .flatMap(d=>(d.vaultPrizes||[]).filter(p=>p.type==='watch'&&!p.dispatched)
-            .map(p=>Object.assign({},p,{_dropNum:d.number||d.name||'Vault',_dropId:d.id})));
 
-        // Watches needing purchase
-        const needsPurchase=DB.drops.filter(d=>d.type==='Vault')
-          .flatMap(d=>(d.vaultPrizes||[]).filter(p=>p.type==='watch'&&p.needsPurchasing&&!p.dispatched)
-            .map(p=>Object.assign({},p,{_dropNum:d.number||d.name||'Vault',_dropId:d.id})));
+        /* ── helpers ───────────────────────────────────────────── */
+        const pillDanger =(t)=>`<span class="pill" style="background:rgba(242,109,109,.12);color:var(--danger);border:1px solid rgba(242,109,109,.2);font-size:10px">${t}</span>`;
+        const pillWarn   =(t)=>`<span class="pill" style="background:rgba(245,165,36,.12);color:var(--warn);border:1px solid rgba(245,165,36,.2);font-size:10px">${t}</span>`;
+        const pillBlue   =(t)=>`<span class="pill" style="background:rgba(106,169,255,.12);color:var(--blue);border:1px solid rgba(106,169,255,.2);font-size:10px">${t}</span>`;
+        const pillGold   =(t)=>`<span class="pill" style="background:rgba(201,162,75,.14);color:var(--gold2);border:1px solid rgba(201,162,75,.25);font-size:10px">${t}</span>`;
 
-        const purchaseCard=needsPurchase.length?`<div class="card" style="border-color:rgba(201,162,75,.4)">
-          <div class="card-h"><h3>🛒 Watches to purchase</h3><span class="link" onclick="go('vaulthub')">Vault Hub →</span></div>
-          <div class="card-b">${needsPurchase.map(p=>`
-            <div class="row-item" style="flex-wrap:wrap;gap:8px;cursor:pointer" onclick="go('vaulthub')">
-              <div class="txt" style="flex:1;min-width:160px">
-                <div class="t">${esc(p.label||'Watch Prize')} <span style="font-size:11px;color:var(--ink3)">⚡ ${esc(p._dropNum)}</span></div>
-                <div class="meta">${p.winnerName?esc(p.winnerName):'No winner yet'} · Flagged ${p.purchaseFlagDate?fmtDate(p.purchaseFlagDate):''}</div>
-              </div>
-              <span style="font-weight:700;font-family:monospace;font-size:13px">${gbp(p.cost||0)}</span>
-              <span class="pill" style="background:rgba(201,162,75,.14);color:var(--gold2);border:1px solid rgba(201,162,75,.25);font-size:10px">🛒 Action required</span>
-            </div>`).join('')}
-          </div></div>`:'' ;
+        /* ── stat bubble ───────────────────────────────────────── */
+        const statBubble=(count,color,label)=>`
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:68px;padding:10px 8px;border-radius:8px;background:var(--bg2);border:1px solid var(--line2)">
+            <div style="font-size:22px;font-weight:700;color:${count>0?color:'var(--ink3)'};">${count}</div>
+            <div style="font-size:10px;color:var(--ink3);text-align:center;line-height:1.3">${label}</div>
+          </div>`;
 
-        const cashCard=`<div class="card" style="border-color:${vaultCash.some(p=>!p.sortCode&&!p.accountNo&&!p.chasing)?'rgba(242,109,109,.35)':'var(--line)'}">
-          <div class="card-h"><h3>💸 Cash prizes awaiting payment</h3><span class="link" onclick="go('vaulthub')">Vault Hub →</span></div>
-          <div class="card-b">${vaultCash.length?vaultCash.map(p=>{
-            const missingBank=!p.sortCode&&!p.accountNo;
-            const isChasing=p.chasing||false;
-            return `<div class="row-item" style="flex-wrap:wrap;gap:8px;cursor:pointer" onclick="go('vaulthub')">
-              <div class="txt" style="flex:1;min-width:160px">
-                <div class="t">${esc(p.label||'Cash Prize')} <span style="font-size:11px;color:var(--ink3)">${esc(p._dropNum)}</span></div>
-                <div class="meta">
-                  ${p.winnerName?`<span style="color:var(--ink2)">${esc(p.winnerName)}</span>`:
-                    isChasing?`<span style="color:var(--blue)">🔵 Chasing${p.chasingDate?' · sent '+fmtDate(p.chasingDate):''}</span>`:
-                    `<span style="color:var(--danger);font-weight:600">⚠ No winner — awaiting email to wins@thewatchdrop.co.uk</span>`}
-                  ${p.date?' · won '+fmtDate(p.date):''}
-                </div>
-              </div>
-              <span style="font-weight:700;font-family:monospace;font-size:13px">${gbp(p.amount||0)}</span>
-              ${missingBank&&!isChasing?`<span class="pill" style="background:rgba(242,109,109,.12);color:var(--danger);border:1px solid rgba(242,109,109,.2);font-size:10px">⚠ Bank details missing</span>`:
-                missingBank&&isChasing?`<span class="pill" style="background:rgba(106,169,255,.12);color:var(--blue);border:1px solid rgba(106,169,255,.2);font-size:10px">🔵 Chasing</span>`:
-                `<span class="pill" style="background:rgba(245,165,36,.12);color:var(--warn);border:1px solid rgba(245,165,36,.2);font-size:10px">Ready to pay</span>`}
-            </div>`;
-          }).join(''):`<div class="empty">No cash prizes pending. ✓</div>`}
-          </div></div>`;
+        /* ══════════════════════════════════════════════════════════
+           SECTION 1 — VAULTS
+        ══════════════════════════════════════════════════════════ */
+        const vaultDrops=DB.drops.filter(d=>d.type==='Vault');
+        const vaultSection=`
+          <div class="card">
+            <div class="card-h">
+              <h3>⚡ Vaults</h3>
+              <span class="link" onclick="go('vaulthub')">Vault Hub →</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0">
+              ${vaultDrops.length?vaultDrops.map((d,i)=>{
+                const prizes=d.vaultPrizes||[];
+                const toPurchase =prizes.filter(p=>p.type==='watch'&&p.needsPurchasing&&!p.dispatched).length;
+                const toDispatch =prizes.filter(p=>p.type==='watch'&&!p.dispatched&&!p.needsPurchasing&&p.winnerName).length;
+                const bankMissing=prizes.filter(p=>p.type==='cash'&&!p.paid&&!p.sortCode&&!p.accountNo).length;
+                const readyToPay =prizes.filter(p=>p.type==='cash'&&!p.paid&&(p.sortCode||p.accountNo)).length;
+                const vaultLabel =esc(d.number||d.name||'Vault');
+                const anyAction  =toPurchase||toDispatch||bankMissing||readyToPay;
+                return `<div style="padding:14px 18px;${i>0?'border-top:1px solid var(--line2)':''};cursor:pointer" onclick="go('vaulthub','${d.id}')">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                    <div style="font-size:13px;font-weight:700;color:${anyAction?'var(--ink)':'var(--ink2)'}">⚡ ${vaultLabel}</div>
+                    ${anyAction?'':pillWarn('All clear ✓')}
+                  </div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    ${statBubble(toPurchase,'var(--gold2)','🛒 To purchase')}
+                    ${statBubble(toDispatch,'var(--warn)','📦 To dispatch')}
+                    ${statBubble(bankMissing,'var(--danger)','🏦 Bank details')}
+                    ${statBubble(readyToPay,'#4ade80','💸 Ready to pay')}
+                  </div>
+                </div>`;
+              }).join(''):`<div class="empty" style="padding:20px">No vaults created yet.</div>`}
+            </div>
+          </div>`;
 
-        const dispatchCard=`<div class="card" style="border-color:${(mainDispatch.length||vaultWatch.length)?'rgba(245,165,36,.3)':'var(--line)'}">
-          <div class="card-h"><h3>📦 Watches awaiting dispatch</h3><span class="link" onclick="go('winners')">Winners →</span></div>
-          <div class="card-b">
-          ${mainDispatch.map(w=>{
-            const d=w.dropId?dropById(w.dropId):null;
-            const missingAddr=!w.address&&!w.postcode;
-            return `<div class="row-item" style="flex-wrap:wrap;gap:8px;cursor:pointer" onclick="go('winners');setTimeout(()=>openWinner('${w.id}'),50)">
-              <div class="txt" style="flex:1;min-width:160px">
-                <div class="t">${esc(w.name)} <span style="font-size:11px;color:var(--ink3)">${d?esc(d.number):''}</span></div>
-                <div class="meta">${watchName((d||{}).watchId)}
-                  ${missingAddr?` · <span style="color:var(--danger);font-weight:600">⚠ Address missing</span>`:` · ${esc(w.postcode||w.location||'')}`}
-                </div>
-              </div>
-              ${missingAddr?`<span class="pill" style="background:rgba(242,109,109,.12);color:var(--danger);border:1px solid rgba(242,109,109,.2);font-size:10px">⚠ No address</span>`:
-                `<span class="pill" style="background:rgba(245,165,36,.12);color:var(--warn);border:1px solid rgba(245,165,36,.2);font-size:10px">Dispatch</span>`}
-            </div>`;
-          }).join('')}
-          ${vaultWatch.map(p=>{
-            const cust=p.custId?DB.customers.find(c=>c.id===p.custId):null;
-            const addr=cust?(cust.city||cust.postcode):'';
-            const missingAddr=!addr;
-            const missingWinner=!p.winnerName;
-            const isChasing=p.chasing||false;
-            return `<div class="row-item" style="flex-wrap:wrap;gap:8px;cursor:pointer" onclick="go('vaulthub')">
-              <div class="txt" style="flex:1;min-width:160px">
-                <div class="t">${esc(p.label||'Watch Prize')} <span style="font-size:11px;color:var(--ink3)">⚡ ${esc(p._dropNum)}</span></div>
-                <div class="meta">
-                  ${p.winnerName?esc(p.winnerName):
-                    isChasing?`<span style="color:var(--blue)">🔵 Chasing${p.chasingDate?' · sent '+fmtDate(p.chasingDate):''}</span>`:
-                    `<span style="color:var(--danger);font-weight:600">⚠ No winner — awaiting email to wins@thewatchdrop.co.uk</span>`}
-                  ${addr?' · '+esc(addr):''}
-                  ${p.ticket?' · Ticket '+esc(p.ticket):''}
-                </div>
-              </div>
-              ${missingWinner&&!isChasing?`<span class="pill" style="background:rgba(242,109,109,.12);color:var(--danger);border:1px solid rgba(242,109,109,.2);font-size:10px">⚠ No winner</span>`:
-                missingWinner&&isChasing?`<span class="pill" style="background:rgba(106,169,255,.12);color:var(--blue);border:1px solid rgba(106,169,255,.2);font-size:10px">🔵 Chasing</span>`:
-                missingAddr?`<span class="pill" style="background:rgba(242,109,109,.12);color:var(--danger);border:1px solid rgba(242,109,109,.2);font-size:10px">⚠ No address</span>`:
-                `<span class="pill" style="background:rgba(245,165,36,.12);color:var(--warn);border:1px solid rgba(245,165,36,.2);font-size:10px">Dispatch</span>`}
-            </div>`;
-          }).join('')}
-          ${!mainDispatch.length&&!vaultWatch.length?`<div class="empty">All dispatched. 📦</div>`:''}
-          </div></div>`;
+        /* ══════════════════════════════════════════════════════════
+           SECTION 2 — MAIN DROP DISPATCH
+        ══════════════════════════════════════════════════════════ */
+        const mainWinners=DB.winners.filter(w=>{
+          const d=w.dropId?dropById(w.dropId):null;
+          return !w.dispatched && d && d.type==='Main Drop';
+        });
+        const mainSection=`
+          <div class="card" style="border-color:${mainWinners.length?'rgba(245,165,36,.3)':'var(--line)'}">
+            <div class="card-h"><h3>📦 Main Drop — Awaiting Dispatch</h3><span class="link" onclick="go('winners')">Winners →</span></div>
+            <div class="card-b">
+              ${mainWinners.length?mainWinners.map(w=>{
+                const d=w.dropId?dropById(w.dropId):null;
+                const missingAddr=!w.address&&!w.postcode;
+                return `<div class="row-item" style="flex-wrap:wrap;gap:8px;cursor:pointer" onclick="go('winners');setTimeout(()=>openWinner('${w.id}'),50)">
+                  <div class="txt" style="flex:1;min-width:160px">
+                    <div class="t">${esc(w.name)} <span style="font-size:11px;color:var(--ink3)">${d?esc(d.number):''}</span></div>
+                    <div class="meta">${watchName((d||{}).watchId)}${missingAddr?` · <span style="color:var(--danger);font-weight:600">⚠ Address missing</span>`:` · ${esc(w.postcode||w.location||'')}`}</div>
+                  </div>
+                  ${missingAddr?pillDanger('⚠ No address'):pillWarn('Dispatch')}
+                </div>`;
+              }).join(''):`<div class="empty">All dispatched. ✓</div>`}
+            </div>
+          </div>`;
 
-        return purchaseCard+cashCard+dispatchCard;
+        /* ══════════════════════════════════════════════════════════
+           SECTION 3 — WEEKEND DROP DISPATCH
+        ══════════════════════════════════════════════════════════ */
+        const weekendWinners=DB.winners.filter(w=>{
+          const d=w.dropId?dropById(w.dropId):null;
+          return !w.dispatched && d && d.type==='Weekend Drop';
+        });
+        const weekendSection=`
+          <div class="card" style="border-color:${weekendWinners.length?'rgba(245,165,36,.3)':'var(--line)'}">
+            <div class="card-h"><h3>📦 Weekend Drop — Awaiting Dispatch</h3><span class="link" onclick="go('winners')">Winners →</span></div>
+            <div class="card-b">
+              ${weekendWinners.length?weekendWinners.map(w=>{
+                const d=w.dropId?dropById(w.dropId):null;
+                const missingAddr=!w.address&&!w.postcode;
+                return `<div class="row-item" style="flex-wrap:wrap;gap:8px;cursor:pointer" onclick="go('winners');setTimeout(()=>openWinner('${w.id}'),50)">
+                  <div class="txt" style="flex:1;min-width:160px">
+                    <div class="t">${esc(w.name)} <span style="font-size:11px;color:var(--ink3)">${d?esc(d.number):''}</span></div>
+                    <div class="meta">${watchName((d||{}).watchId)}${missingAddr?` · <span style="color:var(--danger);font-weight:600">⚠ Address missing</span>`:` · ${esc(w.postcode||w.location||'')}`}</div>
+                  </div>
+                  ${missingAddr?pillDanger('⚠ No address'):pillWarn('Dispatch')}
+                </div>`;
+              }).join(''):`<div class="empty">All dispatched. ✓</div>`}
+            </div>
+          </div>`;
+
+        return vaultSection+mainSection+weekendSection;
       })()}
-
     </div>
   </div>
   ${taskBoardHTML()}`;
