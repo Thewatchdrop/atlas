@@ -2446,24 +2446,28 @@ function vDashboard(){
         ${liveAll.map(d=>{
           const isVault=d.type==='Vault';
           const label=isVault?(d.name||d.number||'Vault'):(d.number||'Drop');
-          const sub=isVault?'Vault':esc(watchName(d.watchId)||d.type||'');
+          const sub=isVault
+            ? `${d.price?'£'+Number(d.price).toFixed(2)+' entry · ':''}${d.pool?(Number(d.pool)/1000).toFixed(0)+'k pool':''}`
+            : esc(watchName(d.watchId)||'');
           const log=d.ticketsLog||[];
           const last=log[0]||null;
-          const todayTotal=(log.filter(e=>e.date===today()).reduce((a,e)=>a+(Number(e.tickets)||0),0));
-          return `<div class="card" style="padding:0">
+          const pool=Number(d.pool)||0;
+          const pct=pool&&last?Math.round(Number(last.tickets)/pool*100):0;
+          return `<div class="card" style="padding:0;min-width:0">
             <div style="padding:14px 16px 10px">
-              <div style="display:flex;align-items:center;justify-content:space-between">
-                <div style="font-weight:700;font-size:13px;color:var(--ink)">${esc(label)}</div>
-                ${log.length>=2?`<span onclick="event.stopPropagation();showTicketsChart('${d.id}')" style="font-size:11px;color:var(--gold2);cursor:pointer;text-decoration:underline">View chart →</span>`:''}
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <div style="font-weight:700;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</div>
+                ${log.length>=2?`<span onclick="event.stopPropagation();showTicketsChart('${d.id}')" style="font-size:11px;color:var(--gold2);cursor:pointer;white-space:nowrap;flex-shrink:0">📈 Chart</span>`:''}
               </div>
               <div style="font-size:11.5px;color:var(--ink3);margin-top:2px">${sub}</div>
-              ${last?`<div style="font-size:11px;color:var(--gold2);margin-top:4px;font-weight:600">${Number(last.tickets).toLocaleString()} total · ${timeAgo(last.at)}</div>`:''}
+              ${last?`<div style="font-size:11px;color:var(--gold2);margin-top:5px;font-weight:600">${Number(last.tickets).toLocaleString()} sold${pct?' · '+pct+'%':''} · ${timeAgo(last.at)}</div>`
+                    :`<div style="font-size:11px;color:var(--ink3);margin-top:5px">No entries recorded yet</div>`}
             </div>
             <div style="padding:0 16px 14px;display:flex;gap:8px;align-items:center">
-              <input id="dtix_${d.id}" type="number" min="0" placeholder="Total tickets sold…"
-                style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:13px;outline:none"
+              <input id="dtix_${d.id}" type="number" min="0" placeholder="Total sold…"
+                style="flex:1;min-width:0;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:13px;outline:none"
                 onkeydown="if(event.key==='Enter')recordDailyTickets('${d.id}')">
-              <button class="btn btn-sm btn-gold" onclick="recordDailyTickets('${d.id}')">Record</button>
+              <button class="btn btn-sm btn-gold" style="flex-shrink:0;white-space:nowrap" onclick="recordDailyTickets('${d.id}')">Record</button>
             </div>
           </div>`;
         }).join('')}
