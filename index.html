@@ -2170,6 +2170,7 @@ function persistMediaBox(id){
   const type=box.dataset.saveType; if(!type) return;
   const oid=box.dataset.saveId, field=box.dataset.saveField, ref=box.dataset.ref||'';
   if(type==='drop-image'){ const d=dropById(oid); if(d){ d.images=d.images||{}; d.images[field]=ref; queueSave(); } }
+  if(type==='vault-watch-image'){ const w=(DB.vaultWatches||[]).find(x=>x.id===oid); if(w){ w.img=ref; queueSave(); } }
 }
 async function onMediaUpload(e,id){
   const f=e.target.files[0]; if(!f) return;
@@ -3133,14 +3134,27 @@ function vaultWatchPoolView(vaults){
   const watchRows=filtered.length?[...filtered].reverse().map(w=>{
     const vd=dropById(w.vaultId);
     const vLabel=vd?(vd.name||vd.number||'Vault'):'—';
-    return `<div class="row-item" style="${w.status==='won'?'opacity:.75':''}">
+    const estCost=Number(w.estimatedCost||w.cost)||0;
+    const actCost=Number(w.actualCost)||0;
+    const variance=w.costVariancePct;
+    const varianceBadge=variance!==null&&variance!==undefined
+      ?`<span style="font-size:10px;font-weight:700;color:${variance>0?'var(--danger)':'#4ade80'}">${variance>0?'▲':'▼'}${Math.abs(variance)}%</span>`:'';
+    return `<div class="row-item" style="flex-wrap:wrap;gap:8px;${w.status==='won'?'opacity:.8':''}">
+      ${w.img?`<div style="width:44px;height:44px;border-radius:8px;overflow:hidden;flex-shrink:0;border:1px solid var(--line2);background:var(--panel2)"><img data-mediaref="${esc(w.img)}" style="width:100%;height:100%;object-fit:cover;display:none" onerror="this.style.display='none'"></div>`:''}
       ${showBadge?`<span class="pill" style="background:var(--goldsoft);color:var(--gold2);border:1px solid rgba(201,162,75,.2);font-size:10px">${esc(vLabel)}</span>`:''}
-      <div class="txt" style="flex:1;min-width:0">
-        <div class="t">${esc(w.brand)} ${esc(w.model)}${w.ref?` <span style="font-size:11px;color:var(--ink3);font-weight:400">${esc(w.ref)}</span>`:''}</div>
-        <div class="meta">${w.status==='won'?`Won by ${esc(w.winnerName||'—')} · ${w.dateWon?fmtDate(w.dateWon):''}`:w.notes?esc(w.notes):'Available'}</div>
+      <div class="txt" style="flex:1;min-width:160px">
+        <div class="t">${esc(w.brand)} ${esc(w.model)}${w.ref?` <span style="font-size:11px;color:var(--ink3);font-weight:400">${esc(w.ref)}</span>`:''}
+          ${w.committedToLibrary?`<span style="font-size:10px;background:rgba(129,140,248,.15);color:#818cf8;border:1px solid rgba(129,140,248,.25);border-radius:10px;padding:1px 7px;margin-left:4px">✓ In Library</span>`:''}
+        </div>
+        <div class="meta">
+          ${w.status==='won'
+            ?`Won by ${esc(w.winnerName||'—')} · ${w.dateWon?fmtDate(w.dateWon):''}${w.serial?` · SN ${esc(w.serial)}`:''}`
+            :w.notes?esc(w.notes):'Available'}
+        </div>
       </div>
-      <div style="text-align:right;flex-shrink:0;margin-right:4px">
-        <div class="mono" style="font-weight:700">${gbp(w.cost||0)}</div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:12px;color:var(--ink3)">Est. ${gbp(estCost)}</div>
+        ${actCost?`<div class="mono" style="font-weight:700;font-size:13px">${gbp(actCost)} actual ${varianceBadge}</div>`:''}
         <div style="font-size:11px;color:var(--ink3)">RV ${gbp(w.advValue||0)}</div>
       </div>
       <span class="pill" style="font-size:10px;${w.status==='won'?'background:var(--live-bg);color:var(--live);border:1px solid rgba(74,222,128,.2)':'background:var(--panel2);color:var(--ink3);border:1px solid var(--line2)'}">${w.status==='won'?'✓ Won':'Available'}</span>
@@ -3179,12 +3193,15 @@ function vaultWatchPoolView(vaults){
           <div class="field"><label>Reference (optional)</label><input id="vw_ref" placeholder="e.g. 79030B"></div>
         </div>
         <div class="field-row">
-          <div class="field"><label>Cost Paid (£)</label><input id="vw_cost" type="number" placeholder="0"></div>
+          <div class="field"><label>Estimated Cost (£)</label><input id="vw_cost" type="number" placeholder="0"></div>
           <div class="field"><label>Advertised Value (£)</label><input id="vw_adv" type="number" placeholder="0"></div>
         </div>
         <div class="field-row">
           <div class="field"><label>Drive Link (optional)</label><input id="vw_drive" placeholder="Paste Google Drive folder URL…" type="url"></div>
           <div class="field"><label>Notes (optional)</label><input id="vw_notes" placeholder="Sourcing notes, supplier, condition…"></div>
+        </div>
+        <div class="field-row">
+          ${mediaField('vw_img','Photo (optional)','')}
         </div>
       </div>
       <div style="padding:0 18px 14px;display:flex;justify-content:flex-end">
@@ -3198,14 +3215,25 @@ function addVaultWatch(){
   const brand=(document.getElementById('vw_brand')||{}).value||''
   const model=(document.getElementById('vw_model')||{}).value||''
   const ref=(document.getElementById('vw_ref')||{}).value||''
-  const cost=Number((document.getElementById('vw_cost')||{}).value)||0
+  const estimatedCost=Number((document.getElementById('vw_cost')||{}).value)||0
   const advValue=Number((document.getElementById('vw_adv')||{}).value)||0
   const notes=(document.getElementById('vw_notes')||{}).value||''
   const driveLink=(document.getElementById('vw_drive')||{}).value||''
+  const imgBox=document.getElementById('vw_img_box')
+  const img=(imgBox&&imgBox.dataset.ref)||''
   if(!brand||!model){ alert('Enter brand and model'); return; }
   DB.vaultWatches=DB.vaultWatches||[];
-  DB.vaultWatches.push({id:uid('vw'),brand,model,ref,cost,advValue,vaultId,status:'available',prizeId:'',winnerName:'',dateWon:'',notes,driveLink,created:now()});
-  saveDB(); render();
+  DB.vaultWatches.push({
+    id:uid('vw'),brand,model,ref,
+    estimatedCost, cost:estimatedCost, // cost kept for backwards compat
+    advValue,vaultId,img,
+    status:'available',prizeId:'',
+    winnerName:'',dateWon:'',
+    actualCost:0,serial:'',
+    costVariancePct:null,committedToLibrary:false,watchLibraryId:'',
+    notes,driveLink,created:now()
+  });
+  saveDB(); render(); toast(`${brand} ${model} added to pool`);
 }
 
 function delVaultWatch(id){
@@ -3219,12 +3247,29 @@ function markVaultWatchWon(id){
   const custOpts=`<option value="">— no customer linked —</option>`+
     [...(DB.customers||[])].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(c=>`<option value="${esc(c.id)}">${esc(c.name||'Unnamed')}${c.email?' — '+esc(c.email):''}</option>`).join('');
   const fld='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;margin-top:5px';
-  openModal(`<div class="modal"><div class="modal-h"><h3>Mark as Won — ${esc(w.brand)} ${esc(w.model)}</h3><span class="x" onclick="closeModal()">×</span></div>
+  const estCost=Number(w.estimatedCost||w.cost)||0;
+  openModal(`<div class="modal" style="max-width:520px"><div class="modal-h"><h3>Mark as Won — ${esc(w.brand)} ${esc(w.model)}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
       <div class="field"><label>Winner — Customer Lookup</label><select id="mww_cust" style="${fld}">${custOpts}</select></div>
       <div class="field"><label>Winner Name (if not in customer list)</label><input id="mww_name" placeholder="Leave blank if selected above" style="${fld}"></div>
-      <div class="field"><label>Winner Ticket #</label><input id="mww_ticket" placeholder="e.g. #4521" style="${fld}"></div>
-      <div class="field"><label>Date Won</label><input id="mww_date" type="date" value="${today()}" style="${fld}"></div>
+      <div class="field-row" style="margin-top:0">
+        <div class="field"><label>Winner Ticket #</label><input id="mww_ticket" placeholder="e.g. #4521" style="${fld}"></div>
+        <div class="field"><label>Date Won</label><input id="mww_date" type="date" value="${today()}" style="${fld}"></div>
+      </div>
+      <div style="border-top:1px solid var(--line2);margin:12px 0 16px;padding-top:16px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:600;margin-bottom:12px">Purchase Details</div>
+        <div class="field-row" style="margin-top:0">
+          <div class="field">
+            <label>Actual Cost Paid (£) <span style="color:var(--ink3);font-weight:400;text-transform:none">${estCost?'Est: £'+estCost.toLocaleString('en-GB'):''}</span></label>
+            <input id="mww_actual" type="number" placeholder="${estCost||0}" style="${fld}" oninput="mwwUpdateVariance(${estCost})">
+          </div>
+          <div class="field">
+            <label>Serial Number <span style="color:var(--gold2);font-weight:400;text-transform:none;font-size:10px">→ commits to Watch Library</span></label>
+            <input id="mww_serial" placeholder="e.g. 5N8C783" style="${fld}">
+          </div>
+        </div>
+        <div id="mww_variance" style="font-size:12px;margin-top:6px;font-weight:600"></div>
+      </div>
     </div>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cancel</button>
@@ -3233,25 +3278,70 @@ function markVaultWatchWon(id){
   </div>`);
 }
 
+function mwwUpdateVariance(estCost){
+  const el=document.getElementById('mww_variance'); if(!el||!estCost) return;
+  const actual=Number((document.getElementById('mww_actual')||{}).value)||0;
+  if(!actual){ el.textContent=''; return; }
+  const diff=actual-estCost;
+  const pct=Math.round((diff/estCost)*100);
+  const over=diff>0;
+  el.innerHTML=`<span style="color:${over?'var(--danger)':'#4ade80'}">
+    ${over?'▲':'▼'} ${Math.abs(pct)}% ${over?'over':'under'} estimate
+    (£${Math.abs(diff).toLocaleString('en-GB')} ${over?'more':'less'} than £${estCost.toLocaleString('en-GB')} est.)
+  </span>`;
+}
+
 function confirmMarkVaultWatchWon(id){
   const w=(DB.vaultWatches||[]).find(x=>x.id===id); if(!w) return;
   const custId=(document.getElementById('mww_cust')||{}).value||'';
   const manualName=(document.getElementById('mww_name')||{}).value||'';
   const ticket=(document.getElementById('mww_ticket')||{}).value||'';
   const dateStr=(document.getElementById('mww_date')||{}).value||today();
+  const actualCost=Number((document.getElementById('mww_actual')||{}).value)||0;
+  const serial=((document.getElementById('mww_serial')||{}).value||'').trim();
   const linkedCust=custId?DB.customers.find(c=>c.id===custId):null;
   const winnerName=linkedCust?linkedCust.name:manualName;
   if(!winnerName){ alert('Enter a winner name or select from the customer list'); return; }
+
+  // Save win details
+  const estCost=Number(w.estimatedCost||w.cost)||0;
+  const variancePct=estCost&&actualCost?Math.round(((actualCost-estCost)/estCost)*100):null;
   w.status='won'; w.winnerName=winnerName; w.dateWon=dateStr; w.custId=custId; w.ticket=ticket;
+  if(actualCost) w.actualCost=actualCost;
+  if(serial) w.serial=serial;
+  if(variancePct!==null) w.costVariancePct=variancePct;
+  const finalCost=actualCost||estCost;
+
+  // Log prize on vault drop
   const d=dropById(w.vaultId);
   if(d){
     d.vaultPrizes=d.vaultPrizes||[];
     const pid=uid('vp');
-    d.vaultPrizes.push({id:pid,type:'watch',label:`${w.brand} ${w.model}`,cost:w.cost||0,amount:0,date:dateStr,winnerName,custId,ticket,created:now()});
+    d.vaultPrizes.push({id:pid,type:'watch',label:`${w.brand} ${w.model}`,cost:finalCost,amount:0,date:dateStr,winnerName,custId,ticket,created:now()});
     w.prizeId=pid;
   }
+
+  // Commit to Watch Library if serial number provided
+  if(serial && !w.committedToLibrary){
+    DB.watches=DB.watches||[];
+    const wlib={
+      id:uid('w'),brand:w.brand,model:w.model,ref:w.ref||'',
+      serial,cost:finalCost,retail:w.advValue||0,img:w.img||'',
+      year:'',movement:'',family:'',variant:'',specs:'',
+      supplierId:'',retired:false,
+      links:{drive:w.driveLink||'',canva:''},
+      notes:`From ${d?d.name||d.number:'Vault'} prize pool`,
+      created:now()
+    };
+    DB.watches.push(wlib);
+    w.committedToLibrary=true;
+    w.watchLibraryId=wlib.id;
+    toast(`✓ ${w.brand} ${w.model} won by ${winnerName} · added to Watch Library`);
+  } else {
+    toast(`${w.brand} ${w.model} marked as won — ${winnerName}`);
+  }
+
   saveDB(); closeModal(); render();
-  toast(`${w.brand} ${w.model} marked as won — ${winnerName}`);
 }
 
 function unmarkVaultWatchWon(id){
