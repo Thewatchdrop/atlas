@@ -2524,7 +2524,7 @@ function vDashboard(){
                 const toDispatch =prizes.filter(p=>p.type==='watch'&&!p.dispatched&&!p.needsPurchasing&&p.winnerName).length;
                 const bankMissing=prizes.filter(p=>p.type==='cash'&&!p.paid&&!p.sortCode&&!p.accountNo).length;
                 const readyToPay =prizes.filter(p=>p.type==='cash'&&!p.paid&&(p.sortCode||p.accountNo)).length;
-                const vaultLabel =esc(d.number||d.name||'Vault');
+                const vaultLabel =esc(d.name||d.number||'Vault');
                 const anyAction  =toPurchase||toDispatch||bankMissing||readyToPay;
                 return `<div style="padding:14px 18px;${i>0?'border-top:1px solid var(--line2)':''};cursor:pointer" onclick="go('vaulthub','${d.id}')">
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -2680,7 +2680,7 @@ function vaultHubKpiRow(vaults){
 }
 
 function vaultHubPrizeRows(vaults, showVaultBadge){
-  let prizes=vaults.reduce((a,d)=>a.concat((d.vaultPrizes||[]).map(p=>Object.assign({},p,{_dropNum:d.number||d.name||'Vault',_dropId:d.id}))),[]);
+  let prizes=vaults.reduce((a,d)=>a.concat((d.vaultPrizes||[]).map(p=>Object.assign({},p,{_dropNum:d.name||d.number||'Vault',_dropId:d.id}))),[]);
   if(vaultPrizeFilter!=='all') prizes=prizes.filter(p=>p.type===vaultPrizeFilter);
   prizes=prizes.slice().sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
   if(!prizes.length) return '<div class="empty">No prizes logged yet.</div>';
@@ -2801,7 +2801,7 @@ function clearVaultChasing(dropId,prizeId){
 }
 
 function vaultHubWinnerRows(vaults, showVaultBadge){
-  let winners=vaults.reduce((a,d)=>a.concat((d.instantWinners||[]).map(w=>Object.assign({},w,{_dropNum:d.number||d.name||'Vault',_dropId:d.id}))),[]);
+  let winners=vaults.reduce((a,d)=>a.concat((d.instantWinners||[]).map(w=>Object.assign({},w,{_dropNum:d.name||d.number||'Vault',_dropId:d.id}))),[]);
   winners=winners.slice().sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
   if(!winners.length) return '<div class="empty">No winners logged yet.</div>';
   return winners.map(w=>`
@@ -2820,7 +2820,7 @@ function vaultHubWinnerRows(vaults, showVaultBadge){
 
 function vaultHubLogForm(vaults){
   if(!vaults.length) return '';
-  const dropOpts=vaults.map(d=>`<option value="${esc(d.id)}">${esc(d.number||d.name||'Vault')}</option>`).join('');
+  const dropOpts=vaults.map(d=>`<option value="${esc(d.id)}">${esc(d.name||d.number||'Vault')}</option>`).join('');
   // Watch pool for first vault by default
   const firstVaultId=vaults[0]?vaults[0].id:'';
   const availWatches=(DB.vaultWatches||[]).filter(w=>w.vaultId===firstVaultId&&w.status!=='won');
@@ -3026,7 +3026,7 @@ function vaultWatchPoolView(vaults){
   const filtered=vaultWatchFilter==='all'?poolAll:poolAll.filter(w=>w.status===(vaultWatchFilter==='won'?'won':'available'));
   const watchRows=filtered.length?[...filtered].reverse().map(w=>{
     const vd=dropById(w.vaultId);
-    const vLabel=vd?(vd.number||vd.name||'Vault'):'—';
+    const vLabel=vd?(vd.name||vd.number||'Vault'):'—';
     return `<div class="row-item" style="${w.status==='won'?'opacity:.75':''}">
       ${showBadge?`<span class="pill" style="background:var(--goldsoft);color:var(--gold2);border:1px solid rgba(201,162,75,.2);font-size:10px">${esc(vLabel)}</span>`:''}
       <div class="txt" style="flex:1;min-width:0">
@@ -3045,7 +3045,7 @@ function vaultWatchPoolView(vaults){
       <button class="btn-danger btn-sm" onclick="delVaultWatch('${w.id}')">✕</button>
     </div>`;
   }).join(''):'<div class="empty">No watches match this filter.</div>';
-  const vaultOpts=vaults.map(d=>`<option value="${esc(d.id)}">${esc(d.number||d.name||'Vault')}</option>`).join('');
+  const vaultOpts=vaults.map(d=>`<option value="${esc(d.id)}">${esc(d.name||d.number||'Vault')}</option>`).join('');
   const filterBtns=[['all','All',poolAll.length],['available','Available',availAll.length],['won','Won',wonAll.length]].map(([f,l,c])=>
     `<div onclick="setVaultWatchFilter('${f}')" style="padding:4px 13px;border-radius:20px;font-size:12px;cursor:pointer;font-weight:500;border:1px solid ${vaultWatchFilter===f?'var(--gold)':'var(--line2)'};background:${vaultWatchFilter===f?'var(--goldsoft)':'transparent'};color:${vaultWatchFilter===f?'var(--gold2)':'var(--ink3)'}">${l} <span style="opacity:.6">${c}</span></div>`
   ).join('');
@@ -3245,7 +3245,7 @@ function vaultAdCopyView(vaults){
     while(copy.length < VERSION_COUNT) copy.push({primaryText:'',headline:'',description:''});
     const v = copy[vaultAdCopyVersion] || {};
     const vid = d.id;
-    const label = esc(d.number || d.name || 'Vault');
+    const label = esc(d.name || d.number || 'Vault');
     const pLen = (v.primaryText||'').length;
     const hLen = (v.headline||'').length;
     const dLen = (v.description||'').length;
@@ -6160,7 +6160,7 @@ function runDropEntrantImport(){
     let matched=0, newAdded=0, alreadyLinked=0;
     DB.customerImports=DB.customerImports||[];
     const entryDate=drop.draw||today();
-    const dropRef=drop.number||(drop.name||'Vault');
+    const dropRef=drop.name||drop.number||'Vault';
     const dropType=drop.type||'Main Drop';
     parsed.rows.forEach(row=>{
       const email=(row[emailCol]||'').trim().toLowerCase();
