@@ -2815,13 +2815,12 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
       else if(chasing) statusPill=`<span class="pill" style="background:rgba(106,169,255,.12);color:var(--blue);border:1px solid rgba(106,169,255,.2);font-size:10px">🔵 Chasing ${p.chasingDate?'· '+fmtDate(p.chasingDate):''}</span>`;
       else statusPill=`<span class="pill" style="background:rgba(242,109,109,.12);color:var(--danger);border:1px solid rgba(242,109,109,.2);font-size:10px">⚠ Bank TBC</span>`;
     } else if(isWatch){
-      if(dispatched){
-        const dm=p.dispatchMethod==='dealer'?'🏪 Dealer':p.dispatchMethod==='source'?'📦 Source':p.dispatchMethod==='office'?'🏢 Office':'';
-        statusPill=`<span class="pill" style="background:var(--live-bg);color:var(--live);border:1px solid rgba(74,222,128,.2);font-size:10px">✓ Dispatched${dm?' · '+dm:''}</span>`;
-      } else if(p.purchased) statusPill=`<span class="pill" style="background:rgba(245,165,36,.14);color:var(--warn);border:1px solid rgba(245,165,36,.25);font-size:10px">📦 Awaiting dispatch</span>`;
+      const dm=p.dispatchMethod==='dealer'?'🏪':p.dispatchMethod==='source'?'📦':p.dispatchMethod==='office'?'🏢':'';
+      if(dispatched) statusPill=`<span class="pill" style="background:var(--live-bg);color:var(--live);border:1px solid rgba(74,222,128,.2);font-size:10px">✓ Dispatched${dm?' '+dm:''}</span>`;
+      else if(p.purchased) statusPill=`<span class="pill" style="background:rgba(245,165,36,.14);color:var(--warn);border:1px solid rgba(245,165,36,.25);font-size:10px">📦 Awaiting dispatch</span>`;
       else if(needsPurchasing) statusPill=`<span class="pill" style="background:rgba(201,162,75,.14);color:var(--gold2);border:1px solid rgba(201,162,75,.25);font-size:10px">🛒 Needs purchasing</span>`;
       else if(chasing) statusPill=`<span class="pill" style="background:rgba(106,169,255,.12);color:var(--blue);border:1px solid rgba(106,169,255,.2);font-size:10px">🔵 Chasing ${p.chasingDate?'· '+fmtDate(p.chasingDate):''}</span>`;
-      else statusPill=`<span class="pill" style="background:rgba(245,165,36,.12);color:var(--warn);border:1px solid rgba(245,165,36,.2);font-size:10px">Pending dispatch</span>`;
+      else statusPill=`<span class="pill" style="background:rgba(245,165,36,.12);color:var(--warn);border:1px solid rgba(245,165,36,.2);font-size:10px">Pending</span>`;
     }
     return `
     <div style="border-bottom:1px solid var(--line);padding:12px 18px">
@@ -2844,7 +2843,6 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
         ${isCash&&!paid?`<button class="btn btn-sm btn-gold" style="font-size:11px" onclick="markVaultPrizePaid('${p._dropId}','${p.id}')">Mark paid ✓</button>`:''}
         <button class="btn-danger btn-sm" onclick="delVaultPrize('${p._dropId}','${p.id}')">✕</button>
       </div>
-
       ${isCash&&!paid?`<div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:flex-end">
         <div style="flex:1;min-width:130px">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Sort Code</div>
@@ -2872,9 +2870,7 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
         </button>
       </div>`:''}
       ${isCash&&paid?`<div style="font-size:11.5px;color:var(--live);margin-top:6px">✓ Payment sent${p.paidDate?' · '+fmtDate(p.paidDate):''}</div>`:''}
-
-      ${isWatch&&!dispatched&&needsPurchasing&&!p.purchased?`
-      <div style="margin-top:12px;background:rgba(201,162,75,.07);border:1px solid rgba(201,162,75,.25);border-radius:10px;padding:14px 16px">
+      ${isWatch&&needsPurchasing&&!p.purchased&&!dispatched?`<div style="margin-top:12px;background:rgba(201,162,75,.07);border:1px solid rgba(201,162,75,.25);border-radius:10px;padding:14px 16px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--gold2);margin-bottom:10px">🛒 Record Purchase</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
           <div style="flex:2;min-width:160px">
@@ -2885,7 +2881,7 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
           </div>
           <div style="flex:1;min-width:110px">
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Cost Paid (£)</div>
-            <input id="wpf_cost_${p.id}" type="number" value="${p.purchasedCost||p.cost||\'\'}" placeholder="${p.cost||0}"
+            <input id="wpf_cost_${p.id}" type="number" value="${p.purchasedCost||p.cost||0}" placeholder="${p.cost||0}"
               style="width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:13px;color:var(--ink)"
               oninput="updVaultPrizeField('${p._dropId}','${p.id}','purchasedCost',parseFloat(this.value)||0)">
           </div>
@@ -2897,27 +2893,23 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
             oninput="updVaultPrizeField('${p._dropId}','${p.id}','purchaseNotes',this.value)">${esc(p.purchaseNotes||'')}</textarea>
         </div>
         <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
-          <button onclick="clearVaultPurchaseFlag('${p._dropId}','${p.id}')" class="btn btn-sm" style="font-size:11px;color:var(--ink3)">✕ Cancel</button>
           <button onclick="confirmVaultWatchPurchase('${p._dropId}','${p.id}')" class="btn btn-gold btn-sm" style="font-size:12px">✓ Confirm Watch Purchased</button>
         </div>
       </div>`:''}
-
-      ${isWatch&&p.purchased&&!dispatched?`
-      <div style="margin-top:12px;background:rgba(245,165,36,.07);border:1px solid rgba(245,165,36,.25);border-radius:10px;padding:14px 16px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--warn);margin-bottom:4px">📦 Ready to Dispatch</div>
-        ${p.purchasedFrom?`<div style="font-size:12px;color:var(--ink3);margin-bottom:10px">Purchased from: <span style="color:var(--ink);font-weight:600">${esc(p.purchasedFrom)}</span>${p.purchasedCost?' · £'+Number(p.purchasedCost).toLocaleString('en-GB',{minimumFractionDigits:2}):''}</div>`:'<div style="font-size:12px;color:var(--ink3);margin-bottom:10px">Purchase recorded.</div>'}
-        ${p.purchaseNotes?`<div style="font-size:11.5px;color:var(--ink3);margin-bottom:10px;font-style:italic">&ldquo;${esc(p.purchaseNotes)}&rdquo;</div>`:''}
+      ${isWatch&&p.purchased&&!dispatched?`<div style="margin-top:12px;background:rgba(245,165,36,.07);border:1px solid rgba(245,165,36,.25);border-radius:10px;padding:14px 16px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--warn);margin-bottom:6px">📦 Ready to Dispatch</div>
+        ${p.purchasedFrom?`<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">From: <strong style="color:var(--ink)">${esc(p.purchasedFrom)}</strong></div>`:''}
         <div style="margin-bottom:10px">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:6px">Tracking Number (optional)</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:5px">Tracking (optional)</div>
           <input value="${esc(p.trackingNo||'')}" placeholder="Royal Mail / DHL reference"
             style="background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:12.5px;color:var(--ink);width:260px"
             oninput="updVaultPrizeField('${p._dropId}','${p.id}','trackingNo',this.value)">
         </div>
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:8px">Dispatch Method — select one to mark dispatched</div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:8px">Dispatch Method — tap to confirm dispatched</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button onclick="markVaultPrizeDispatchedWith('${p._dropId}','${p.id}','dealer')"
             style="flex:1;min-width:140px;padding:10px 14px;border-radius:9px;border:1px solid rgba(201,162,75,.35);background:rgba(201,162,75,.08);color:var(--gold2);cursor:pointer;font-size:12px;font-weight:700;text-align:left">
-            🏪 Direct from dealer<div style="font-size:10px;font-weight:400;color:var(--ink3);margin-top:2px">Dealer ships direct to winner</div>
+            🏪 Direct from dealer<div style="font-size:10px;font-weight:400;color:var(--ink3);margin-top:2px">Dealer ships to winner</div>
           </button>
           <button onclick="markVaultPrizeDispatchedWith('${p._dropId}','${p.id}','source')"
             style="flex:1;min-width:140px;padding:10px 14px;border-radius:9px;border:1px solid rgba(245,165,36,.35);background:rgba(245,165,36,.08);color:var(--warn);cursor:pointer;font-size:12px;font-weight:700;text-align:left">
@@ -2929,13 +2921,7 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
           </button>
         </div>
       </div>`:''}
-
-      ${isWatch&&dispatched?`
-      <div style="margin-top:8px;font-size:11.5px;color:var(--live)">
-        ✓ Dispatched ${p.dispatchDate?fmtDate(p.dispatchDate):''}
-        ${p.dispatchMethod==='dealer'?' · 🏪 Direct from dealer':p.dispatchMethod==='source'?' · 📦 New from source':p.dispatchMethod==='office'?' · 🏢 From office':''}
-        ${p.trackingNo?` · <span style="color:var(--ink2)">${esc(p.trackingNo)}</span>`:''}
-      </div>`:''}
+      ${isWatch&&dispatched?`<div style="margin-top:8px;font-size:11.5px;color:var(--live)">✓ Dispatched ${p.dispatchDate?fmtDate(p.dispatchDate):''}${p.dispatchMethod==='dealer'?' · 🏪 Dealer':p.dispatchMethod==='source'?' · 📦 Source':p.dispatchMethod==='office'?' · 🏢 Office':''}${p.trackingNo?' · '+esc(p.trackingNo):''}</div>`:''}
     </div>`;
   }).join('');
 }
@@ -2987,7 +2973,6 @@ function markVaultPrizeDispatched(dropId,prizeId){
 function confirmVaultWatchPurchase(dropId,prizeId){
   const d=dropById(dropId); if(!d) return;
   const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
-  // Read latest field values from DOM before confirming
   const fromEl=document.getElementById('wpf_from_'+prizeId);
   const costEl=document.getElementById('wpf_cost_'+prizeId);
   const notesEl=document.getElementById('wpf_notes_'+prizeId);
@@ -2995,23 +2980,17 @@ function confirmVaultWatchPurchase(dropId,prizeId){
   if(costEl) p.purchasedCost=parseFloat(costEl.value)||p.cost||0;
   if(notesEl) p.purchaseNotes=notesEl.value.trim();
   if(!p.purchasedFrom){ toast('Enter who you purchased from first'); return; }
-  p.purchased=true;
-  p.purchasedDate=today();
-  p.needsPurchasing=false;
-  // Update cost in P&L if purchasedCost differs from logged cost
+  p.purchased=true; p.purchasedDate=today(); p.needsPurchasing=false;
   if(p.purchasedCost && p.purchasedCost!==p.cost) p.cost=p.purchasedCost;
-  saveDB(); render(); toast('Watch purchase confirmed — now select dispatch method ✓');
+  saveDB(); render(); toast('Purchase confirmed — select dispatch method ✓');
 }
 
 function markVaultPrizeDispatchedWith(dropId,prizeId,method){
   const d=dropById(dropId); if(!d) return;
   const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
-  p.dispatched=true;
-  p.dispatchDate=today();
-  p.dispatchMethod=method; // 'dealer' | 'source' | 'office'
-  p.needsPurchasing=false;
-  const methodLabel=method==='dealer'?'Direct from dealer':method==='source'?'New from source':'Direct from office';
-  saveDB(); render(); toast('Watch dispatched — '+methodLabel+' ✓');
+  p.dispatched=true; p.dispatchDate=today(); p.dispatchMethod=method; p.needsPurchasing=false;
+  const label=method==='dealer'?'Direct from dealer':method==='source'?'New from source':'From office';
+  saveDB(); render(); toast('Dispatched — '+label+' ✓');
 }
 
 function flagVaultWatchForPurchase(dropId,prizeId){
@@ -7887,92 +7866,67 @@ function addDropContent(dropId, useCase){
 }
 
 /* Watch modal */
-/* ── Watch Library: brand & family smart selects ── */
 function watchBrands(){
-  // All distinct brands from the library, sorted A-Z, with a sensible known order first
   const KNOWN=['Rolex','Omega','Cartier','Tudor','TAG Heuer','Tissot','Swatch','Oris','Christopher Ward','Garmin'];
   const fromDB=[...new Set((DB.watches||[]).map(w=>(w.brand||'').trim()).filter(Boolean))].sort();
-  // Merge: known order first, then any extras from DB not in the known list
-  const all=[...new Set([...KNOWN,...fromDB])];
-  return all;
+  return [...new Set([...KNOWN,...fromDB])];
 }
-
 function watchFamilies(brand){
   if(!brand) return [];
-  return [...new Set((DB.watches||[])
-    .filter(w=>(w.brand||'').trim()===brand && (w.family||'').trim())
-    .map(w=>w.family.trim())
-  )].sort();
+  return [...new Set((DB.watches||[]).filter(w=>(w.brand||'').trim()===brand&&(w.family||'').trim()).map(w=>w.family.trim()))].sort();
 }
-
-function watchBrandSelectHTML(currentBrand){
+function watchBrandSelectHTML(cur){
   const brands=watchBrands();
-  const isNew=currentBrand && !brands.includes(currentBrand);
-  const fldStyle='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;outline:none';
-  return `
-    <div class="field">
-      <label>Brand</label>
-      <select id="w_brand_sel" style="${fldStyle}" onchange="onWBrandChange()">
-        <option value="">— select brand —</option>
-        ${brands.map(b=>`<option value="${esc(b)}"${(currentBrand===b&&!isNew)?'selected':''}>${esc(b)}</option>`).join('')}
-        <option value="__new__"${isNew?'selected':''}>＋ Add new brand…</option>
-      </select>
-      <input id="w_brand_new" placeholder="Type new brand name…"
-        style="${fldStyle};margin-top:6px;display:${isNew?'block':'none'}"
-        value="${isNew?esc(currentBrand):''}">
-    </div>`;
+  const isNew=cur&&!brands.includes(cur);
+  const fs2='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;outline:none';
+  return `<div class="field"><label>Brand</label>
+    <select id="w_brand_sel" style="${fs2}" onchange="onWBrandChange()">
+      <option value="">— select brand —</option>
+      ${brands.map(b=>`<option value="${esc(b)}"${cur===b&&!isNew?' selected':''}>${esc(b)}</option>`).join('')}
+      <option value="__new__"${isNew?' selected':''}>＋ Add new brand…</option>
+    </select>
+    <input id="w_brand_new" placeholder="Type new brand name…" value="${isNew?esc(cur):''}"
+      style="${fs2};margin-top:6px;display:${isNew?'block':'none'}">
+  </div>`;
 }
-
-function watchFamilySelectHTML(currentFamily, brand){
+function watchFamilySelectHTML(cur,brand){
   const fams=watchFamilies(brand||'');
-  const isNew=currentFamily && !fams.includes(currentFamily);
-  const fldStyle='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;outline:none';
-  return `
-    <div class="field">
-      <label>Model Family (e.g. Speedmaster)</label>
-      <select id="w_family_sel" style="${fldStyle}" onchange="onWFamilyChange()">
-        <option value="">— select family —</option>
-        ${fams.map(f=>`<option value="${esc(f)}"${(currentFamily===f&&!isNew)?'selected':''}>${esc(f)}</option>`).join('')}
-        <option value="__new__"${isNew?'selected':''}>＋ Add new family…</option>
-      </select>
-      <input id="w_family_new" placeholder="Type new family name…"
-        style="${fldStyle};margin-top:6px;display:${isNew?'block':'none'}"
-        value="${isNew?esc(currentFamily):''}">
-    </div>`;
+  const isNew=cur&&!fams.includes(cur);
+  const fs2='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;outline:none';
+  return `<div class="field"><label>Model Family (e.g. Speedmaster)</label>
+    <select id="w_family_sel" style="${fs2}" onchange="onWFamilyChange()">
+      <option value="">— select family —</option>
+      ${fams.map(f=>`<option value="${esc(f)}"${cur===f&&!isNew?' selected':''}>${esc(f)}</option>`).join('')}
+      <option value="__new__"${isNew?' selected':''}>＋ Add new family…</option>
+    </select>
+    <input id="w_family_new" placeholder="Type new family name…" value="${isNew?esc(cur):''}"
+      style="${fs2};margin-top:6px;display:${isNew?'block':'none'}">
+  </div>`;
 }
-
 function onWBrandChange(){
-  const sel=document.getElementById('w_brand_sel');
-  const inp=document.getElementById('w_brand_new');
+  const sel=document.getElementById('w_brand_sel'),inp=document.getElementById('w_brand_new');
   if(!sel||!inp) return;
   inp.style.display=sel.value==='__new__'?'block':'none';
   if(sel.value!=='__new__') inp.value='';
-  // Rebuild family select for the chosen brand
   const brand=sel.value==='__new__'?'':sel.value;
-  const famWrap=document.getElementById('w_family_wrap');
-  if(famWrap) famWrap.innerHTML=watchFamilySelectHTML('',brand);
+  const fw=document.getElementById('w_family_wrap');
+  if(fw) fw.innerHTML=watchFamilySelectHTML('',brand);
 }
-
 function onWFamilyChange(){
-  const sel=document.getElementById('w_family_sel');
-  const inp=document.getElementById('w_family_new');
+  const sel=document.getElementById('w_family_sel'),inp=document.getElementById('w_family_new');
   if(!sel||!inp) return;
   inp.style.display=sel.value==='__new__'?'block':'none';
   if(sel.value!=='__new__') inp.value='';
 }
-
 function getWBrandVal(){
   const sel=document.getElementById('w_brand_sel');
   if(!sel) return '';
-  if(sel.value==='__new__') return (document.getElementById('w_brand_new')||{}).value||'';
-  return sel.value||'';
+  return sel.value==='__new__'?((document.getElementById('w_brand_new')||{}).value||''):sel.value;
 }
-
 function getWFamilyVal(){
   const sel=document.getElementById('w_family_sel');
   if(!sel) return '';
-  if(sel.value==='__new__') return (document.getElementById('w_family_new')||{}).value||'';
-  return sel.value||'';
+  return sel.value==='__new__'?((document.getElementById('w_family_new')||{}).value||''):sel.value;
 }
 
 function openWatch(id){
@@ -8039,7 +7993,7 @@ function saveWatch(id){const g=k=>document.getElementById(k).value;
     supplierId:ddVal('w_supplier'), retired: retiredBtn? retiredBtn.dataset.val==='1' : false,
     driveLink:g('w_drivelink'), canvaLink:g('w_canvalink'),
     media, img:coverImg, invoiceUrl};
-  if(!data.brand){alert('Select a brand or type a new one');return;}
+  if(!data.brand){alert('Brand required');return;}
   if(id){Object.assign(watchById(id),data);}else{DB.watches.unshift({id:uid('watch'),...data,links:{},created:now()});}
   saveDB();closeModal();toast('Watch saved');render();}
 function delWatch(id){if(!confirm('Delete this watch?'))return;DB.watches=DB.watches.filter(w=>w.id!==id);saveDB();closeModal();render();}
