@@ -1499,7 +1499,13 @@ function seed(){
     notes:[],
     vaultWatches:[],
     timeline:[],
-    settings:{team:['Felix','Leila']}
+    settings:{team:['Felix','Leila']},
+    vaultEmailTemplates:{
+      watchWon:`Hi {name},\n\nCongratulations — you've won a {prize} in {vault}! 🎉\n\nTo arrange delivery, please reply with your full postal address and we'll get it sent straight out to you.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
+      cashWon:`Hi {name},\n\nCongratulations — you've won a £{amount} cash prize in {vault}! 🎉\n\nTo receive your payment, please reply with your bank details:\n• Sort code\n• Account number\n\nWe'll get it transferred to you straight away.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
+      bankRequest:`Hi {name},\n\nJust a quick follow-up — we still need your bank details to send your £{amount} cash prize.\n\nPlease reply with:\n• Sort code\n• Account number\n\nWe'll get it over to you as soon as we have them.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
+      watchDispatched:`Hi {name},\n\nGreat news — your {prize} is on its way! 📦\n\n{tracking}\n\nIf you have any questions about your delivery, just reply to this email.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`
+    }
   };
 }
 
@@ -2534,9 +2540,9 @@ function vDashboard(){
                 const t           = d.tracker||{};
                 const toPurchase  = prizes.filter(p=>p.type==='watch'&&p.needsPurchasing&&!p.purchased&&!p.dispatched).length;
                 const toDispatch  = prizes.filter(p=>p.type==='watch'&&p.purchased&&!p.dispatched).length;
-                const cashWins    = (d.cashWins||[]).filter(w=>!w.paid);
-                const bankMissing = cashWins.filter(w=>!w.sortCode&&!w.accountNo).length;
-                const readyToPay  = cashWins.filter(w=>w.sortCode||w.accountNo).length;
+                const cashPrizes  = (d.vaultPrizes||[]).filter(p=>p.type==='cash'&&!p.paid);
+                const bankMissing = cashPrizes.filter(p=>!p.sortCode&&!p.accountNo).length;
+                const readyToPay  = cashPrizes.filter(p=>p.sortCode||p.accountNo).length;
                 const vaultLabel  = esc(d.name||d.number||'Vault');
                 const anyAction   = toPurchase||toDispatch||bankMissing||readyToPay;
 
@@ -2840,10 +2846,15 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
         ${statusPill}
         ${!winnerName&&!chasing?`<button class="btn btn-sm" style="font-size:11px;color:var(--blue);border-color:rgba(106,169,255,.3)" onclick="markVaultPrizeChasing('${p._dropId}','${p.id}')">📧 Mark chasing</button>`:''}
         ${!winnerName&&chasing?`<button class="btn btn-sm" style="font-size:11px;color:var(--ink3)" onclick="clearVaultChasing('${p._dropId}','${p.id}')">Clear chasing</button>`:''}
+        ${isWatch&&winnerName&&!dispatched?`<button class="btn btn-sm" style="font-size:11px;color:var(--blue);border-color:rgba(106,169,255,.3)" onclick="copyVaultPrizeEmail('${p._dropId}','${p.id}','watchWon')">📧 Copy email</button>`:''}
+        ${isWatch&&dispatched?`<button class="btn btn-sm" style="font-size:11px;color:var(--live);border-color:rgba(74,222,128,.3)" onclick="copyVaultPrizeEmail('${p._dropId}','${p.id}','watchDispatched')">📦 Copy dispatch email</button>`:''}
+        ${isCash&&!paid&&p.bankDetailsDate?`<button class="btn btn-sm" style="font-size:11px;color:var(--ink3)" onclick="copyVaultPrizeEmail('${p._dropId}','${p.id}','bankRequest')">📧 Chase email</button>`:''}
         ${isCash&&!paid?`<button class="btn btn-sm btn-gold" style="font-size:11px" onclick="markVaultPrizePaid('${p._dropId}','${p.id}')">Mark paid ✓</button>`:''}
         <button class="btn-danger btn-sm" onclick="delVaultPrize('${p._dropId}','${p.id}')">✕</button>
       </div>
-      ${isCash&&!paid?`<div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:flex-end">
+      ${isCash&&!paid?`<div style="margin-top:10px">
+        ${!p.bankDetailsDate&&p.winnerName?(()=>{const _ec=p.custId?(DB.customers||[]).find(x=>x.id===p.custId):null;const _em=_ec&&_ec.email?_ec.email:'';return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:10px 14px;background:rgba(106,169,255,.07);border:1px solid rgba(106,169,255,.2);border-radius:9px;flex-wrap:wrap"><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:2px">📧 Bank details needed — email the winner</div>${_em?`<div style="font-size:12px;color:var(--ink2);font-family:monospace">${esc(_em)}</div>`:''}</div><button class="btn btn-sm" style="background:var(--blue);color:#fff;border:none;font-weight:700" onclick="copyVaultBankRequestEmail('${p._dropId}','${p.id}')">📧 Copy email</button></div>`;})():''}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         <div style="flex:1;min-width:130px">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Sort Code</div>
           <input id="bdf_sort_${p.id}" value="${esc(p.sortCode||'')}" placeholder="00-00-00"
@@ -2868,6 +2879,7 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
                  color:${p.bankDetailsDate?'var(--ink3)':'#000'};font-size:12px;font-weight:700;white-space:nowrap">
           ${p.bankDetailsDate?'✓ Details saved':'✓ Save bank details'}
         </button>
+        </div>
       </div>`:''}
       ${isCash&&paid?`<div style="font-size:11.5px;color:var(--live);margin-top:6px">✓ Payment sent${p.paidDate?' · '+fmtDate(p.paidDate):''}</div>`:''}
       ${isWatch&&needsPurchasing&&!p.purchased&&!dispatched?`<div style="margin-top:12px;background:rgba(201,162,75,.07);border:1px solid rgba(201,162,75,.25);border-radius:10px;padding:14px 16px">
@@ -2946,7 +2958,14 @@ function saveVaultPrizeBankDetails(dropId,prizeId){
   if(payEl)  p.payRef=payEl.value;
   if(!p.sortCode&&!p.accountNo){ toast('Enter sort code or account number first'); return; }
   p.bankDetailsDate=new Date().toISOString();
+  // Sync back to matching cashWins entry so dashboard counts stay accurate
+  const matchCW=(d.cashWins||[]).find(w=>w.winnerName===p.winnerName&&String(w.amount)===String(p.amount)&&!w.paid);
+  if(matchCW){ matchCW.sortCode=p.sortCode; matchCW.accountNo=p.accountNo; }
   saveDB(); render(); toast('Bank details saved — ready to pay ✓');
+}
+
+function copyVaultBankRequestEmail(dropId,prizeId){
+  copyVaultPrizeEmail(dropId,prizeId,'cashWon');
 }
 
 function updVaultPrizeField(dropId,prizeId,field,value){
@@ -3546,6 +3565,7 @@ function vVaultHub(){
     <button onclick="setVaultHubView('cashpool')" class="btn ${vaultHubView==='cashpool'?'btn-gold':''}">💸 Cash Pool</button>
     <button onclick="setVaultHubView('adcopy')" class="btn ${vaultHubView==='adcopy'?'btn-gold':''}">📣 Ad Copy</button>
     <button onclick="setVaultHubView('scripts')" class="btn ${vaultHubView==='scripts'?'btn-gold':''}">▷ Scripts</button>
+    <button onclick="setVaultHubView('templates')" class="btn ${vaultHubView==='templates'?'btn-gold':''}">📝 Templates</button>
   </div>`;
   function trackerView(){
     const allPrizesCount=activeVaults.reduce((a,d)=>a+(d.vaultPrizes||[]).length,0);
@@ -3580,7 +3600,7 @@ function vVaultHub(){
     </div>
     ${tabBar}
     ${switcher}
-    ${vaultHubView==='watchpool'?vaultWatchPoolView(activeVaults):vaultHubView==='cashpool'?vaultCashPoolView(activeVaults):vaultHubView==='adcopy'?vaultAdCopyView(activeVaults):vaultHubView==='scripts'?vaultScriptsView(activeVaults):trackerView()}`;
+    ${vaultHubView==='watchpool'?vaultWatchPoolView(activeVaults):vaultHubView==='cashpool'?vaultCashPoolView(activeVaults):vaultHubView==='adcopy'?vaultAdCopyView(activeVaults):vaultHubView==='scripts'?vaultScriptsView(activeVaults):vaultHubView==='templates'?vaultTemplatesView():trackerView()}`;
 }
 
 /* ---------- Vault Hub — Cash Pool view ---------- */
@@ -3915,6 +3935,103 @@ function copyVaultAdAll(dropId, versionIdx){
   if(v.description) lines.push('DESCRIPTION\n'+v.description);
   if(!lines.length){ toast('Nothing to copy'); return; }
   navigator.clipboard.writeText(lines.join('\n\n')).then(()=>toast('Copied all ✓')).catch(()=>toast('Copy failed'));
+}
+
+/* ---------- Vault Hub — Email Templates view ---------- */
+const VAULT_TEMPLATE_META = {
+  watchWon:       { label:'⌚ Watch Won',        desc:'Sent when a watch prize is logged — asks winner for their postal address.',           vars:'{name} · {prize} · {vault}' },
+  cashWon:        { label:'💸 Cash Won',          desc:'Sent when a cash prize is logged — congratulates winner and asks for bank details.',   vars:'{name} · {amount} · {vault}' },
+  bankRequest:    { label:'🏦 Bank Details Chase', desc:'Follow-up when bank details still haven\'t come back.',                              vars:'{name} · {amount} · {vault}' },
+  watchDispatched:{ label:'📦 Watch Dispatched',  desc:'Sent once a watch has been dispatched — confirms it\'s on its way.',                 vars:'{name} · {prize} · {vault} · {tracking}' }
+};
+
+function ensureVaultTemplates(){
+  DB.vaultEmailTemplates = DB.vaultEmailTemplates||{};
+  const def = {
+    watchWon:`Hi {name},\n\nCongratulations — you've won a {prize} in {vault}! 🎉\n\nTo arrange delivery, please reply with your full postal address and we'll get it sent straight out to you.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
+    cashWon:`Hi {name},\n\nCongratulations — you've won a £{amount} cash prize in {vault}! 🎉\n\nTo receive your payment, please reply with your bank details:\n• Sort code\n• Account number\n\nWe'll get it transferred to you straight away.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
+    bankRequest:`Hi {name},\n\nJust a quick follow-up — we still need your bank details to send your £{amount} cash prize.\n\nPlease reply with:\n• Sort code\n• Account number\n\nWe'll get it over to you as soon as we have them.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
+    watchDispatched:`Hi {name},\n\nGreat news — your {prize} is on its way! 📦\n\n{tracking}\n\nIf you have any questions about your delivery, just reply to this email.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`
+  };
+  Object.keys(def).forEach(k=>{ if(!DB.vaultEmailTemplates[k]) DB.vaultEmailTemplates[k]=def[k]; });
+}
+
+function vaultTemplatesView(){
+  ensureVaultTemplates();
+  const tpl = DB.vaultEmailTemplates;
+  const cards = Object.entries(VAULT_TEMPLATE_META).map(([key,meta])=>`
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-h">
+        <div>
+          <h3 style="margin:0">${meta.label}</h3>
+          <div class="muted" style="font-size:12px;margin-top:3px">${meta.desc}</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-left:auto">
+          <span style="font-size:11px;color:var(--ink3);align-self:center;font-family:monospace">${meta.vars}</span>
+          <button class="btn btn-sm btn-ghost" onclick="resetVaultTemplate('${key}')">Reset</button>
+          <button class="btn btn-sm btn-gold" onclick="copyRawTemplate('${key}')">📋 Copy</button>
+        </div>
+      </div>
+      <div style="padding:0 18px 16px">
+        <textarea id="tpl_${key}" rows="10"
+          style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:10px 13px;font-size:13px;line-height:1.6;resize:vertical;outline:none;font-family:inherit"
+          oninput="saveVaultTemplate('${key}',this.value)">${esc(tpl[key]||'')}</textarea>
+        <div style="font-size:11px;color:var(--ink3);margin-top:5px">Placeholders are replaced automatically when copying from the Prize Log. Use <code style="background:var(--panel2);padding:1px 5px;border-radius:4px">{name}</code> for first name, etc.</div>
+      </div>
+    </div>`).join('');
+
+  return `
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:16px;font-weight:800">📝 Email Templates</div>
+        <div class="muted" style="font-size:12.5px;margin-top:3px">Edit once, reuse everywhere — placeholders fill in automatically from prize data.</div>
+      </div>
+    </div>
+    ${cards}`;
+}
+
+function saveVaultTemplate(key, value){
+  ensureVaultTemplates();
+  DB.vaultEmailTemplates[key]=value;
+  queueSave();
+}
+
+function resetVaultTemplate(key){
+  if(!confirm('Reset this template to the default?')) return;
+  if(DB.vaultEmailTemplates) delete DB.vaultEmailTemplates[key];
+  ensureVaultTemplates();
+  const el=document.getElementById('tpl_'+key);
+  if(el) el.value=DB.vaultEmailTemplates[key]||'';
+  queueSave(); toast('Template reset ✓');
+}
+
+function copyRawTemplate(key){
+  ensureVaultTemplates();
+  const t=DB.vaultEmailTemplates[key]||'';
+  navigator.clipboard.writeText(t).then(()=>toast('Template copied ✓')).catch(()=>toast('Copy failed'));
+}
+
+/* Generic prize email copy — resolves placeholders from prize data */
+function copyVaultPrizeEmail(dropId, prizeId, templateKey){
+  ensureVaultTemplates();
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  const cust=p.custId?(DB.customers||[]).find(c=>c.id===p.custId):null;
+  const firstName=(p.winnerName||'there').split(' ')[0];
+  const email=cust&&cust.email?cust.email:'';
+  const vaultName=d.name||d.number||'The Watch Drop Vault';
+  const amount=p.amount||p.cost||0;
+  const prize=p.label||'your prize';
+  const tracking=p.trackingNo?`Tracking: ${p.trackingNo}`:'Your order is on its way — tracking will be shared shortly.';
+  let body=(DB.vaultEmailTemplates[templateKey]||'')
+    .replace(/\{name\}/g,firstName)
+    .replace(/\{fullName\}/g,p.winnerName||firstName)
+    .replace(/\{amount\}/g,amount)
+    .replace(/\{prize\}/g,prize)
+    .replace(/\{vault\}/g,vaultName)
+    .replace(/\{tracking\}/g,tracking);
+  const full=email?`TO: ${email}\n\n${body}`:body;
+  navigator.clipboard.writeText(full).then(()=>toast('Email copied ✓')).catch(()=>toast('Copy failed'));
 }
 
 /* ---------- Vault Hub — Scripts view ---------- */
