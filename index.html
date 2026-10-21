@@ -2724,7 +2724,7 @@ function showTicketsChart(dropId){
   const d=dropById(dropId); if(!d) return;
   const log=[...(d.ticketsLog||[])].reverse(); // oldest first
   if(log.length<2){ toast('Need at least 2 entries to show a chart'); return; }
-  const pool=Number(d.pool)||0;
+  const pool=Number((d.tracker&&d.tracker.maxTickets)||d.pool)||0;
   const maxVal=pool||Math.max(...log.map(e=>e.tickets));
   const W=520,H=200,pad={t:20,r:20,b:40,l:50};
   const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
