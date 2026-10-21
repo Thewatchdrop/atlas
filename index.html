@@ -1872,7 +1872,8 @@ function vaultNumbers(d){
   const t=d.tracker||{};
   d.vaultPrizeHistory=d.vaultPriceHistory||[];
   const history=d.vaultPriceHistory||[];
-  const totalSold = history.reduce((a,h)=>a+(Number(h.tickets)||0),0)||Number(t.ticketsSoldTotal)||0;
+  const _latestLog=d.ticketsLog&&d.ticketsLog[0]?Number(d.ticketsLog[0].tickets)||0:0;
+  const totalSold = history.reduce((a,h)=>a+(Number(h.tickets)||0),0)||Number(t.ticketsSoldTotal)||_latestLog;
   const grossRev = history.length
     ? history.reduce((a,h)=>a+(Number(h.tickets)||0)*(Number(h.price)||0),0)
     : totalSold*(Number(t.fullTicketPrice)||2.49);
@@ -4499,10 +4500,13 @@ function vDropHub(){
     <div class="htitle">
       <h2 style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
         <span>${esc(d.number)}</span>
-        ${d.watchId
+        ${d.type==='Vault'
           ? `<span class="muted" style="font-weight:400">·</span>
-             <span style="cursor:pointer;color:var(--ink)" onclick="go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)" title="Open in Watch Library">${esc(watchName(d.watchId))} <span style="font-size:14px;color:var(--gold2);font-weight:500">↗</span></span>`
-          : `<span class="muted" style="font-weight:400;font-size:18px">— select a watch in Overview</span>`}
+             <span style="cursor:pointer;color:var(--ink2);font-weight:500;font-size:20px" onclick="openVaultRenameModal('${d.id}')" title="Click to rename">${esc(d.name||'Unnamed Vault')} <span style="font-size:13px;color:var(--gold2);opacity:.65">✎</span></span>`
+          : d.watchId
+            ? `<span class="muted" style="font-weight:400">·</span>
+               <span style="cursor:pointer;color:var(--ink)" onclick="go('watches');setTimeout(()=>openWatch('${d.watchId}'),50)" title="Open in Watch Library">${esc(watchName(d.watchId))} <span style="font-size:14px;color:var(--gold2);font-weight:500">↗</span></span>`
+            : `<span class="muted" style="font-weight:400;font-size:18px">— select a watch in Overview</span>`}
       </h2>
       <div class="hmeta">
         <span class="pill ${STATUS_PILL[d.status]}">${d.status}</span>
@@ -4807,9 +4811,118 @@ function trkSnapshotStrip(d){
   </div>
   <div class="muted" style="font-size:11px;margin:-10px 0 18px;cursor:pointer" onclick="go('drop','${d.id}','financials')">Full breakdown → Financials tab</div>`;
 }
+function openVaultRenameModal(id){
+  const d=dropById(id); if(!d) return;
+  openModal(`<div class="modal" style="max-width:380px">
+    <div class="modal-h"><h3>Rename Vault</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Vault Name</label>
+        <input id="vrn_inp" value="${esc(d.name||'')}" placeholder="e.g. Vault One Variable"
+          style="font-size:15px;font-weight:600;width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;outline:none"
+          onkeydown="if(event.key==='Enter')saveVaultRename('${id}')">
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveVaultRename('${id}')">Save</button>
+    </div>
+  </div>`);
+  setTimeout(()=>{const el=document.getElementById('vrn_inp');if(el){el.focus();el.select();}},30);
+}
+function saveVaultRename(id){
+  const inp=document.getElementById('vrn_inp'); if(!inp) return;
+  const d=dropById(id); if(!d) return;
+  d.name=inp.value.trim(); saveDB(); closeModal(); render();
+  toast(`\u2713 Renamed to ${d.name||d.number}`);
+}
+
+function dropOverviewVault(d){
+  const t=d.tracker||{};
+  const vn=vaultNumbers(d);
+  const prizes=d.vaultPrizes||[];
+  const watchCost=prizes.filter(p=>p.type==='watch').reduce((a,p)=>a+(Number(p.cost)||0),0);
+  const cashPaid=prizes.filter(p=>p.type==='cash').reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const totalPrizeCost=watchCost+cashPaid;
+  const log=d.ticketsLog||[];
+  const latestLog=log[0]||null;
+
+  const mediaCard=`<div class="card"><div class="card-h"><h3>Media</h3></div>
+    <div class="modal-b" style="max-height:none">
+      <div class="field-row">
+        ${fld('Google Drive Folder',d.links&&d.links.drive?d.links.drive:'','links.drive','url')}
+        ${fld('Canva Folder',d.links&&d.links.canva?d.links.canva:'','links.canva','url')}
+      </div>
+      ${(d.links&&d.links.drive)||(d.links&&d.links.canva)?`<div style="display:flex;gap:10px;margin-top:4px">
+        ${d.links&&d.links.drive?`<a href="${esc(d.links.drive)}" target="_blank" rel="noopener" class="btn btn-sm" style="text-decoration:none">\ud83d\udcc1 Drive \u2197</a>`:''}
+        ${d.links&&d.links.canva?`<a href="${esc(d.links.canva)}" target="_blank" rel="noopener" class="btn btn-sm" style="text-decoration:none">\ud83c\udfa8 Canva \u2197</a>`:''}
+      </div>`:''}
+    </div></div>`;
+
+  const salesLog=log.length?`<div class="card">
+    <div class="card-h">
+      <h3>\ud83d\udcca Daily Sales Log</h3>
+      <span class="muted" style="font-size:11.5px">${log.length} entries \xb7 Latest: ${latestLog?Number(latestLog.tickets).toLocaleString():'—'} total</span>
+    </div>
+    <div class="card-b" style="max-height:280px;overflow-y:auto">
+      ${log.map(e=>`<div class="row-item">
+        <div class="txt">
+          <div class="t" style="font-size:13px">${Number(e.tickets).toLocaleString()} tickets total</div>
+          <div class="meta">${new Date(e.at).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})} \xb7 ${new Date(e.at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <span style="font-weight:700;font-size:14px;color:var(--gold2)">${Number(e.tickets).toLocaleString()}</span>
+      </div>`).join('')}
+    </div></div>`:'';
+
+  return `${trkSnapshotStrip(d)}
+  <div class="two-col">
+    <div class="card"><div class="card-h"><h3>Details</h3></div><div class="modal-b" style="max-height:none">
+      <div class="field"><label>Vault Name</label>
+        <input type="text" value="${esc(d.name||'')}" placeholder="e.g. Vault One Variable"
+          onchange="updDrop('name',this.value)"
+          style="font-size:15px;font-weight:700;color:var(--gold2)">
+      </div>
+      <div class="field"><label>Series</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          ${['Main Drop','Weekend Drop','Tech Drop','Vault','Free Drop'].map(ty=>`<button type="button" class="btn btn-sm ${d.type===ty?'btn-gold':''}" onclick="updDrop('type','${ty}')">${ty.replace(' Drop','')}</button>`).join('')}
+        </div>
+      </div>
+      <div class="field"><label>Vault Number <span class="muted" style="font-size:11px;text-transform:none;font-weight:400">(digits only — V prefix auto-set)</span></label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px;font-weight:800;color:var(--gold2);flex-shrink:0">V</span>
+          <input type="number" value="${esc((d.number||'').replace(/\D/g,''))}" min="1" style="font-size:16px;font-weight:700;flex:1" onchange="updDropNumber(this.value)">
+        </div>
+      </div>
+      <div class="field-row">${fld('Launch Date',d.launch,'launch','date')}${fld('Draw Date',d.draw,'draw','date')}</div>
+      ${fld('Website Link (live page)',d.websiteLink||'','websiteLink')}
+      <div class="field"><label>Notes</label><textarea onchange="updDrop('notes',this.value)">${esc(d.notes||'')}</textarea></div>
+    </div></div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card"><div class="card-h"><h3>The Offer</h3><span class="muted" style="font-size:11px">Entry price and pool</span></div>
+        <div class="modal-b" style="max-height:none">
+          <div class="field-row">
+            ${trkFld(d,'Entry Price (£)','fullTicketPrice')}
+            ${trkFld(d,'Pool Size (Total Tickets)','maxTickets')}
+          </div>
+          <div class="field-row">
+            ${roFld('Full Sell-Out Revenue (£)', trkSellOutRevenue(t).toFixed(2))}
+            ${roFld('Entries Sold', vn.entries.toLocaleString())}
+          </div>
+          <div style="margin-top:10px">
+            <button class="btn btn-sm btn-gold" onclick="go('vaulthub','${d.id}')">⚡ Open Vault Hub →</button>
+          </div>
+        </div>
+      </div>
+      ${mediaCard}
+    </div>
+  </div>
+  ${salesLog}`;
+}
+
 function dropOverview(d){
   d.images=d.images||{}; d.copy=d.copy||{};
   const t=d.tracker||{};
+  if(d.type==='Vault') return dropOverviewVault(d);
   const dropImages=`<div class="card"><div class="card-h"><h3>Media</h3><span class="muted" style="font-size:11px">Links to Canva and Drive folders for this drop</span></div>
     <div class="modal-b" style="max-height:none">
       <div class="field-row">
