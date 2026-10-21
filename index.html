@@ -1316,6 +1316,7 @@ function migrate(){
     }
   });
   DB.fixedCosts=DB.fixedCosts||[];
+  DB.coupons=DB.coupons||[];
   DB.notes=DB.notes||[];
   DB.dailyTakings=DB.dailyTakings||[];
   DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
@@ -2251,6 +2252,7 @@ const NAV=[
     {k:'finance',label:'Finance Overview',ico:'₤'},
     {k:'fixedCosts',label:'Fixed Costs',ico:'◇',count:()=>DB.fixedCosts.length},
     {k:'marketing',label:'Marketing & Ads',ico:'◈'},
+    {k:'coupons',label:'Coupon Bank',ico:'🏷',count:()=>(DB.coupons||[]).length},
   ]},
   {group:'Content',items:[
     {k:'content',label:'New Content',ico:'✎',count:()=>DB.content.length},
@@ -2304,7 +2306,7 @@ function render(){
   const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,planning:vPlanning,scripts:vAllScripts,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
     content:vContent,assets:vAssets,ideas:vIdeas,graphics:vGraphics,sops:vSops,kb:vKB,notes:vNotes,
-    projects:vProjects,project:vProject,vaulthub:vVaultHub};
+    projects:vProjects,project:vProject,vaulthub:vVaultHub,coupons:vCoupons};
   c.innerHTML = (V[route.view]||vDashboard)();
   hydrateMedia();
   if(route.view==='graphics') ggBoot();
@@ -6646,6 +6648,175 @@ function saveFixedCost(id){
 function delFixedCost(id){if(!confirm('Delete this fixed cost?'))return;
   DB.fixedCosts=DB.fixedCosts.filter(x=>x.id!==id); fcCutSet.delete(id);
   saveDB();closeModal();render();}
+
+/* ================= COUPON BANK ================= */
+let _couponSegFilter='All';
+
+function vCoupons(){
+  const coupons=DB.coupons||[];
+  const todayStr=today();
+
+  function couponStatus(c){
+    if(c.expiry&&c.expiry<todayStr) return 'expired';
+    if(c.usageLimit&&Number(c.usageCount)>=Number(c.usageLimit)) return 'used-up';
+    return 'active';
+  }
+
+  const segs=['All',...[...new Set(coupons.map(c=>c.segment||'General'))].sort()];
+  const seg=_couponSegFilter||'All';
+  const filtered=seg==='All'?coupons:coupons.filter(c=>(c.segment||'General')===seg);
+
+  const total=coupons.length;
+  const activeN=coupons.filter(c=>couponStatus(c)==='active').length;
+  const expiredN=coupons.filter(c=>couponStatus(c)==='expired').length;
+  const usedUpN=coupons.filter(c=>couponStatus(c)==='used-up').length;
+
+  function statusPill(s){
+    if(s==='expired') return `<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(242,109,109,.12);color:var(--danger);border:1px solid rgba(242,109,109,.2)">Expired</span>`;
+    if(s==='used-up') return `<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(245,165,36,.12);color:var(--warn);border:1px solid rgba(245,165,36,.2)">Used up</span>`;
+    return `<span style="display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:var(--live-bg);color:var(--live);border:1px solid rgba(74,222,128,.2)">Active</span>`;
+  }
+
+  function amtLabel(c){
+    if(c.type==='pct') return `${c.amount}% off`;
+    if(c.type==='fixed') return `£${Number(c.amount).toFixed(2)} off`;
+    return 'Free shipping';
+  }
+
+  const segBtns=segs.map(s=>`<button class="btn btn-sm ${s===seg?'btn-gold':''}" onclick="_couponSegFilter='${s}';render()">${s}</button>`).join('');
+
+  const rows=filtered.length?[...filtered].reverse().map(c=>{
+    const st=couponStatus(c);
+    const used=Number(c.usageCount)||0;
+    const limit=c.usageLimit?Number(c.usageLimit):null;
+    const barPct=limit?Math.min(100,Math.round(used/limit*100)):0;
+    return `<tr style="border-bottom:1px solid var(--line);cursor:default" onmouseenter="this.style.background='var(--panel2)'" onmouseleave="this.style.background=''">
+      <td style="padding:11px 14px">
+        <span style="font-family:monospace;font-size:12px;font-weight:800;letter-spacing:.8px;color:var(--gold2);cursor:pointer"
+          onclick="cpyCoupon('${esc(c.code)}')" title="Click to copy">${esc(c.code)}</span>
+        <button onclick="cpyCoupon('${esc(c.code)}')" title="Copy" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:11px;margin-left:4px;padding:0">📋</button>
+      </td>
+      <td style="padding:11px 14px;font-size:13px">${amtLabel(c)}</td>
+      <td style="padding:11px 14px"><span style="font-size:11px;padding:2px 8px;border-radius:20px;background:var(--line);color:var(--ink2)">${esc(c.segment||'General')}</span></td>
+      <td style="padding:11px 14px;font-size:12px;color:var(--ink2);max-width:200px">${c.description?esc(c.description):'<span style="color:var(--ink3)">—</span>'}</td>
+      <td style="padding:11px 14px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;white-space:nowrap;color:var(--ink2)">${used}${limit?' / '+limit:' / ∞'}</span>
+          ${limit?`<div style="width:56px;height:5px;background:var(--line2);border-radius:3px;overflow:hidden"><div style="width:${barPct}%;height:100%;background:${barPct>=100?'var(--danger)':barPct>=80?'var(--warn)':'var(--gold)'};border-radius:3px;transition:.3s"></div></div>`:''}
+        </div>
+      </td>
+      <td style="padding:11px 14px;font-size:12px;color:var(--ink2)">${c.expiry?fmtDate(c.expiry):'—'}</td>
+      <td style="padding:11px 14px">${statusPill(st)}</td>
+      <td style="padding:11px 14px">
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-sm" onclick="openCouponModal('${c.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="delCoupon('${c.id}')">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="8"><div class="empty">No coupons yet — click <b>＋ Add Coupon</b> to build your bank.</div></td></tr>`;
+
+  return `<div class="page-head">
+    <div><h2>🏷️ Coupon Bank</h2><div class="desc">Store, track and copy discount codes — ready to deploy for VIP sends, win-backs and launches</div></div>
+    <div class="page-actions"><button class="btn btn-gold" onclick="openCouponModal()">＋ Add Coupon</button></div>
+  </div>
+  <div class="kpi-row condensed" style="margin-bottom:16px">
+    <div class="kpi"><div class="label">Total</div><div class="val">${total}</div></div>
+    <div class="kpi"><div class="label">Active</div><div class="val green">${activeN}</div></div>
+    <div class="kpi"><div class="label">Expired</div><div class="val" style="color:var(--danger)">${expiredN}</div></div>
+    <div class="kpi"><div class="label">Used Up</div><div class="val" style="color:var(--warn)">${usedUpN}</div></div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${segBtns}</div>
+  <div class="card">
+    <div class="card-h">
+      <h3>Coupons — ${filtered.length}${seg!=='All'?' ('+seg+')':''}</h3>
+      <span style="font-size:12px;color:var(--ink3)">Click any code to copy it instantly 📋</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--panel2)">
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;white-space:nowrap">Code</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;white-space:nowrap">Discount</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;white-space:nowrap">Segment</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600">Description</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;white-space:nowrap">Usage / Limit</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;white-space:nowrap">Expiry</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600">Status</th>
+          <th style="padding:9px 14px"></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function cpyCoupon(code){
+  navigator.clipboard.writeText(code).then(()=>toast('✓ '+code+' copied')).catch(()=>toast('Copy failed'));
+}
+
+function openCouponModal(id){
+  const c=id?(DB.coupons||[]).find(x=>x.id===id):null;
+  const inp=(fid,label,val,type,ph)=>
+    `<div class="field"><label>${label}</label><input id="${fid}" type="${type||'text'}" value="${esc(String(val||''))}" placeholder="${ph||''}" style="width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 11px;outline:none"></div>`;
+  const sel=(fid,label,val,opts)=>
+    `<div class="field"><label>${label}</label><select id="${fid}" style="width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 11px;outline:none">${opts.map(o=>`<option value="${o.v}"${o.v===val?' selected':''}>${o.l}</option>`).join('')}</select></div>`;
+
+  openModal(`<div class="modal" style="max-width:500px">
+    <div class="modal-h"><h3>${c?'Edit Coupon':'Add Coupon'}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b" style="display:flex;flex-direction:column;gap:14px">
+      <div class="field-row">
+        ${inp('cp_code','Coupon Code (exactly as in WooCommerce)',c?.code||'','text','e.g. VIP25')}
+        ${sel('cp_type','Type',c?.type||'pct',[{v:'pct',l:'% Discount'},{v:'fixed',l:'£ Off Basket'},{v:'free_shipping',l:'Free Shipping'}])}
+      </div>
+      <div class="field-row">
+        ${inp('cp_amount','Amount (% or £)',c?.amount||'','number','e.g. 20')}
+        ${sel('cp_segment','Segment / Use For',c?.segment||'VIP',['VIP','Founders Club','General','Win-back','Launch','Competition','One-time'].map(s=>({v:s,l:s})))}
+      </div>
+      <div class="field-row">
+        ${inp('cp_limit','Usage Limit (blank = unlimited)',c?.usageLimit!=null?c.usageLimit:'','number','∞ unlimited')}
+        ${inp('cp_used','Current Usage Count',c?.usageCount||0,'number','0')}
+      </div>
+      <div class="field-row">
+        ${inp('cp_expiry','Expiry Date (optional)',c?.expiry||'','date','')}
+        ${inp('cp_productIds','Product IDs (optional)',c?.productIds||'','text','e.g. 19648, 19819')}
+      </div>
+      ${inp('cp_desc','Description / Notes',c?.description||'','text','e.g. VIP 25% off for D48 launch send')}
+    </div>
+    <div class="modal-f" style="justify-content:space-between">
+      ${c?`<button class="btn btn-danger" onclick="delCoupon('${c.id}')">Delete</button>`:'<span></span>'}
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-gold" onclick="saveCoupon('${c?.id||''}')">Save</button>
+      </div>
+    </div>
+  </div>`);
+}
+
+function saveCoupon(id){
+  const code=(document.getElementById('cp_code').value||'').trim().toUpperCase();
+  if(!code){alert('Enter a coupon code');return;}
+  const data={
+    code,
+    type:document.getElementById('cp_type').value,
+    amount:Number(document.getElementById('cp_amount').value)||0,
+    segment:document.getElementById('cp_segment').value,
+    usageLimit:document.getElementById('cp_limit').value!==''?Number(document.getElementById('cp_limit').value):null,
+    usageCount:Number(document.getElementById('cp_used').value)||0,
+    expiry:document.getElementById('cp_expiry').value||null,
+    productIds:document.getElementById('cp_productIds').value.trim()||null,
+    description:document.getElementById('cp_desc').value.trim(),
+  };
+  DB.coupons=DB.coupons||[];
+  if(id){Object.assign(DB.coupons.find(c=>c.id===id),data);}
+  else{DB.coupons.unshift({id:uid('cp'),...data,created:now()});}
+  saveDB();closeModal();render();toast(`✓ ${code} saved`);
+}
+
+function delCoupon(id){
+  if(!confirm('Delete this coupon?'))return;
+  DB.coupons=(DB.coupons||[]).filter(c=>c.id!==id);
+  saveDB();closeModal();render();toast('Coupon deleted');
+}
 
 function vMarketing(){
   const drops=[...DB.drops].filter(d=>d.launch).sort((a,b)=>a.launch.localeCompare(b.launch));
