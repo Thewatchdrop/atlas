@@ -1370,6 +1370,16 @@ function migrate(){
     w.reviewRequested=!!w.reviewRequested;
     w.reviewGiven=!!w.reviewGiven;
     w.reviewTaskCreated=!!w.reviewTaskCreated;
+    w.contacted=!!w.contacted; w.responded=!!w.responded;
+    w.consentGiven=!!w.consentGiven; w.socialStory=!!w.socialStory;
+    w.socialFeed=!!w.socialFeed; w.socialDate=w.socialDate||'';
+  });
+  (DB.drops||[]).forEach(d=>{
+    (d.instantWinners||[]).forEach(w=>{
+      w.contacted=!!w.contacted; w.responded=!!w.responded;
+      w.consentGiven=!!w.consentGiven; w.socialStory=!!w.socialStory;
+      w.socialFeed=!!w.socialFeed; w.socialDate=w.socialDate||'';
+    });
   });
   (DB.tasks||[]).forEach(t=>{
     if(t.type==='Delivery') t.type='Prize Delivery';
@@ -2246,6 +2256,7 @@ const NAV=[
     {k:'watches',label:'Watch Library',ico:'◷',count:()=>DB.watches.length},
     {k:'sourcing',label:'Watch Sourcing',ico:'◌',count:()=>DB.sourcing.filter(s=>!['Rejected','Purchased'].includes(s.status)).length},
     {k:'winners',label:'Winners',ico:'✦',count:()=>DB.winners.length},
+    {k:'winnerpipeline',label:'Winner Pipeline',ico:'📣',count:()=>{const vw=(DB.drops||[]).reduce((a,d)=>a+(d.instantWinners||[]).length,0);const pending=(DB.drops||[]).reduce((a,d)=>a+(d.instantWinners||[]).filter(w=>w.dispatched&&!w.socialStory&&!w.socialFeed).length,0)+(DB.winners||[]).filter(w=>w.dispatched&&!w.socialStory&&!w.socialFeed).length;return pending;}},
     {k:'suppliers',label:'Suppliers',ico:'▦',count:()=>DB.suppliers.length},
     {k:'customers',label:'Customers',ico:'◉',count:()=>DB.customers.length},
   ]},
@@ -2307,7 +2318,7 @@ function render(){
   const V={dashboard:vDashboard,drops:vDrops,drop:vDropHub,tracker:vDropTracker,pastdrops:vPastDrops,pastdrop:vPastDropDetail,contentSchedule:vContentSchedule,winnerResults:vWinnerResults,finance:vFinance,fixedCosts:vFixedCosts,marketing:vMarketing,sourcing:vSourcing,tasks:vTasks,calendar:vCalendar,planning:vPlanning,scripts:vAllScripts,
     watches:vWatches,winners:vWinners,suppliers:vSuppliers,customers:vCustomers,
     content:vContent,assets:vAssets,ideas:vIdeas,graphics:vGraphics,sops:vSops,kb:vKB,notes:vNotes,
-    projects:vProjects,project:vProject,vaulthub:vVaultHub,coupons:vCoupons};
+    projects:vProjects,project:vProject,vaulthub:vVaultHub,coupons:vCoupons,winnerpipeline:vWinnerPipeline};
   c.innerHTML = (V[route.view]||vDashboard)();
   hydrateMedia();
   if(route.view==='graphics') ggBoot();
@@ -6635,6 +6646,248 @@ function watchCard(w){
 }
 
 /* ================= WINNERS ================= */
+/* ================= WINNER PIPELINE ================= */
+let _wpFilter='needs-action'; // 'all'|'uncontacted'|'contacted'|'responded'|'ready-post'|'posted'
+
+/* Flatten all winners from both sources into one array */
+function wpAllWinners(){
+  const main=(DB.winners||[]).map(w=>{
+    const d=w.dropId?dropById(w.dropId):null;
+    const ww=d&&d.watchId?watchById(d.watchId):null;
+    return {...w, _src:'main', _drop:d, _label:ww?`${ww.brand} ${ww.model}`:(w.prize||'Watch'), _prizeType:'watch', _prizeValue:ww?Number(ww.statedValue)||0:0};
+  });
+  const vault=(DB.drops||[]).flatMap(d=>
+    (d.instantWinners||[]).map(w=>({
+      ...w, _src:'vault', _drop:d,
+      _label:w.prize||(w.prizeType==='cash'?`£${Number(w.prizeValue||0).toLocaleString()} Cash`:w.prizeType==='credit'?`£${Number(w.prizeValue||0)} Credit`:'Prize'),
+      _prizeType:w.prizeType||'watch', _prizeValue:Number(w.prizeValue)||0
+    }))
+  );
+  return [...vault,...main].sort((a,b)=>(b.date||b.created||'').localeCompare(a.date||a.created||''));
+}
+
+function wpStage(w){
+  if(w.socialStory||w.socialFeed) return 'posted';
+  if(w.dispatched||w.bankDone) return 'ready-post';
+  if(w.responded) return 'responded';
+  if(w.contacted) return 'contacted';
+  return 'uncontacted';
+}
+
+function wpNeedsAction(w){
+  const s=wpStage(w);
+  return s==='uncontacted'||s==='contacted'||s==='responded'||s==='ready-post';
+}
+
+function wpStagePill(w){
+  const s=wpStage(w);
+  const cfg={
+    'uncontacted':{col:'var(--danger)',bg:'rgba(242,109,109,.12)',lbl:'Uncontacted'},
+    'contacted'  :{col:'var(--warn)', bg:'rgba(245,165,36,.12)', lbl:'Contacted'},
+    'responded'  :{col:'var(--blue)', bg:'rgba(106,169,255,.12)',lbl:'Responded'},
+    'ready-post' :{col:'var(--gold2)',bg:'var(--goldsoft)',       lbl:'Ready to Post'},
+    'posted'     :{col:'var(--live)', bg:'var(--live-bg)',        lbl:'✓ Posted'},
+  }[s]||{col:'var(--ink3)',bg:'var(--line)',lbl:s};
+  return `<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;background:${cfg.bg};color:${cfg.col};white-space:nowrap">${cfg.lbl}</span>`;
+}
+
+function wpPrizeTypePill(pt){
+  const c=pt==='watch'?'pill-done':pt==='cash'?'pill-live':'pill-draft';
+  return `<span class="pill ${c}" style="font-size:10px;text-transform:capitalize">${pt}</span>`;
+}
+
+function wpSocialBadges(w){
+  const s=`<span style="font-size:11px;padding:2px 7px;border-radius:12px;font-weight:700;`;
+  const story=w.socialStory
+    ?s+`background:var(--live-bg);color:var(--live)">Story ✓</span>`
+    :s+`background:var(--line);color:var(--ink3)">Story</span>`;
+  const feed=w.socialFeed
+    ?s+`background:var(--live-bg);color:var(--live)">Feed ✓</span>`
+    :s+`background:var(--line);color:var(--ink3)">Feed</span>`;
+  return `<div style="display:flex;gap:4px">${story}${feed}</div>`;
+}
+
+function wpCaption(w){
+  const drop=w._drop;
+  const dropLabel=drop?(drop.name||drop.number||'The Watch Drop'):'The Watch Drop';
+  const name=w.name||'our lucky winner';
+  const loc=w.location||w.city||'';
+  const locStr=loc?` from ${loc}`:'';
+  if(w._prizeType==='watch'){
+    return `\ud83c\udfc6 Congratulations to ${name}${locStr} who just won a ${w._label} in ${dropLabel}!\n\nDon\u2019t just watch\u2026 win.\n\ud83d\udc49 thewatchdrop.co.uk`;
+  } else if(w._prizeType==='cash'){
+    return `\ud83d\udcb0 Congratulations to ${name}${locStr} who just won \u00a3${Number(w._prizeValue).toLocaleString()} cash in ${dropLabel}!\n\nEntries from \u00a32.49 \u2014 instant reveal at checkout.\n\ud83d\udc49 thewatchdrop.co.uk`;
+  } else {
+    return `\ud83c\udf89 ${name}${locStr} is a winner in ${dropLabel}! \ud83c\udf89\n\nThousands of instant winners \u2014 are you next?\n\ud83d\udc49 thewatchdrop.co.uk`;
+  }
+}
+
+function wpSetField(w, field, val){
+  // Find and update the actual stored object
+  if(w._src==='main'){
+    const obj=winById(w.id); if(obj) obj[field]=val;
+  } else {
+    const d=dropById(w._drop.id);
+    if(d){ const obj=(d.instantWinners||[]).find(x=>x.id===w.id); if(obj) obj[field]=val; }
+  }
+  queueSave(); render();
+}
+
+function wpMarkContacted(id,src,dropId){
+  const w=src==='main'?winById(id):(dropById(dropId)?.instantWinners||[]).find(x=>x.id===id);
+  if(w){w.contacted=true;} queueSave(); render(); toast('\u2713 Marked as contacted');
+}
+function wpMarkResponded(id,src,dropId){
+  const w=src==='main'?winById(id):(dropById(dropId)?.instantWinners||[]).find(x=>x.id===id);
+  if(w){w.contacted=true;w.responded=true;} queueSave(); render(); toast('\u2713 Marked as responded');
+}
+function wpMarkStory(id,src,dropId){
+  const w=src==='main'?winById(id):(dropById(dropId)?.instantWinners||[]).find(x=>x.id===id);
+  if(w){w.socialStory=true;if(!w.socialDate)w.socialDate=today();} queueSave(); render(); toast('\ud83d\udcf1 Story marked as posted');
+}
+function wpMarkFeed(id,src,dropId){
+  const w=src==='main'?winById(id):(dropById(dropId)?.instantWinners||[]).find(x=>x.id===id);
+  if(w){w.socialFeed=true;if(!w.socialDate)w.socialDate=today();} queueSave(); render(); toast('\ud83d\uddbc\ufe0f Feed marked as posted');
+}
+function wpCopyCaption(id,src,dropId){
+  const all=wpAllWinners();
+  const w=all.find(x=>x.id===id&&x._src===src);
+  if(!w) return;
+  const cap=wpCaption(w);
+  navigator.clipboard.writeText(cap).then(()=>toast('\u2713 Caption copied')).catch(()=>toast('Copy failed'));
+}
+function wpOpenDetail(id,src,dropId){
+  if(src==='main') openWinner(id);
+  else { go('vaulthub',dropId); }
+}
+function wpOpenConsentModal(id,src,dropId){
+  const w=src==='main'?winById(id):(dropById(dropId)?.instantWinners||[]).find(x=>x.id===id);
+  if(!w) return;
+  openModal(`<div class="modal" style="max-width:420px">
+    <div class="modal-h"><h3>Social Consent & Notes</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b" style="display:flex;flex-direction:column;gap:14px">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--panel2);border-radius:8px">
+        <input type="checkbox" id="wp_consent" ${w.consentGiven?'checked':''} style="width:16px;height:16px">
+        <span style="font-weight:600">Winner has given consent to be featured on social media</span>
+      </label>
+      <div class="field"><label>Social Notes (optional)</label>
+        <textarea id="wp_snotes" placeholder="e.g. Sent story DM · waiting for photo · prefer first name only">${esc(w.socialNotes||'')}</textarea>
+      </div>
+      <div class="field"><label>Date Posted (optional)</label>
+        <input type="date" id="wp_sdate" value="${esc(w.socialDate||'')}">
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="wpSaveConsent('${id}','${src}','${dropId||''}')">Save</button>
+    </div>
+  </div>`);
+}
+function wpSaveConsent(id,src,dropId){
+  const consent=document.getElementById('wp_consent')?.checked||false;
+  const notes=document.getElementById('wp_snotes')?.value||'';
+  const date=document.getElementById('wp_sdate')?.value||'';
+  const w=src==='main'?winById(id):(dropById(dropId)?.instantWinners||[]).find(x=>x.id===id);
+  if(w){w.consentGiven=consent;w.socialNotes=notes;if(date)w.socialDate=date;}
+  queueSave(); closeModal(); render(); toast('\u2713 Saved');
+}
+
+function vWinnerPipeline(){
+  const all=wpAllWinners();
+  const filt=_wpFilter;
+  const filtered=filt==='all'?all
+    :filt==='needs-action'?all.filter(wpNeedsAction)
+    :all.filter(w=>wpStage(w)===filt);
+
+  const counts={
+    all:all.length,
+    'needs-action':all.filter(wpNeedsAction).length,
+    uncontacted:all.filter(w=>wpStage(w)==='uncontacted').length,
+    contacted:all.filter(w=>wpStage(w)==='contacted').length,
+    responded:all.filter(w=>wpStage(w)==='responded').length,
+    'ready-post':all.filter(w=>wpStage(w)==='ready-post').length,
+    posted:all.filter(w=>wpStage(w)==='posted').length,
+  };
+
+  const filterBtns=[
+    {k:'needs-action',l:'Needs Action',col:'var(--warn)'},
+    {k:'uncontacted', l:'Uncontacted', col:'var(--danger)'},
+    {k:'contacted',   l:'Contacted',   col:'var(--warn)'},
+    {k:'responded',   l:'Responded',   col:'var(--blue)'},
+    {k:'ready-post',  l:'Ready to Post',col:'var(--gold2)'},
+    {k:'posted',      l:'Posted \u2713', col:'var(--live)'},
+    {k:'all',         l:'All',          col:'var(--ink2)'},
+  ].map(f=>`<button onclick="_wpFilter='${f.k}';render()" class="btn btn-sm" style="border-radius:20px;${filt===f.k?`background:var(--goldsoft);color:var(--gold2);border-color:var(--gold)`:''}">${f.l}${counts[f.k]?` <span style="background:var(--line2);color:var(--ink2);font-size:10px;padding:1px 6px;border-radius:10px;margin-left:3px">${counts[f.k]}</span>`:''}</button>`).join('');
+
+  const rows=filtered.length?filtered.map(w=>{
+    const stage=wpStage(w);
+    const did=w._drop?.id||'';
+    const dropLabel=w._drop?(w._drop.name||w._drop.number||'Vault'):'—';
+    const dateStr=w.date||w.created||'';
+    const isVault=w._src==='vault';
+    return `<tr style="border-bottom:1px solid var(--line);cursor:default" onmouseenter="this.style.background='var(--panel2)'" onmouseleave="this.style.background=''">
+      <td style="padding:10px 14px">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          ${wpPrizeTypePill(w._prizeType)}
+          <span style="font-size:11px;color:var(--ink2);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(w._label)}</span>
+          ${isVault?'<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:rgba(201,162,75,.12);color:var(--gold2);font-weight:700">VAULT</span>':''}
+        </div>
+      </td>
+      <td style="padding:10px 14px">
+        <div style="font-weight:600;font-size:13px">${esc(w.name||'\u2014')}</div>
+        <div style="font-size:11px;color:var(--ink3)">${esc(w.email||w.instagram||'\u2014')}</div>
+        ${w.consentGiven?'<span style="font-size:9px;color:var(--live);">\u2713 consent</span>':''}
+      </td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--gold2);white-space:nowrap">${esc(dropLabel)}</td>
+      <td style="padding:10px 14px;font-size:11px;color:var(--ink3);white-space:nowrap">${dateStr?fmtDate(dateStr):'—'}</td>
+      <td style="padding:10px 14px">${wpStagePill(w)}</td>
+      <td style="padding:10px 14px">${wpSocialBadges(w)}</td>
+      <td style="padding:10px 10px">
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${stage==='uncontacted'?`<button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="wpMarkContacted('${w.id}','${w._src}','${did}')">📧 Contacted</button>`:''}
+          ${stage==='contacted'?`<button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="wpMarkResponded('${w.id}','${w._src}','${did}')">✅ Responded</button>`:''}
+          ${(stage==='ready-post'||stage==='responded'||stage==='dispatched')&&!w.socialStory?`<button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="wpMarkStory('${w.id}','${w._src}','${did}')">📱 Story</button>`:''}
+          ${(stage==='ready-post'||stage==='responded'||stage==='dispatched')&&!w.socialFeed?`<button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="wpMarkFeed('${w.id}','${w._src}','${did}')">🖼 Feed</button>`:''}
+          <button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="wpCopyCaption('${w.id}','${w._src}','${did}')" title="Copy social caption">📋</button>
+          <button class="btn btn-sm" style="font-size:11px;padding:4px 9px" onclick="wpOpenConsentModal('${w.id}','${w._src}','${did}')" title="Consent & notes">\u2699\ufe0f</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="7"><div class="empty">No winners match this filter.</div></td></tr>`;
+
+  return `<div class="page-head">
+    <div><h2>📣 Winner Pipeline</h2><div class="desc">Every winner from every drop and vault — track contact, response and social media in one place</div></div>
+  </div>
+  <div class="kpi-row condensed" style="margin-bottom:16px">
+    <div class="kpi"><div class="label">Total Winners</div><div class="val">${all.length}</div><div class="sub">all time</div></div>
+    <div class="kpi"><div class="label">Needs Action</div><div class="val" style="color:var(--warn)">${counts['needs-action']}</div><div class="sub">contact · respond · post</div></div>
+    <div class="kpi"><div class="label">Ready to Post</div><div class="val" style="color:var(--gold2)">${counts['ready-post']}</div><div class="sub">dispatched, not posted</div></div>
+    <div class="kpi"><div class="label">Uncontacted</div><div class="val" style="color:var(--danger)">${counts.uncontacted}</div><div class="sub">no email sent yet</div></div>
+    <div class="kpi"><div class="label">Posted</div><div class="val green">${counts.posted}</div><div class="sub">on story or feed</div></div>
+  </div>
+  <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px">${filterBtns}</div>
+  <div class="card">
+    <div class="card-h">
+      <h3>Winners — ${filtered.length}${filt!=='all'?' ('+filterBtns.find?'':''+(filt.replace('-',' '))+')':''}</h3>
+      <span style="font-size:12px;color:var(--ink3)">📋 = copy social caption &nbsp; ⚙️ = consent & notes</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--panel2)">
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;white-space:nowrap">Prize</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600">Winner</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600">Drop</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600;white-space:nowrap">Date Won</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600">Stage</th>
+          <th style="text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);font-weight:600">Social</th>
+          <th style="padding:9px 14px"></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
 function vWinners(){
   return `<div class="page-head"><div><h2>Winners</h2><div class="desc">Every winner, ever.</div></div>
     <div class="page-actions"><button class="btn btn-gold" onclick="openWinner()">＋ Add Winner</button></div></div>
