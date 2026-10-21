@@ -2460,7 +2460,7 @@ function vDashboard(){
             : esc(watchName(d.watchId)||'');
           const log=d.ticketsLog||[];
           const last=log[0]||null;
-          const pool=Number(d.pool)||0;
+          const pool=Number((d.tracker&&d.tracker.maxTickets)||d.pool)||0;
           const pct=pool&&last?Math.round(Number(last.tickets)/pool*100):0;
           return `<div class="card" style="padding:0;min-width:0">
             <div style="padding:14px 16px 10px">
@@ -2730,20 +2730,45 @@ function showTicketsChart(dropId){
   const maxVal=pool||Math.max(...log.map(e=>e.tickets));
   const W=520,H=200,pad={t:20,r:20,b:40,l:50};
   const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
-  const xStep=cW/(log.length-1);
+
+  // Time-proportional X spacing — each point placed by actual timestamp
+  const times=log.map(e=>new Date(e.at).getTime());
+  const tMin=times[0], tMax=times[times.length-1];
+  const tRange=Math.max(tMax-tMin,1); // avoid div/0 if only one unique time
+  const xForT=t=>pad.l+((t-tMin)/tRange)*cW;
   const yScale=v=>(cH-(v/maxVal)*cH);
-  const pts=log.map((e,i)=>({x:pad.l+i*xStep,y:pad.t+yScale(e.tickets),e}));
+  const pts=log.map((e,i)=>({x:xForT(times[i]),y:pad.t+yScale(e.tickets),e,t:times[i]}));
+
   const polyline=pts.map(p=>`${p.x},${p.y}`).join(' ');
   const fillPts=`${pts[0].x},${pad.t+cH} ${polyline} ${pts[pts.length-1].x},${pad.t+cH}`;
-  const xLabels=pts.filter((_,i)=>i===0||i===pts.length-1||i%Math.ceil(pts.length/4)===0)
-    .map(p=>`<text x="${p.x}" y="${pad.t+cH+16}" text-anchor="middle" font-size="9" fill="var(--ink3)">${new Date(p.e.at).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</text>`).join('');
+
+  // Smart X labels — show date when spanning days, time always
+  const spanDays=(tMax-tMin)>86400000;
+  const fmtLabel=t=>{
+    const dt=new Date(t);
+    const timeStr=dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    const dateStr=dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    if(!spanDays) return timeStr; // same-day runs: times only
+    return timeStr==='00:00'?dateStr:dateStr+' '+timeStr;
+  };
+  // Pick up to 5 evenly-spaced label slots in time across the real range
+  const maxLabels=5;
+  const labelTimes=Array.from({length:maxLabels},(_,i)=>tMin+(tRange*i/(maxLabels-1)));
+  // For each label slot, find the nearest actual point
+  const labelIdxs=[...new Set(labelTimes.map(lt=>
+    times.reduce((best,t,i)=>Math.abs(t-lt)<Math.abs(times[best]-lt)?i:best,0)
+  ))];
+  const xLabels=labelIdxs.map(i=>pts[i]).map(p=>
+    `<text x="${p.x.toFixed(1)}" y="${pad.t+cH+16}" text-anchor="middle" font-size="9" fill="var(--ink3)">${fmtLabel(p.t)}</text>`
+  ).join('');
+
   const yLabels=[0,25,50,75,100].map(pct=>{
     const val=Math.round(maxVal*pct/100);
     const y=pad.t+cH-(pct/100)*cH;
     return `<line x1="${pad.l}" x2="${pad.l+cW}" y1="${y}" y2="${y}" stroke="var(--line2)" stroke-width="1"/>
-            <text x="${pad.l-6}" y="${y+4}" text-anchor="end" font-size="9" fill="var(--ink3)">${val>=1000?(val/1000).toFixed(0)+'k':val}</text>`;
+            <text x="${pad.l-6}" y="${y+4}" text-anchor="end" font-size="9" fill="var(--ink3)">${val>=1000?(val/1000).toFixed(1)+'k':val}</text>`;
   }).join('');
-  const dots=pts.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="3" fill="var(--gold)" stroke="var(--panel)" stroke-width="1.5"><title>${p.e.tickets.toLocaleString()} tickets · ${new Date(p.e.at).toLocaleString('en-GB')}</title></circle>`).join('');
+  const dots=pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="var(--gold)" stroke="var(--panel)" stroke-width="1.5"><title>${p.e.tickets.toLocaleString()} tickets · ${new Date(p.e.at).toLocaleString('en-GB')}</title></circle>`).join('');
   const svg=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;border-radius:8px;background:var(--bg2)">
     ${yLabels}
     <polyline points="${fillPts}" fill="rgba(201,162,75,.12)" stroke="none"/>
