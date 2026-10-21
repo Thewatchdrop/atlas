@@ -2722,91 +2722,201 @@ function recordDailyTickets(dropId){
   toast(`✓ ${val.toLocaleString()} total tickets recorded for ${d.name||d.number}`);
 }
 
+/* ================= TICKET SALES CHART — interactive with zoom/navigator ================= */
+window._tixC=null;
+
 function showTicketsChart(dropId){
   const d=dropById(dropId); if(!d) return;
-  const log=[...(d.ticketsLog||[])].reverse(); // oldest first
-  if(log.length<2){ toast('Need at least 2 entries to show a chart'); return; }
+  const log=[...(d.ticketsLog||[])].reverse();
+  if(log.length<2){ toast('Need at least 2 data points to show a chart'); return; }
   const pool=Number((d.tracker&&d.tracker.maxTickets)||d.pool)||0;
   const maxVal=pool||Math.max(...log.map(e=>e.tickets));
-  const W=760,H=340,pad={t:28,r:24,b:52,l:58};
-  const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
-
-  // Time-proportional X spacing
   const times=log.map(e=>new Date(e.at).getTime());
-  const tMin=times[0], tMax=times[times.length-1];
-  const tRange=Math.max(tMax-tMin,1);
-  const xForT=t=>pad.l+((t-tMin)/tRange)*cW;
-  const yScale=v=>(cH-(v/maxVal)*cH);
-  const pts=log.map((e,i)=>({x:xForT(times[i]),y:pad.t+yScale(e.tickets),e,t:times[i]}));
-
-  const polyline=pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-  const fillPts=`${pts[0].x.toFixed(1)},${pad.t+cH} ${polyline} ${pts[pts.length-1].x.toFixed(1)},${pad.t+cH}`;
-
-  // X labels
-  const spanDays=(tMax-tMin)>86400000;
-  const fmtLabel=t=>{
-    const dt=new Date(t);
-    const timeStr=dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-    const dateStr=dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-    if(!spanDays) return [timeStr];
-    return timeStr==='00:00'?[dateStr]:[dateStr,timeStr];
-  };
-  const maxLabels=8;
-  const labelTimes=Array.from({length:maxLabels},(_,i)=>tMin+(tRange*i/(maxLabels-1)));
-  const labelIdxs=[...new Set(labelTimes.map(lt=>
-    times.reduce((best,t,i)=>Math.abs(t-lt)<Math.abs(times[best]-lt)?i:best,0)
-  ))];
-  const xLabels=labelIdxs.map(i=>pts[i]).map(p=>{
-    const lines=fmtLabel(p.t);
-    return lines.map((ln,li)=>`<text x="${p.x.toFixed(1)}" y="${pad.t+cH+(li===0?17:29)}" text-anchor="middle" font-size="10" fill="var(--ink3)">${ln}</text>`).join('');
-  }).join('');
-
-  // Y grid — 10 steps
-  const yLabels=Array.from({length:11},(_,i)=>{
-    const pct=i/10;
-    const val=Math.round(maxVal*pct);
-    const y=pad.t+cH-pct*cH;
-    const isMajor=i%2===0;
-    return `<line x1="${pad.l}" x2="${pad.l+cW}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line2)" stroke-width="${isMajor?1:.5}" opacity="${isMajor?.55:.25}"/>
-            ${isMajor?`<text x="${pad.l-8}" y="${(y+4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--ink3)">${val>=1000?(val/1000).toFixed(val%500?1:0)+'k':val}</text>`:''}`;
-  }).join('');
-
-  // Pool cap dashed line
-  const poolLine=pool?`<line x1="${pad.l}" x2="${pad.l+cW}" y1="${pad.t.toFixed(1)}" y2="${pad.t.toFixed(1)}" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="6,4" opacity=".4"/>
-    <text x="${(pad.l+cW-4)}" y="${pad.t-8}" text-anchor="end" font-size="9" fill="var(--gold)" opacity=".55">POOL ${pool.toLocaleString()}</text>`:'';
-
-  const dots=pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5" fill="var(--gold)" stroke="var(--panel)" stroke-width="2"><title>${p.e.tickets.toLocaleString()} tickets \xb7 ${new Date(p.e.at).toLocaleString('en-GB')}</title></circle>`).join('');
-
-  const svg=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;border-radius:10px;background:var(--bg2)">
-    ${yLabels}
-    ${poolLine}
-    <polyline points="${fillPts}" fill="rgba(201,162,75,.09)" stroke="none"/>
-    <polyline points="${polyline}" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-    ${dots}
-    ${xLabels}
-  </svg>`;
-
-  const latest=log[log.length-1];
+  const tMin=times[0],tMax=times[times.length-1],tRange=Math.max(tMax-tMin,1);
+  const allPts=log.map((e,i)=>({e,t:times[i],tickets:Number(e.tickets)||0}));
+  const latest=allPts[allPts.length-1];
   const pct=pool?Math.round(latest.tickets/pool*100):0;
   const remaining=pool?pool-latest.tickets:null;
   const spanMs=tMax-tMin;
-  const spanLabel=spanMs>86400000?`${Math.round(spanMs/86400000)} days`:`${Math.round(spanMs/3600000)}h`;
+  const spanLabel=spanMs>86400000?`${Math.round(spanMs/86400000)}d`:`${Math.round(spanMs/3600000)}h`;
+  window._tixC={dropId,d,allPts,tMin,tMax,tRange,pool,maxVal,v0:0,v1:1,drag:null,activePeriodMs:null};
 
-  openModal(`<div class="modal" style="max-width:880px;width:92vw">
-    <div class="modal-h"><h3>\ud83d\udcc8 ${esc(d.name||d.number||'Vault')} \u2014 Ticket Sales</h3><span class="x" onclick="closeModal()">\u00d7</span></div>
-    <div style="padding:20px 26px">
-      <div style="display:flex;gap:28px;margin-bottom:18px;flex-wrap:wrap;align-items:flex-end">
-        <div><div style="font-size:30px;font-weight:800;color:var(--gold);letter-spacing:-.5px">${(latest.tickets||0).toLocaleString('en-GB')}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Sold${pool?' of '+pool.toLocaleString():''}</div></div>
-        ${pool?`<div><div style="font-size:30px;font-weight:800;letter-spacing:-.5px">${pct}%</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Sell-through</div></div>`:''}
-        ${remaining!=null?`<div><div style="font-size:30px;font-weight:800;color:var(--ink2);letter-spacing:-.5px">${remaining.toLocaleString()}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Remaining</div></div>`:''}
-        <div><div style="font-size:30px;font-weight:800;letter-spacing:-.5px">${log.length}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Data points</div></div>
-        <div><div style="font-size:30px;font-weight:800;color:var(--ink2);letter-spacing:-.5px">${spanLabel}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Tracked span</div></div>
+  const periods=[];
+  if(spanMs>7200000) periods.push({l:'2H',ms:7200000});
+  if(spanMs>86400000) periods.push({l:'1D',ms:86400000});
+  if(spanMs>86400000*2) periods.push({l:'2D',ms:172800000});
+  if(spanMs>86400000*3) periods.push({l:'3D',ms:259200000});
+  if(spanMs>86400000*5) periods.push({l:'5D',ms:432000000});
+  periods.push({l:'All',ms:null});
+  const btnHtml=periods.map(p=>`<button id="tixbtn_${p.l}" onclick="tixSetPeriod(${p.ms})" style="padding:5px 12px;border-radius:20px;border:1px solid ${p.ms===null?'var(--gold)':'var(--line2)'};background:${p.ms===null?'var(--goldsoft)':'var(--panel)'};color:${p.ms===null?'var(--gold2)':'var(--ink2)'};font-size:12px;font-weight:600;cursor:pointer;transition:.12s">${p.l}</button>`).join('');
+
+  openModal(`<div class="modal" style="max-width:940px;width:95vw">
+    <div class="modal-h"><h3>\ud83d\udcc8 ${esc(d.name||d.number||'Vault')} \u2014 Ticket Sales</h3><span class="x" onclick="tixCleanup();closeModal()">\u00d7</span></div>
+    <div style="padding:20px 26px 24px">
+      <div style="display:flex;gap:28px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+        <div><div style="font-size:28px;font-weight:800;color:var(--gold);letter-spacing:-.5px">${(latest.tickets||0).toLocaleString('en-GB')}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Sold${pool?' of '+pool.toLocaleString():''}</div></div>
+        ${pool?`<div><div style="font-size:28px;font-weight:800;letter-spacing:-.5px">${pct}%</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Sell-through</div></div>`:''}
+        ${remaining!=null?`<div><div style="font-size:28px;font-weight:800;color:var(--ink2);letter-spacing:-.5px">${remaining.toLocaleString()}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Remaining</div></div>`:''}
+        <div><div style="font-size:28px;font-weight:800;letter-spacing:-.5px">${allPts.length}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Data points</div></div>
+        <div><div style="font-size:28px;font-weight:800;color:var(--ink2);letter-spacing:-.5px">${spanLabel}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Total span</div></div>
       </div>
-      ${pool?`<div style="height:5px;background:var(--line);border-radius:3px;margin-bottom:18px;overflow:hidden"><div style="width:${Math.min(100,pct)}%;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:3px"></div></div>`:''}
-      ${svg}
+      ${pool?`<div style="height:5px;background:var(--line);border-radius:3px;margin-bottom:14px;overflow:hidden"><div style="width:${Math.min(100,pct)}%;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:3px"></div></div>`:''}
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">
+        <span style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);margin-right:2px">Period</span>
+        ${btnHtml}
+      </div>
+      <div id="tix_main" style="margin-bottom:10px;border-radius:10px;overflow:hidden;background:var(--bg2)"></div>
+      <div id="tix_nav" style="border-radius:8px;overflow:hidden;user-select:none"></div>
+      <div style="font-size:10px;color:var(--ink3);text-align:center;margin-top:7px;letter-spacing:.3px">Drag handles to zoom \u00b7 Drag selection to pan \u00b7 Scroll on chart to zoom</div>
     </div>
   </div>`);
+  setTimeout(()=>{
+    tixDraw();
+    const m=document.getElementById('tix_main');
+    if(m) m.addEventListener('wheel',tixWheel,{passive:false});
+  },20);
 }
+
+function tixCleanup(){
+  window.removeEventListener('mousemove',tixNavMove);
+  window.removeEventListener('mouseup',tixNavUp);
+  if(window._tixC) window._tixC.drag=null;
+}
+
+function tixSetPeriod(ms){
+  const c=window._tixC; if(!c) return;
+  c.activePeriodMs=ms;
+  if(ms===null){c.v0=0;c.v1=1;}
+  else{c.v0=Math.max(0,1-ms/c.tRange);c.v1=1;}
+  tixDraw();
+}
+
+const _tixMsMap={'2H':7200000,'1D':86400000,'2D':172800000,'3D':259200000,'5D':432000000,'All':null};
+
+function tixDraw(){
+  const c=window._tixC; if(!c) return;
+  Object.keys(_tixMsMap).forEach(l=>{
+    const btn=document.getElementById('tixbtn_'+l); if(!btn) return;
+    const active=c.activePeriodMs===_tixMsMap[l];
+    btn.style.background=active?'var(--goldsoft)':'var(--panel)';
+    btn.style.color=active?'var(--gold2)':'var(--ink2)';
+    btn.style.borderColor=active?'var(--gold)':'var(--line2)';
+  });
+  tixDrawMain();
+  tixDrawNav();
+}
+
+function tixDrawMain(){
+  const c=window._tixC; if(!c) return;
+  const W=860,H=300,pad={t:24,r:22,b:46,l:58};
+  const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
+  const vMin=c.tMin+c.v0*c.tRange,vMax=c.tMin+c.v1*c.tRange,vRange=Math.max(vMax-vMin,1);
+  const vis=c.allPts.filter(p=>p.t>=vMin&&p.t<=vMax);
+  if(!vis.length){const el=document.getElementById('tix_main');if(el)el.innerHTML='<div style="padding:30px;text-align:center;color:var(--ink3);background:var(--bg2)">No data in this range</div>';return;}
+  const localMax=c.pool||Math.max(...vis.map(p=>p.tickets));
+  const xFor=t=>pad.l+((t-vMin)/vRange)*cW;
+  const yFor=v=>pad.t+cH-(v/Math.max(localMax,1))*cH;
+  const mPts=vis.map(p=>({...p,x:xFor(p.t),y:yFor(p.tickets)}));
+  const poly=mPts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const fill=mPts.length>=2?`${mPts[0].x.toFixed(1)},${pad.t+cH} ${poly} ${mPts[mPts.length-1].x.toFixed(1)},${pad.t+cH}`:poly;
+  const spanDays=(vMax-vMin)>86400000;
+  const fmtT=t=>{const dt=new Date(t),ti=dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),da=dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});return spanDays?ti==='00:00'?[da]:[da,ti]:[ti];};
+  const xLabels=Array.from({length:7},(_,i)=>{const t=vMin+(vRange*i/6),x=xFor(t);return fmtT(t).map((ln,li)=>`<text x="${x.toFixed(1)}" y="${pad.t+cH+(li===0?15:27)}" text-anchor="middle" font-size="10" fill="var(--ink3)">${ln}</text>`).join('');}).join('');
+  const yLabels=Array.from({length:9},(_,i)=>{const frac=i/8,v=Math.round(localMax*frac),y=yFor(v),maj=i%2===0,lbl=v>=1000?(v/1000).toFixed(v%500?1:0)+'k':v;return `<line x1="${pad.l}" x2="${pad.l+cW}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line2)" stroke-width="${maj?1:.5}" opacity="${maj?.5:.2}"/>${maj?`<text x="${pad.l-8}" y="${(y+4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--ink3)">${lbl}</text>`:''}`}).join('');
+  const poolLine=c.pool?`<line x1="${pad.l}" x2="${pad.l+cW}" y1="${yFor(c.pool).toFixed(1)}" y2="${yFor(c.pool).toFixed(1)}" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="6,4" opacity=".35"/><text x="${pad.l+cW-4}" y="${(yFor(c.pool)-7).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--gold)" opacity=".5">POOL ${c.pool.toLocaleString()}</text>`:'';
+  const dots=mPts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5" fill="var(--gold)" stroke="var(--panel)" stroke-width="2.5"><title>${p.tickets.toLocaleString()} tickets \xb7 ${new Date(p.t).toLocaleString('en-GB')}</title></circle>`).join('');
+  const svg=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;background:var(--bg2)">${yLabels}${poolLine}<polyline points="${fill}" fill="rgba(201,162,75,.09)" stroke="none"/><polyline points="${poly}" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${dots}${xLabels}</svg>`;
+  const el=document.getElementById('tix_main');if(el) el.innerHTML=svg;
+}
+
+function tixDrawNav(){
+  const c=window._tixC; if(!c) return;
+  const NW=860,NH=60,p={t:6,r:22,b:22,l:58};
+  const cW=NW-p.l-p.r,cH=NH-p.t-p.b;
+  const xN=t=>p.l+((t-c.tMin)/c.tRange)*cW;
+  const yN=v=>p.t+cH-(v/Math.max(c.maxVal,1))*cH;
+  const nPts=c.allPts.map(pt=>({x:xN(pt.t),y:yN(pt.tickets)}));
+  const nPoly=nPts.map(pt=>`${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(' ');
+  const nFill=nPts.length>=2?`${nPts[0].x.toFixed(1)},${p.t+cH} ${nPoly} ${nPts[nPts.length-1].x.toFixed(1)},${p.t+cH}`:nPoly;
+  const x0=p.l+c.v0*cW,x1=p.l+c.v1*cW,selW=(c.v1-c.v0)*cW;
+  const nLabels=[0,.25,.5,.75,1].map(f=>{const t=c.tMin+f*c.tRange,lbl=new Date(t).toLocaleDateString('en-GB',{day:'numeric',month:'short'});return `<text x="${(p.l+f*cW).toFixed(1)}" y="${p.t+cH+15}" text-anchor="${f<.1?'start':f>.9?'end':'middle'}" font-size="9" fill="var(--ink3)">${lbl}</text>`;}).join('');
+  const svg=`<svg viewBox="0 0 ${NW} ${NH}" xmlns="http://www.w3.org/2000/svg" style="width:100%;background:var(--bg2);cursor:default" onmousedown="tixNavDown(event)" ontouchstart="tixTouchStart(event)">
+    <polyline points="${nFill}" fill="rgba(201,162,75,.07)" stroke="none"/>
+    <polyline points="${nPoly}" fill="none" stroke="rgba(201,162,75,.4)" stroke-width="1.5"/>
+    <rect x="${p.l}" y="${p.t}" width="${cW}" height="${cH}" fill="rgba(0,0,0,.35)"/>
+    <rect x="${x0.toFixed(1)}" y="${p.t}" width="${selW.toFixed(1)}" height="${cH}" fill="rgba(201,162,75,.07)" stroke="var(--gold)" stroke-width="1.5" opacity=".85" rx="2" style="cursor:grab"/>
+    <rect x="${(x0-5).toFixed(1)}" y="${p.t+1}" width="10" height="${cH-2}" fill="var(--gold)" rx="3" opacity=".85" style="cursor:ew-resize"/>
+    <rect x="${(x1-5).toFixed(1)}" y="${p.t+1}" width="10" height="${cH-2}" fill="var(--gold)" rx="3" opacity=".85" style="cursor:ew-resize"/>
+    ${nLabels}
+  </svg>`;
+  const el=document.getElementById('tix_nav');if(el) el.innerHTML=svg;
+}
+
+function tixNavDown(e){
+  const c=window._tixC; if(!c) return;
+  const svg=e.currentTarget; if(!svg) return;
+  const NW=860,p={l:58,r:22};const cW=NW-p.l-p.r;
+  const rect=svg.getBoundingClientRect(),scale=NW/rect.width;
+  const svgX=(e.clientX-rect.left)*scale;
+  const frac=Math.max(0,Math.min(1,(svgX-p.l)/cW));
+  const x0=p.l+c.v0*cW,x1=p.l+c.v1*cW,HIT=14;
+  let type='pan';
+  if(Math.abs(svgX-x0)<HIT) type='left';
+  else if(Math.abs(svgX-x1)<HIT) type='right';
+  else if(svgX<x0||svgX>x1){
+    const hw=(c.v1-c.v0)/2;
+    c.v0=Math.max(0,frac-hw);c.v1=Math.min(1,c.v0+hw*2);
+    if(c.v1===1) c.v0=Math.max(0,1-hw*2);
+    tixDraw();return;
+  }
+  c.drag={type,startFrac:frac,startV0:c.v0,startV1:c.v1};
+  window.addEventListener('mousemove',tixNavMove);
+  window.addEventListener('mouseup',tixNavUp);
+  e.preventDefault();
+}
+
+function tixNavMove(e){
+  const c=window._tixC; if(!c||!c.drag) return;
+  const navEl=document.getElementById('tix_nav'); if(!navEl) return;
+  const svg=navEl.querySelector('svg'); if(!svg) return;
+  const NW=860,p={l:58,r:22};const cW=NW-p.l-p.r;
+  const rect=svg.getBoundingClientRect(),scale=NW/rect.width;
+  const svgX=(e.clientX-rect.left)*scale;
+  const frac=Math.max(0,Math.min(1,(svgX-p.l)/cW));
+  const df=frac-c.drag.startFrac,span=c.drag.startV1-c.drag.startV0,MIN=0.02;
+  if(c.drag.type==='left') c.v0=Math.max(0,Math.min(c.drag.startV0+df,c.v1-MIN));
+  else if(c.drag.type==='right') c.v1=Math.max(c.v0+MIN,Math.min(1,c.drag.startV1+df));
+  else{
+    let n0=c.drag.startV0+df,n1=c.drag.startV1+df;
+    if(n0<0){n0=0;n1=span;} if(n1>1){n1=1;n0=1-span;}
+    c.v0=n0;c.v1=n1;
+  }
+  tixDraw();
+}
+
+function tixNavUp(){
+  const c=window._tixC; if(c) c.drag=null;
+  window.removeEventListener('mousemove',tixNavMove);
+  window.removeEventListener('mouseup',tixNavUp);
+}
+
+function tixTouchStart(e){
+  if(e.touches.length!==1) return;
+  const touch=e.touches[0];
+  tixNavDown({currentTarget:e.currentTarget,clientX:touch.clientX,clientY:touch.clientY,preventDefault:()=>e.preventDefault()});
+}
+
+function tixWheel(e){
+  e.preventDefault();
+  const c=window._tixC; if(!c) return;
+  const factor=e.deltaY>0?1.15:0.87;
+  const mid=(c.v0+c.v1)/2,half=(c.v1-c.v0)/2*factor;
+  c.v0=Math.max(0,mid-half);c.v1=Math.min(1,mid+half);
+  if(c.v1-c.v0<0.02){const m=(c.v0+c.v1)/2;c.v0=m-.01;c.v1=m+.01;}
+  tixDraw();
+}
+
+
 let vaultRenamingId=null;
 function startVaultRename(id,e){ e.stopPropagation(); vaultRenamingId=id; render(); setTimeout(()=>{ const el=document.getElementById('vaultRenameInput'); if(el){el.focus();el.select();} },30); }
 function commitVaultRename(id){ const el=document.getElementById('vaultRenameInput'); if(!el) return; const v=el.value.trim(); if(v){ const d=dropById(id); if(d){ d.name=v; queueSave(); } } vaultRenamingId=null; render(); }
