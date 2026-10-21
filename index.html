@@ -2728,64 +2728,81 @@ function showTicketsChart(dropId){
   if(log.length<2){ toast('Need at least 2 entries to show a chart'); return; }
   const pool=Number((d.tracker&&d.tracker.maxTickets)||d.pool)||0;
   const maxVal=pool||Math.max(...log.map(e=>e.tickets));
-  const W=520,H=200,pad={t:20,r:20,b:40,l:50};
+  const W=760,H=340,pad={t:28,r:24,b:52,l:58};
   const cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
 
-  // Time-proportional X spacing — each point placed by actual timestamp
+  // Time-proportional X spacing
   const times=log.map(e=>new Date(e.at).getTime());
   const tMin=times[0], tMax=times[times.length-1];
-  const tRange=Math.max(tMax-tMin,1); // avoid div/0 if only one unique time
+  const tRange=Math.max(tMax-tMin,1);
   const xForT=t=>pad.l+((t-tMin)/tRange)*cW;
   const yScale=v=>(cH-(v/maxVal)*cH);
   const pts=log.map((e,i)=>({x:xForT(times[i]),y:pad.t+yScale(e.tickets),e,t:times[i]}));
 
-  const polyline=pts.map(p=>`${p.x},${p.y}`).join(' ');
-  const fillPts=`${pts[0].x},${pad.t+cH} ${polyline} ${pts[pts.length-1].x},${pad.t+cH}`;
+  const polyline=pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const fillPts=`${pts[0].x.toFixed(1)},${pad.t+cH} ${polyline} ${pts[pts.length-1].x.toFixed(1)},${pad.t+cH}`;
 
-  // Smart X labels — show date when spanning days, time always
+  // X labels
   const spanDays=(tMax-tMin)>86400000;
   const fmtLabel=t=>{
     const dt=new Date(t);
     const timeStr=dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const dateStr=dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-    if(!spanDays) return timeStr; // same-day runs: times only
-    return timeStr==='00:00'?dateStr:dateStr+' '+timeStr;
+    if(!spanDays) return [timeStr];
+    return timeStr==='00:00'?[dateStr]:[dateStr,timeStr];
   };
-  // Pick up to 5 evenly-spaced label slots in time across the real range
-  const maxLabels=5;
+  const maxLabels=8;
   const labelTimes=Array.from({length:maxLabels},(_,i)=>tMin+(tRange*i/(maxLabels-1)));
-  // For each label slot, find the nearest actual point
   const labelIdxs=[...new Set(labelTimes.map(lt=>
     times.reduce((best,t,i)=>Math.abs(t-lt)<Math.abs(times[best]-lt)?i:best,0)
   ))];
-  const xLabels=labelIdxs.map(i=>pts[i]).map(p=>
-    `<text x="${p.x.toFixed(1)}" y="${pad.t+cH+16}" text-anchor="middle" font-size="9" fill="var(--ink3)">${fmtLabel(p.t)}</text>`
-  ).join('');
-
-  const yLabels=[0,25,50,75,100].map(pct=>{
-    const val=Math.round(maxVal*pct/100);
-    const y=pad.t+cH-(pct/100)*cH;
-    return `<line x1="${pad.l}" x2="${pad.l+cW}" y1="${y}" y2="${y}" stroke="var(--line2)" stroke-width="1"/>
-            <text x="${pad.l-6}" y="${y+4}" text-anchor="end" font-size="9" fill="var(--ink3)">${val>=1000?(val/1000).toFixed(1)+'k':val}</text>`;
+  const xLabels=labelIdxs.map(i=>pts[i]).map(p=>{
+    const lines=fmtLabel(p.t);
+    return lines.map((ln,li)=>`<text x="${p.x.toFixed(1)}" y="${pad.t+cH+(li===0?17:29)}" text-anchor="middle" font-size="10" fill="var(--ink3)">${ln}</text>`).join('');
   }).join('');
-  const dots=pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="var(--gold)" stroke="var(--panel)" stroke-width="1.5"><title>${p.e.tickets.toLocaleString()} tickets · ${new Date(p.e.at).toLocaleString('en-GB')}</title></circle>`).join('');
-  const svg=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;border-radius:8px;background:var(--bg2)">
+
+  // Y grid — 10 steps
+  const yLabels=Array.from({length:11},(_,i)=>{
+    const pct=i/10;
+    const val=Math.round(maxVal*pct);
+    const y=pad.t+cH-pct*cH;
+    const isMajor=i%2===0;
+    return `<line x1="${pad.l}" x2="${pad.l+cW}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line2)" stroke-width="${isMajor?1:.5}" opacity="${isMajor?.55:.25}"/>
+            ${isMajor?`<text x="${pad.l-8}" y="${(y+4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--ink3)">${val>=1000?(val/1000).toFixed(val%500?1:0)+'k':val}</text>`:''}`;
+  }).join('');
+
+  // Pool cap dashed line
+  const poolLine=pool?`<line x1="${pad.l}" x2="${pad.l+cW}" y1="${pad.t.toFixed(1)}" y2="${pad.t.toFixed(1)}" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="6,4" opacity=".4"/>
+    <text x="${(pad.l+cW-4)}" y="${pad.t-8}" text-anchor="end" font-size="9" fill="var(--gold)" opacity=".55">POOL ${pool.toLocaleString()}</text>`:'';
+
+  const dots=pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5" fill="var(--gold)" stroke="var(--panel)" stroke-width="2"><title>${p.e.tickets.toLocaleString()} tickets \xb7 ${new Date(p.e.at).toLocaleString('en-GB')}</title></circle>`).join('');
+
+  const svg=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;border-radius:10px;background:var(--bg2)">
     ${yLabels}
-    <polyline points="${fillPts}" fill="rgba(201,162,75,.12)" stroke="none"/>
-    <polyline points="${polyline}" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linejoin="round"/>
+    ${poolLine}
+    <polyline points="${fillPts}" fill="rgba(201,162,75,.09)" stroke="none"/>
+    <polyline points="${polyline}" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
     ${dots}
     ${xLabels}
   </svg>`;
+
   const latest=log[log.length-1];
   const pct=pool?Math.round(latest.tickets/pool*100):0;
-  openModal(`<div class="modal" style="max-width:580px">
-    <div class="modal-h"><h3>📈 ${esc(d.name||d.number||'Vault')} — Ticket Sales</h3><span class="x" onclick="closeModal()">×</span></div>
-    <div style="padding:18px 20px">
-      <div style="display:flex;gap:20px;margin-bottom:16px">
-        <div><div style="font-size:22px;font-weight:700;color:var(--gold)">${(latest.tickets||0).toLocaleString('en-GB')}</div><div style="font-size:11px;color:var(--ink3)">Total sold${pool?' of '+pool.toLocaleString('en-GB'):''}</div></div>
-        ${pool?`<div><div style="font-size:22px;font-weight:700">${pct}%</div><div style="font-size:11px;color:var(--ink3)">Sell-through</div></div>`:''}
-        <div><div style="font-size:22px;font-weight:700">${log.length}</div><div style="font-size:11px;color:var(--ink3)">Data points</div></div>
+  const remaining=pool?pool-latest.tickets:null;
+  const spanMs=tMax-tMin;
+  const spanLabel=spanMs>86400000?`${Math.round(spanMs/86400000)} days`:`${Math.round(spanMs/3600000)}h`;
+
+  openModal(`<div class="modal" style="max-width:880px;width:92vw">
+    <div class="modal-h"><h3>\ud83d\udcc8 ${esc(d.name||d.number||'Vault')} \u2014 Ticket Sales</h3><span class="x" onclick="closeModal()">\u00d7</span></div>
+    <div style="padding:20px 26px">
+      <div style="display:flex;gap:28px;margin-bottom:18px;flex-wrap:wrap;align-items:flex-end">
+        <div><div style="font-size:30px;font-weight:800;color:var(--gold);letter-spacing:-.5px">${(latest.tickets||0).toLocaleString('en-GB')}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Sold${pool?' of '+pool.toLocaleString():''}</div></div>
+        ${pool?`<div><div style="font-size:30px;font-weight:800;letter-spacing:-.5px">${pct}%</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Sell-through</div></div>`:''}
+        ${remaining!=null?`<div><div style="font-size:30px;font-weight:800;color:var(--ink2);letter-spacing:-.5px">${remaining.toLocaleString()}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Remaining</div></div>`:''}
+        <div><div style="font-size:30px;font-weight:800;letter-spacing:-.5px">${log.length}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Data points</div></div>
+        <div><div style="font-size:30px;font-weight:800;color:var(--ink2);letter-spacing:-.5px">${spanLabel}</div><div style="font-size:11px;color:var(--ink3);margin-top:3px">Tracked span</div></div>
       </div>
+      ${pool?`<div style="height:5px;background:var(--line);border-radius:3px;margin-bottom:18px;overflow:hidden"><div style="width:${Math.min(100,pct)}%;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:3px"></div></div>`:''}
       ${svg}
     </div>
   </div>`);
