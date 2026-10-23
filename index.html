@@ -3179,8 +3179,28 @@ const PRIZE_EMAIL_FIELD_NAMES = {firstName:'winner name',amount:'prize amount',v
   watchName:'watch name',courier:'courier',trackingNumber:'tracking number'};
 let _pe = null;
 
+/* Skipped emails count as "done" for the flow, but aren't counted as sent */
+function _effLog(p){ return Object.assign({}, p.emailSkipped||{}, p.emailLog||{}); }
+function skipPrizeEmail(dropId,prizeId,key,ev){
+  if(ev) ev.stopPropagation();
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  p.emailSkipped=p.emailSkipped||{}; p.emailSkipped[key]=new Date().toISOString();
+  if(key==='vault_cash_chaser'||key==='address_chaser'){ p.chasing=false; }
+  saveDB(); toast('Skipped: '+PRIZE_EMAILS[key].title+' — moved to the next step');
+  if(document.getElementById('pe_picker')) openPrizeEmailPicker(dropId,prizeId);
+  render();
+}
+function unskipPrizeEmail(dropId,prizeId,key,ev){
+  if(ev) ev.stopPropagation();
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p||!p.emailSkipped) return;
+  delete p.emailSkipped[key];
+  saveDB(); toast('Skip undone'); openPrizeEmailPicker(dropId,prizeId); render();
+}
+
 function prizeEmailKeys(p){
-  const log=p.emailLog||{};
+  const log=_effLog(p);
   if(p.type==='cash'){
     if(p.paid) return ['cash_paid'];
     if(p.bankDetailsDate) return ['bank_details_received'];
@@ -3203,10 +3223,11 @@ function prizeWinnerEmail(p){
 function prizeEmailStrip(p){
   if(!p.winnerName) return '';
   const keys=prizeEmailKeys(p); if(!keys.length) return '';
-  const log=p.emailLog||{};
+  const log=p.emailLog||{}, skipped=p.emailSkipped||{};
   const email=prizeWinnerEmail(p);
   const btns=keys.map(k=>{
     const sent=log[k];
+    if(!sent&&skipped[k]) return `<span style="font-size:11px;color:var(--ink3)" title="Skipped ${esc(fmtSentAt(skipped[k]))}">⤼ ${PRIZE_EMAILS[k].label} skipped</span>`;
     return `<button class="btn btn-sm" style="font-size:11px;${sent?'color:var(--live);border-color:rgba(74,222,128,.3)':'color:var(--blue);border-color:rgba(106,169,255,.35)'}" onclick="openPrizeEmail('${p._dropId}','${p.id}','${k}')">${sent?'✓ ':''}${PRIZE_EMAILS[k].label}${sent?' · '+fmtSentAt(sent):''}</button>`;
   }).join('');
   return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px">
@@ -3257,7 +3278,7 @@ function openPrizeEmailPicker(dropId,prizeId){
   const keys=PRIZE_EMAIL_SETS[p.type]||[];
   const item=emailHubItems().find(i=>i.prizeId===prizeId)||{};
   const suggested=item.key;
-  const log=p.emailLog||{}, cnt=p.emailCounts||{};
+  const log=p.emailLog||{}, cnt=p.emailCounts||{}, skipped=p.emailSkipped||{};
   const prize=p.type==='cash'?'£'+Number(p.amount||0).toLocaleString('en-GB')+' cash':(p.label||'Watch');
   const steps=prizeSteps(p); const cur=steps.findIndex(s=>!s.done);
   const stepper=steps.map((s,ix)=>`<span style="${s.done?'color:var(--live)':ix===cur?'color:var(--gold2);font-weight:700':'color:var(--ink3)'}">${s.done?'✓':ix===cur?'●':'○'} ${s.label}</span>`).join('<span style="color:var(--line2);margin:0 6px">›</span>');
@@ -3268,7 +3289,7 @@ function openPrizeEmailPicker(dropId,prizeId){
     act(p.type==='cash'&&!p.paid&&p.bankDetailsDate,'Mark paid ✓',`markVaultPrizePaid('${dropId}','${prizeId}');closeModal()`,true),
     act(true,'Open in Vault Hub',`closeModal();vaultHubTab='${dropId}';vaultHubView='tracker';go('vaulthub')`)
   ].join('');
-  openModal(`<div class="modal" style="max-width:620px">
+  openModal(`<div class="modal" id="pe_picker" style="max-width:620px">
     <div class="modal-h"><h3>${p.type==='cash'?'💷':'⌚'} ${esc(p.winnerName||'')}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
       <div class="muted" style="font-size:12.5px">${esc(prize)} · ${esc(d.name||d.number||'Vault')}${p.ticket?' · #'+esc(String(p.ticket).replace(/^#/,'')):''} · ${esc(prizeWinnerEmail(p)||'no email on file')}</div>
@@ -3285,9 +3306,14 @@ function openPrizeEmailPicker(dropId,prizeId){
             <div style="font-weight:700;font-size:13.5px">${PRIZE_EMAILS[k].label}${k===suggested?' <span class="pill pill-done" style="margin-left:6px">Suggested next</span>':''}</div>
             <div style="font-size:12px;color:var(--ink3);margin-top:2px">${PRIZE_EMAIL_DESC[k]}</div>
           </div>
-          <span style="font-size:11.5px;white-space:nowrap;${sent?'color:var(--live)':'color:var(--ink3)'}">${sent?'✓ '+esc(fmtSentAt(sent))+(cnt[k]>1?' ('+cnt[k]+'×)':''):'Not sent'}</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+            <span style="font-size:11.5px;white-space:nowrap;${sent?'color:var(--live)':'color:var(--ink3)'}">${sent?'✓ '+esc(fmtSentAt(sent))+(cnt[k]>1?' ('+cnt[k]+'×)':''):skipped[k]?'⤼ Skipped '+esc(fmtSentAt(skipped[k])):'Not sent'}</span>
+            ${sent?'':skipped[k]
+              ?`<button class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 9px" onclick="unskipPrizeEmail('${dropId}','${prizeId}','${k}',event)">Undo skip</button>`
+              :`<button class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 9px" title="Not needed — mark as done without sending" onclick="skipPrizeEmail('${dropId}','${prizeId}','${k}',event)">Skip</button>`}
+          </div>
         </div>`;}).join('')}
-      <div class="muted" style="font-size:11.5px;margin-top:6px">Pick any email to preview it. Nothing sends until you click Send.</div>
+      <div class="muted" style="font-size:11.5px;margin-top:6px">Pick any email to preview it. Nothing sends until you click Send. <strong>Skip</strong> marks an email as not needed and moves the winner on.</div>
     </div>
   </div>`);
 }
@@ -3345,7 +3371,7 @@ function _gbpShort(v){ return '£'+Number(v||0).toLocaleString('en-GB'); }
 
 /* The journey shown on each row */
 function prizeSteps(p){
-  const log=p.emailLog||{};
+  const log=_effLog(p);
   if(p.type==='cash') return [
     {label:'Win email',done:!!log.vault_cash_win},
     {label:'Bank details',done:!!p.bankDetailsDate},
@@ -3363,7 +3389,7 @@ function emailHubItems(){
   (DB.drops||[]).forEach(d=>{
     (d.vaultPrizes||[]).forEach(p=>{
       if(!p.winnerName||(p.type!=='cash'&&p.type!=='watch')) return;
-      const log=p.emailLog||{}, cnt=p.emailCounts||{};
+      const log=_effLog(p), cnt=p.emailCounts||{};
       const lastEmail=Object.values(log).filter(Boolean).sort().pop()||null;
       const base={dropId:d.id,prizeId:p.id,p,vault:d.name||d.number||'Vault',
         logged:p.created||p.date||'',lastEmail,age:_daysSince(p.created||p.date)||0};
@@ -3462,7 +3488,8 @@ function _ehRow(i){
     :`<div style="font-size:18px;font-weight:800;color:${u.c};line-height:1">${i.wait===0?'New':i.wait+'d'}</div>
       <div style="font-size:9.5px;color:var(--ink3);margin-top:3px">${i.bucket==='winner'?'since email':i.wait===0?'today':'waiting'}</div>`;
   let primary='';
-  if(i.key) primary=`<button class="btn btn-sm btn-gold" onclick="openPrizeEmail('${i.dropId}','${i.prizeId}','${i.key}')">${PRIZE_EMAILS[i.key].label}</button>`;
+  if(i.key) primary=`<button class="btn btn-sm btn-ghost" style="font-size:11px" title="Not needed — skip this email and move on" onclick="skipPrizeEmail('${i.dropId}','${i.prizeId}','${i.key}',event)">Skip</button>
+    <button class="btn btn-sm btn-gold" onclick="openPrizeEmail('${i.dropId}','${i.prizeId}','${i.key}')">${PRIZE_EMAILS[i.key].label}</button>`;
   else if(i.task==='pay') primary=`<button class="btn btn-sm btn-gold" onclick="markVaultPrizePaid('${i.dropId}','${i.prizeId}')">Mark paid ✓</button>`;
   else if(i.task==='dispatch') primary=`<button class="btn btn-sm btn-gold" onclick="openPrizeEmail('${i.dropId}','${i.prizeId}','watch_dispatched')">📦 Dispatch &amp; send tracking</button>`;
   else if(i.reply==='address') primary=`<button class="btn btn-sm" onclick="markPrizeAddressReceived('${i.dropId}','${i.prizeId}')">✓ They replied with address</button>`;
@@ -3651,6 +3678,7 @@ async function sendPrizeEmail(){
     const j=await apiEmail({template:_pe.key,to,vars:prizeEmailVars(d,p)});
     p.emailLog=p.emailLog||{}; p.emailLog[_pe.key]=j.sentAt||new Date().toISOString();
     p.emailCounts=p.emailCounts||{}; p.emailCounts[_pe.key]=(p.emailCounts[_pe.key]||0)+1;
+    if(p.emailSkipped) delete p.emailSkipped[_pe.key];
     if(!prizeWinnerEmail(p)||to!==prizeWinnerEmail(p)) p.winnerEmail=to;
     if(_pe.key==='vault_cash_chaser'||_pe.key==='address_chaser'){ p.chasing=true; p.chasingDate=today(); }
     applyPrizeEmailSideEffect(d,p,_pe.key);
