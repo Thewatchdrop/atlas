@@ -3165,7 +3165,7 @@ const PRIZE_EMAIL_DESC = {
   vault_cash_win:'Congratulations + asks for their bank details',
   vault_cash_chaser:'Nudge if bank details haven\'t come back yet',
   bank_details_received:'Confirms we have their details, payment coming soon',
-  cash_paid:'Confirms the money has been sent',
+  cash_paid:'Confirms the money has been sent + asks for a Trustpilot review',
   watch_win:'Congratulations + asks for their delivery address',
   address_chaser:'Nudge if the address hasn\'t come back yet',
   watch_dispatched:'Courier + tracking details',
@@ -3546,7 +3546,7 @@ function emailHubCard(){
 
   return `<div class="card" style="margin-bottom:20px;${overdue?'border-color:rgba(242,109,109,.45)':todo.length?'border-color:rgba(201,162,75,.35)':''}">
     <div class="card-h"><h3>📧 Winner Emails</h3>
-      <span style="font-size:12.5px;color:var(--ink3)">${overdue?`<strong style="color:#F26D6D">${overdue} overdue</strong> · `:''}${todo.length?`<strong style="color:var(--gold2)">${todo.length} to do</strong> · `:'✓ all caught up · '}${winner.length} waiting on winners</span>
+      <span style="font-size:12.5px;color:var(--ink3);display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn btn-sm" onclick="vaultHubTab='all';vaultHubView='checker';go('vaulthub')">🔎 Check new winners</button><span>${overdue?`<strong style="color:#F26D6D">${overdue} overdue</strong> · `:''}${todo.length?`<strong style="color:var(--gold2)">${todo.length} to do</strong> · `:'✓ all caught up · '}${winner.length} waiting on winners</span></span>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line)">${tiles}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)">
@@ -4253,6 +4253,7 @@ function vVaultHub(){
   </div>`;
   const switcher=`<div style="display:flex;gap:8px;margin-bottom:22px">
     <button onclick="setVaultHubView('tracker')" class="btn ${vaultHubView==='tracker'?'btn-gold':''}">📊 Prize Tracker</button>
+    <button onclick="setVaultHubView('checker')" class="btn ${vaultHubView==='checker'?'btn-gold':''}">🔎 Check Winners</button>
     <button onclick="setVaultHubView('watchpool')" class="btn ${vaultHubView==='watchpool'?'btn-gold':''}">⌚ Watch Pool</button>
     <button onclick="setVaultHubView('cashpool')" class="btn ${vaultHubView==='cashpool'?'btn-gold':''}">💸 Cash Pool</button>
     <button onclick="setVaultHubView('adcopy')" class="btn ${vaultHubView==='adcopy'?'btn-gold':''}">📣 Ad Copy</button>
@@ -4292,10 +4293,224 @@ function vVaultHub(){
     </div>
     ${tabBar}
     ${switcher}
-    ${vaultHubView==='watchpool'?vaultWatchPoolView(activeVaults):vaultHubView==='cashpool'?vaultCashPoolView(activeVaults):vaultHubView==='adcopy'?vaultAdCopyView(activeVaults):vaultHubView==='scripts'?vaultScriptsView(activeVaults):vaultHubView==='templates'?vaultTemplatesView():trackerView()}`;
+    ${vaultHubView==='watchpool'?vaultWatchPoolView(activeVaults):vaultHubView==='cashpool'?vaultCashPoolView(activeVaults):vaultHubView==='adcopy'?vaultAdCopyView(activeVaults):vaultHubView==='scripts'?vaultScriptsView(activeVaults):vaultHubView==='templates'?vaultTemplatesView():vaultHubView==='checker'?vaultWinnerCheckerView(vaults):trackerView()}`;
 }
 
 /* ---------- Vault Hub — Cash Pool view ---------- */
+/* ---------- Vault Hub — Winner Checker ----------
+   Paste the site's winners list (all vaults) → finds cash & watch wins, ignores store credit,
+   suggests which vault each belongs to, then opens the normal Allocate Winner page pre-filled. */
+let wcText='', wcRows=null, wcUnread=[];
+const WC_MONTHS={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function _wcDate(line){
+  const m=line.match(/^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?([a-z]+)\s+(\d{4})\s*$/i);
+  if(!m) return null; const mo=WC_MONTHS[m[2].slice(0,3).toLowerCase()]; if(mo===undefined) return null;
+  return localISODate(new Date(Number(m[3]),mo,Number(m[1])));
+}
+function _wcMoney(txt){
+  const p=txt.match(/(\d+(?:\.\d+)?)\s*p\b/i); if(p&&!/£/.test(txt)) return Number(p[1])/100;
+  const g=txt.match(/£\s*([\d,]+(?:\.\d+)?)/); return g?Number(g[1].replace(/,/g,'')):0;
+}
+function _wcTicket(t){ return String(t||'').replace(/\D/g,''); }
+const _wcNorm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function parseWinnerPaste(text){
+  const rows=[], unread=[]; let date=today();
+  String(text||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach(line=>{
+    const dt=_wcDate(line); if(dt){ date=dt; return; }
+    const m=line.match(/^(.*?):\s*(.+?)\s*[-–—]\s*Ticket\s*#?\s*(\d+)\s*$/i);
+    if(!m){ unread.push(line); return; }
+    const prize=m[1].trim(), name=m[2].trim(), ticket=m[3];
+    let type='watch';
+    if(/credit/i.test(prize)) type='credit';
+    else if(/cash|£|\d+\s*p\b/i.test(prize)) type='cash';
+    rows.push({id:uid('wc'),date,prize,name,ticket,type,amount:type==='cash'?_wcMoney(prize):0,custId:'',dropId:'',suggested:false});
+  });
+  return {rows,unread};
+}
+function _wcCustomerMatches(name){
+  const parts=String(name||'').replace(/\./g,'').trim().split(/\s+/); if(!parts[0]) return [];
+  const first=parts[0].toLowerCase(), init=(parts[1]||'').charAt(0).toLowerCase();
+  return (DB.customers||[]).filter(c=>{
+    const cp=String(c.name||'').trim().toLowerCase().split(/\s+/);
+    return cp[0]===first&&(!init||(cp[cp.length-1]||'').charAt(0)===init);
+  });
+}
+function _wcAlreadyLogged(ticket){
+  const t=_wcTicket(ticket); if(!t) return null;
+  for(const d of (DB.drops||[])) for(const p of (d.vaultPrizes||[]))
+    if(_wcTicket(p.ticket)===t) return {vault:d.name||d.number||'Vault',winner:p.winnerName||''};
+  return null;
+}
+function _wcPoolMatch(prize,vaultId){
+  const n=_wcNorm(prize);
+  return (DB.vaultWatches||[]).filter(w=>w.status!=='won'&&(!vaultId||w.vaultId===vaultId)&&
+    (_wcNorm(w.brand+' '+w.model)===n||(_wcNorm(w.model)&&n.includes(_wcNorm(w.model)))||(_wcNorm(w.model)&&_wcNorm(w.model).includes(n))));
+}
+function _wcSuggestVault(r){
+  if(r.type==='watch'){
+    const ms=_wcPoolMatch(r.prize); const vs=[...new Set(ms.map(w=>w.vaultId))];
+    if(vs.length===1) return vs[0];
+  } else if(r.type==='cash'){
+    const vs=(DB.drops||[]).filter(d=>d.type==='Vault'&&(d.cashTiers||[]).some(t=>Number(t.amount)===Number(r.amount)));
+    if(vs.length===1) return vs[0].id;
+  }
+  return '';
+}
+function runWinnerCheck(){
+  wcText=(document.getElementById('wc_text')||{}).value||'';
+  const r=parseWinnerPaste(wcText); wcUnread=r.unread;
+  r.rows.forEach(x=>{
+    const ms=_wcCustomerMatches(x.name); if(ms.length===1) x.custId=ms[0].id;
+    x.preLogged=!!_wcAlreadyLogged(x.ticket);
+    if(x.type!=='credit'){ x.dropId=_wcSuggestVault(x); x.suggested=!!x.dropId; }
+  });
+  wcRows=r.rows; render();
+}
+function clearWinnerCheck(){ wcText=''; wcRows=null; wcUnread=[]; render(); }
+function wcSet(id,field,val){
+  const r=(wcRows||[]).find(x=>x.id===id); if(!r) return;
+  r[field]=field==='amount'?(parseFloat(val)||0):val;
+  if(field==='dropId') r.suggested=false;
+  if(field==='type'){ if(r.type!=='credit'&&!r.dropId){ r.dropId=_wcSuggestVault(r); r.suggested=!!r.dropId; } render(); }
+}
+
+/* Pre-fill the normal allocate pages with the winner's details */
+function _wcPrefill(prefix,r){
+  const set=(id,v)=>{const el=document.getElementById(id); if(el) el.value=v;};
+  set(prefix+'_ticket','#'+r.ticket); set(prefix+'_date',r.date);
+  const c=r.custId&&(DB.customers||[]).find(x=>x.id===r.custId);
+  if(c) selectCustomerResult(prefix+'_cust',{dataset:{id:c.id,name:c.name||'',email:c.email||''}});
+  else set(prefix+'_name',r.name);
+}
+function allocateCheckedWinner(id){
+  const r=(wcRows||[]).find(x=>x.id===id); if(!r) return;
+  const d=dropById(r.dropId); if(!d){ toast('Choose which vault this win belongs to first'); return; }
+  if(_wcAlreadyLogged(r.ticket)){ toast('Ticket #'+r.ticket+' is already logged'); return; }
+  if(r.type==='watch'){
+    const ms=_wcPoolMatch(r.prize,d.id);
+    if(ms.length===1){ markVaultWatchWon(ms[0].id); _wcPrefill('mww',r); return; }
+    const pool=(DB.vaultWatches||[]).filter(w=>w.vaultId===d.id&&w.status!=='won');
+    openModal(`<div class="modal" style="max-width:520px">
+      <div class="modal-h"><h3>Which watch did ${esc(r.name)} win?</h3><span class="x" onclick="closeModal()">×</span></div>
+      <div class="modal-b">
+        <div class="muted" style="font-size:12.5px;margin-bottom:12px">Site says: <strong style="color:var(--ink)">${esc(r.prize)}</strong> · ${esc(d.name||'Vault')} · Ticket #${esc(r.ticket)}</div>
+        ${pool.length?pool.map(w=>`<div onclick="closeModal();markVaultWatchWon('${w.id}');_wcPrefill('mww',wcRows.find(x=>x.id==='${r.id}'))"
+          style="padding:11px 14px;margin-bottom:8px;border:1px solid var(--line2);border-radius:10px;cursor:pointer;background:var(--panel)">
+          <div style="font-weight:700">⌚ ${esc(w.brand)} ${esc(w.model)}</div>
+          <div style="font-size:12px;color:var(--ink3)">${w.ref?esc(w.ref)+' · ':''}Est. £${Number(w.estimatedCost||w.cost||0).toLocaleString('en-GB')}</div></div>`).join('')
+          :`<div class="empty">No available watches in this vault's Watch Pool.</div>`}
+        <div onclick="closeModal();logCheckedWinner('${r.id}')" style="padding:11px 14px;border:1px dashed var(--line2);border-radius:10px;cursor:pointer;color:var(--ink2);font-size:13px">
+          Not in the pool — log it as <strong>${esc(r.prize)}</strong> anyway</div>
+      </div></div>`);
+    return;
+  }
+  vaultCashInit(d);
+  const tiers=d.cashTiers.filter(t=>Number(t.amount)===Number(r.amount));
+  if(tiers.length===1){ openAllocateCashWin(d.id,tiers[0].id,Number(r.amount)); _wcPrefill('acw',r); return; }
+  openModal(`<div class="modal" style="max-width:480px">
+    <div class="modal-h"><h3>£${Number(r.amount).toLocaleString('en-GB')} cash — ${esc(r.name)}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="muted" style="font-size:12.5px;margin-bottom:12px">No £${Number(r.amount).toLocaleString('en-GB')} tier in ${esc(d.name||'this vault')}'s Cash Pool. Pick a tier, or log it without one.</div>
+      ${d.cashTiers.map(t=>`<div onclick="closeModal();openAllocateCashWin('${d.id}','${t.id}',${Number(r.amount)});_wcPrefill('acw',wcRows.find(x=>x.id==='${r.id}'))"
+        style="padding:11px 14px;margin-bottom:8px;border:1px solid var(--line2);border-radius:10px;cursor:pointer;background:var(--panel)">💷 £${Number(t.amount).toLocaleString('en-GB')} tier <span style="color:var(--ink3);font-size:12px">· ${t.total} in pool</span></div>`).join('')}
+      <div onclick="closeModal();logCheckedWinner('${r.id}')" style="padding:11px 14px;border:1px dashed var(--line2);border-radius:10px;cursor:pointer;color:var(--ink2);font-size:13px">
+        Log £${Number(r.amount).toLocaleString('en-GB')} without a cash tier</div>
+    </div></div>`);
+}
+/* Direct log (fallback when it isn't in the pool / tiers) */
+function logCheckedWinner(id){
+  const r=(wcRows||[]).find(x=>x.id===id); if(!r||r.type==='credit') return;
+  const d=dropById(r.dropId); if(!d){ toast('Choose which vault this win belongs to first'); return; }
+  if(_wcAlreadyLogged(r.ticket)){ toast('Ticket #'+r.ticket+' is already logged'); return; }
+  const cust=r.custId?(DB.customers||[]).find(c=>c.id===r.custId):null;
+  const winnerName=cust?cust.name:r.name;
+  d.vaultPrizes=d.vaultPrizes||[];
+  if(r.type==='cash'){
+    const amount=Number(r.amount)||0;
+    d.vaultPrizes.push({id:uid('vp'),type:'cash',label:`£${amount.toLocaleString('en-GB')} Cash Prize`,cost:0,amount,date:r.date,winnerName,custId:r.custId||'',ticket:'#'+r.ticket,needsPurchasing:false,purchased:false,created:now()});
+  } else {
+    d.vaultPrizes.push({id:uid('vp'),type:'watch',label:r.prize,cost:0,amount:0,date:r.date,winnerName,custId:r.custId||'',ticket:'#'+r.ticket,needsPurchasing:true,purchased:false,created:now()});
+  }
+  saveDB(); render(); toast(`✓ ${winnerName} logged in ${d.name||'vault'} — now in Winner Emails`);
+}
+
+function vaultWinnerCheckerView(vaults){
+  const inp='background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:7px 10px;font-size:13px;outline:none';
+  const rows=wcRows||[];
+  const credit=rows.filter(r=>r.type==='credit'), real=rows.filter(r=>r.type!=='credit');
+  const pre=real.filter(r=>r.preLogged);
+  const allocated=real.filter(r=>!r.preLogged&&_wcAlreadyLogged(r.ticket));
+  const fresh=real.filter(r=>!_wcAlreadyLogged(r.ticket));
+  const tile=(n,label,col,sub)=>`<div style="flex:1 1 150px;padding:12px 14px;border-radius:10px;border:1px solid var(--line2);background:var(--panel2)">
+    <div style="font-size:24px;font-weight:800;color:${n?col:'var(--ink3)'}">${n}</div><div style="font-size:12px;font-weight:600;color:var(--ink2)">${label}</div>${sub?`<div style="font-size:11px;color:var(--ink3);margin-top:2px">${sub}</div>`:''}</div>`;
+  const row=r=>{
+    const logged=_wcAlreadyLogged(r.ticket);
+    const locked=!!logged;
+    const ms=_wcCustomerMatches(r.name);
+    const col=r.preLogged?'#7688A8':logged?'#4ADE80':r.dropId?'#F5A524':'#F26D6D';
+    const lbl='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:3px';
+    return `<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:12px 18px 12px 14px;border-bottom:1px solid var(--line);border-left:4px solid ${col};${locked?'opacity:.75':''}">
+      <div style="font-size:20px;align-self:center">${r.type==='cash'?'💷':'⌚'}</div>
+      <div style="flex:0 1 190px;min-width:160px;align-self:center">
+        <div style="font-weight:700;font-size:14px">${esc(r.name)}</div>
+        <div style="font-size:12px;color:var(--ink3)">Ticket #${esc(r.ticket)} · ${fmtDate(r.date)}</div>
+      </div>
+      <div style="flex:1 1 240px;min-width:200px">
+        <div style="${lbl}">Prize</div>
+        <div style="display:flex;gap:6px">
+          <select ${locked?'disabled':''} onchange="wcSet('${r.id}','type',this.value)" style="${inp}">
+            <option value="cash" ${r.type==='cash'?'selected':''}>💷 Cash</option><option value="watch" ${r.type==='watch'?'selected':''}>⌚ Watch</option><option value="credit">Credit (ignore)</option></select>
+          ${r.type==='cash'
+            ?`<span style="display:flex;align-items:center;gap:4px">£<input type="number" step="0.01" value="${r.amount}" ${locked?'disabled':''} oninput="wcSet('${r.id}','amount',this.value)" style="${inp};width:90px"></span>`
+            :`<input value="${esc(r.prize)}" ${locked?'disabled':''} oninput="wcSet('${r.id}','prize',this.value)" style="${inp};flex:1;min-width:140px">`}
+        </div>
+      </div>
+      <div style="flex:0 1 200px;min-width:170px">
+        <div style="${lbl}">Allocate to ${r.suggested&&!locked?'<span style="color:var(--live);text-transform:none;letter-spacing:0">✓ suggested</span>':''}</div>
+        <select ${locked?'disabled':''} onchange="wcSet('${r.id}','dropId',this.value);render()" style="${inp};width:100%;${!r.dropId&&!locked?'border-color:#F26D6D':''}">
+          <option value="">Choose vault…</option>
+          ${vaults.map(v=>`<option value="${v.id}" ${r.dropId===v.id?'selected':''}>${esc(v.name||v.number||'Vault')}</option>`).join('')}</select>
+      </div>
+      <div style="flex:0 1 210px;min-width:170px">
+        <div style="${lbl}">Customer</div>
+        ${locked?`<div style="font-size:12.5px;color:var(--ink2);padding:7px 0">${esc(logged.winner)}</div>`:`<select onchange="wcSet('${r.id}','custId',this.value)" style="${inp};width:100%">
+          <option value="">${ms.length?'Pick customer…':'No match — use name'}</option>
+          ${ms.map(c=>`<option value="${c.id}" ${r.custId===c.id?'selected':''}>${esc(c.name)}${c.email?' · '+esc(c.email):''}</option>`).join('')}</select>`}
+      </div>
+      <div style="margin-left:auto;flex-shrink:0;align-self:center">
+        ${r.preLogged?`<span style="color:var(--ink3);font-size:12px">Already logged · ${esc(logged?logged.vault:'')}</span>`
+          :logged?`<span style="color:var(--live);font-weight:700;font-size:13px">✓ Allocated · ${esc(logged.vault)}</span>`
+          :`<button class="btn btn-sm btn-gold" ${r.dropId?'':'disabled style="opacity:.5"'} onclick="allocateCheckedWinner('${r.id}')">Allocate winner →</button>`}
+      </div>
+    </div>`;
+  };
+  return `<div class="card" style="margin-bottom:16px">
+    <div class="card-h"><h3>🔎 Check for New Winners</h3><span class="muted" style="font-size:12px">Paste the full winners list (all vaults) — store credit is ignored automatically</span></div>
+    <div style="padding:16px 18px">
+      <textarea id="wc_text" rows="7" placeholder="Wed 14th of October 2026&#10;Watch Drop Credit - 50p: samuel m. - Ticket #21183&#10;Moonswatch MISSION TO THE MOON: PJ H. - Ticket #25514"
+        style="width:100%;${inp};font-family:monospace;font-size:12.5px;line-height:1.5;resize:vertical">${esc(wcText)}</textarea>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-gold" onclick="runWinnerCheck()">🔎 Check winners</button>
+        ${wcRows?`<button class="btn btn-ghost" onclick="clearWinnerCheck()">Clear</button>`:''}
+      </div>
+    </div>
+  </div>
+  ${wcRows?`
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+    ${tile(fresh.length,'To allocate','#F5A524',`${fresh.filter(r=>r.type==='cash').length} cash · ${fresh.filter(r=>r.type==='watch').length} watch`)}
+    ${tile(allocated.length,'Allocated just now','#4ADE80','')}
+    ${tile(pre.length,'Already logged','var(--ink2)','skipped, no duplicates')}
+    ${tile(credit.length,'Store credit','var(--ink2)','ignored')}
+  </div>
+  ${wcUnread.length?`<div class="card" style="margin-bottom:16px;border-color:rgba(242,109,109,.35)"><div class="card-h"><h3>⚠ ${wcUnread.length} line${wcUnread.length>1?'s':''} couldn't be read</h3><span class="muted" style="font-size:12px">Check these by hand</span></div>
+    <div style="padding:10px 18px;font-family:monospace;font-size:12px;color:var(--ink2);line-height:1.7">${wcUnread.map(esc).join('<br>')}</div></div>`:''}
+  <div class="card">
+    <div class="card-h"><h3>Cash &amp; Watch Winners — ${real.length}</h3><span class="muted" style="font-size:12px">Choose the vault, then Allocate winner opens the allocate page pre-filled</span></div>
+    ${real.length?real.map(row).join(''):`<div class="empty">✓ No cash or watch winners in this list — only store credit.</div>`}
+    ${allocated.length?`<div style="padding:12px 18px;font-size:12.5px;color:var(--ink3)">Allocated winners now appear in <span style="color:var(--gold2);cursor:pointer;text-decoration:underline" onclick="go('dashboard')">📧 Winner Emails</span>, ready for their win email.</div>`:''}
+  </div>`:''}`;
+}
+
 function vaultCashInit(d){
   d.cashTiers=d.cashTiers||[];
   d.cashWins=d.cashWins||[];
