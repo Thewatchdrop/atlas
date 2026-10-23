@@ -8788,14 +8788,53 @@ function vCustomers(){
 function openCustomerImport(){
   openModal(`<div class="modal"><div class="modal-h"><h3>⬆ Import WooCommerce Customers CSV</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
-      <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.6">Export from WooCommerce → Analytics → Customers → Download CSV. Upload every Monday to track new customers week on week.</div>
-      <div class="field"><label>Customers CSV file</label><input type="file" accept=".csv" id="custImportFile"></div>
+      <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.6">Works with the WordPress <strong>user export</strong> (user_export_….csv) or WooCommerce → Analytics → Customers CSV. Existing customers are matched by email and updated; new ones are added.<br>🔒 Only name, email, phone, address and order stats are read. Passwords and everything else in the file are ignored and never saved.</div>
+      <div class="field"><label>Customers CSV file</label><input type="file" accept=".csv" id="custImportFile" onchange="previewCustomerImport()"></div>
       <div id="custImportPreview" class="muted" style="font-size:12px;margin-top:8px"></div>
     </div>
     <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="runCustomerImport()">Import →</button></div>
   </div>`);
 }
 
+function _custImportMap(parsed){
+  const H=parsed.headers;
+  const exact=(...names)=>names.map(n=>H.find(h=>h.toLowerCase()===n)).find(Boolean)||null;
+  const col=patterns=>{ for(const p of patterns){ const h=H.find(h=>p.test(h.toLowerCase())); if(h) return h; } return null; };
+  return {
+    isWP: !!exact('user_email')&&!!exact('user_login'),
+    name: exact('name','full name','customer name'),
+    first: exact('first_name','billing_first_name','first name'), firstB: exact('billing_first_name'),
+    last: exact('last_name','billing_last_name','last name'), lastB: exact('billing_last_name'),
+    display: exact('display_name'),
+    email: exact('email','user_email')||col([/customer.*email/,/billing.*email/]), emailB: exact('billing_email'),
+    phone: exact('phone','billing_phone')||col([/phone/]),
+    addr1: exact('billing_address_1','address','address 1'), addr2: exact('billing_address_2','address 2'),
+    city: exact('city','billing_city')||col([/town/,/city.*region/]),
+    postcode: exact('postcode','postal code','billing_postcode')||col([/postal/,/postcode/,/zip/]),
+    orders: exact('orders')||col([/order.*count/,/total.*orders/]),
+    spend: col([/total.*spen/,/^spend$/,/lifetime.*spend/]),
+    aov: exact('aov')||col([/avg.*order/,/average.*order/]),
+    last_active: col([/last.*active/,/last.*order/,/last.*seen/]),
+    signup: exact('user_registered')||col([/sign.*up/,/registered/,/created/]),
+    username: exact('user_login','username')||col([/user.*name/])
+  };
+}
+function previewCustomerImport(){
+  const file=(document.getElementById('custImportFile')||{}).files?.[0]; const el=document.getElementById('custImportPreview');
+  if(!file||!el) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const parsed=parseCSV(reader.result); const m=_custImportMap(parsed);
+    const ok=(v,l)=>`<span style="color:${v?'var(--live)':'var(--ink3)'}">${v?'✓':'–'} ${l}</span>`;
+    const emails=new Set((DB.customers||[]).map(c=>(c.email||'').toLowerCase()));
+    let existing=0; parsed.rows.forEach(r=>{ const e=((m.email&&r[m.email])||(m.emailB&&r[m.emailB])||'').trim().toLowerCase(); if(e&&emails.has(e)) existing++; });
+    el.innerHTML=`<div style="padding:10px 12px;border:1px solid var(--line2);border-radius:8px;line-height:1.8">
+      <strong style="color:var(--ink)">${m.isWP?'WordPress user export':'Customer CSV'} · ${parsed.rows.length.toLocaleString()} rows</strong><br>
+      ${ok(m.name||m.first,'Name')} · ${ok(m.email,'Email')} · ${ok(m.phone,'Phone')} · ${ok(m.addr1||m.postcode,'Address')} · ${ok(m.orders,'Orders')} · ${ok(m.spend,'Spend')}<br>
+      ≈ ${existing.toLocaleString()} will update existing customers · ≈ ${(parsed.rows.length-existing).toLocaleString()} new</div>`;
+  };
+  reader.readAsText(file);
+}
 function runCustomerImport(){
   const file=document.getElementById('custImportFile').files[0];
   if(!file){ alert('Select a CSV file'); return; }
@@ -8803,50 +8842,39 @@ function runCustomerImport(){
   reader.onload=()=>{
     const parsed=parseCSV(reader.result);
     if(!parsed.rows.length){ alert('No rows found'); return; }
-    const col=patterns=>{
-      for(const p of patterns){ const h=parsed.headers.find(h=>p.test(h.toLowerCase())); if(h) return h; }
-      return null;
-    };
-    const nameCol=col([/^name$/,/customer.*name/,/full.*name/]);
-    const emailCol=col([/^email$/,/customer.*email/,/billing.*email/]);
-    const ordersCol=col([/^orders$/,/order.*count/,/total.*orders/]);
-    const spendCol=col([/total.*spend/,/^spend$/,/lifetime.*spend/]);
-    const aovCol=col([/^aov$/,/avg.*order/,/average.*order/]);
-    const lastCol=col([/last.*active/,/last.*order/,/last.*seen/]);
-    const cityCol=col([/^city$/,/town/,/city.*region/]);
-    const postcodeCol=col([/postal/,/postcode/,/zip/]);
-    const signupCol=col([/sign.*up/,/registered/,/created/]);
-    const usernameCol=col([/username/,/user.*name/]);
-    let added=0, updated=0;
-    DB.customerImports=DB.customerImports||[];
+    const m=_custImportMap(parsed);
+    const v=(row,c)=>c?String(row[c]??'').trim():'';
+    const num=(row,c)=>parseFloat(v(row,c).replace(/[^0-9.]/g,''))||0;
+    let added=0, updated=0, skipped=0;
+    DB.customers=DB.customers||[]; DB.customerImports=DB.customerImports||[];
+    const byEmail=new Map(DB.customers.filter(c=>c.email).map(c=>[c.email.toLowerCase(),c]));
     parsed.rows.forEach(row=>{
-      const email=emailCol?(row[emailCol]||'').trim().toLowerCase():'';
-      const name=nameCol?(row[nameCol]||'').trim():'';
-      if(!email&&!name) return;
-      const spend=parseFloat((row[spendCol]||'').replace(/[^0-9.]/g,''))||0;
-      const orders=parseInt(row[ordersCol])||0;
-      const aov=parseFloat((row[aovCol]||'').replace(/[^0-9.]/g,''))||0;
-      const city=cityCol?(row[cityCol]||'').trim():'';
-      const postcode=postcodeCol?(row[postcodeCol]||'').trim():'';
-      const lastActive=lastCol?(row[lastCol]||'').trim():'';
-      const signUp=signupCol?(row[signupCol]||'').trim():'';
-      const username=usernameCol?(row[usernameCol]||'').trim():'';
-      const existing=email?DB.customers.find(c=>c.email===email):null;
+      const email=(v(row,m.email)||v(row,m.emailB)).toLowerCase();
+      let name=v(row,m.name);
+      if(!name){
+        const first=v(row,m.first)||v(row,m.firstB), last=v(row,m.last)||v(row,m.lastB);
+        name=[first,last].filter(Boolean).join(' ')||v(row,m.display);
+      }
+      if(!email&&!name){ skipped++; return; }
+      const data={
+        name, phone:v(row,m.phone), city:v(row,m.city), postcode:v(row,m.postcode),
+        address1:v(row,m.addr1), address2:v(row,m.addr2),
+        orders:parseInt(v(row,m.orders))||0, spend:num(row,m.spend), aov:num(row,m.aov),
+        lastActive:v(row,m.last_active), signUp:v(row,m.signup), username:v(row,m.username)
+      };
+      const existing=email?byEmail.get(email):null;
       if(existing){
-        existing.name=name||existing.name; existing.spend=spend||existing.spend;
-        existing.orders=orders||existing.orders; existing.aov=aov||existing.aov;
-        existing.city=city||existing.city; existing.postcode=postcode||existing.postcode;
-        existing.lastActive=lastActive||existing.lastActive;
-        existing.signUp=existing.signUp||signUp;
-        existing.username=username||existing.username;
+        Object.entries(data).forEach(([k,val])=>{ if(k==='signUp'){ existing.signUp=existing.signUp||val; } else if(val!==''&&val!==0) existing[k]=val; });
+        if(existing.email!==email) existing.email=email;
         updated++;
       } else {
-        DB.customers.push({id:uid('cust'),name,email,phone:'',spend,orders,aov,city,postcode,lastActive,signUp,username,notes:'',entries:[],created:now()});
+        const c=Object.assign({id:uid('cust'),email,notes:'',entries:[],created:now()},data);
+        DB.customers.push(c); if(email) byEmail.set(email,c);
         added++;
       }
     });
     DB.customerImports.push({id:uid('ci'),filename:file.name,date:today(),count:parsed.rows.length,added,updated,importType:'customers'});
-    saveDB();closeModal();toast(`Imported ${parsed.rows.length} customers — ${added} new, ${updated} updated`);render();
+    saveDB();closeModal();toast(`Imported ${parsed.rows.length.toLocaleString()} customers — ${added} new, ${updated} updated${skipped?', '+skipped+' skipped (no name or email)':''}`);render();
   };
   reader.readAsText(file);
 }
