@@ -3020,6 +3020,12 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
       ${prizeEmailStrip(p)}
       ${isCash&&!paid?`<div style="margin-top:10px">
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:1.4;min-width:170px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Account Holder Name</div>
+          <input id="bdf_name_${p.id}" value="${esc(p.accountName||'')}" placeholder="${esc(p.winnerName||'Full name')}"
+            style="width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:13px;color:var(--ink)"
+            oninput="updVaultPrizeField('${p._dropId}','${p.id}','accountName',this.value)">
+        </div>
         <div style="flex:1;min-width:130px">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Sort Code</div>
           <input id="bdf_sort_${p.id}" value="${esc(p.sortCode||'')}" placeholder="00-00-00"
@@ -3126,6 +3132,8 @@ function saveVaultPrizeBankDetails(dropId,prizeId){
   const sortEl=document.getElementById('bdf_sort_'+prizeId);
   const acctEl=document.getElementById('bdf_acct_'+prizeId);
   const payEl =document.getElementById('bdf_pay_'+prizeId);
+  const nameEl=document.getElementById('bdf_name_'+prizeId);
+  if(nameEl) p.accountName=nameEl.value.trim();
   if(sortEl) p.sortCode=sortEl.value;
   if(acctEl) p.accountNo=acctEl.value;
   if(payEl)  p.payRef=payEl.value;
@@ -3133,7 +3141,7 @@ function saveVaultPrizeBankDetails(dropId,prizeId){
   p.bankDetailsDate=new Date().toISOString();
   // Sync back to matching cashWins entry so dashboard counts stay accurate
   const matchCW=(d.cashWins||[]).find(w=>w.winnerName===p.winnerName&&String(w.amount)===String(p.amount)&&!w.paid);
-  if(matchCW){ matchCW.sortCode=p.sortCode; matchCW.accountNo=p.accountNo; }
+  if(matchCW){ matchCW.accountName=p.accountName; matchCW.sortCode=p.sortCode; matchCW.accountNo=p.accountNo; }
   saveDB(); render(); toast('Bank details saved — ready to pay ✓');
 }
 
@@ -3266,7 +3274,7 @@ function openPrizeEmailPicker(dropId,prizeId){
       <div class="muted" style="font-size:12.5px">${esc(prize)} · ${esc(d.name||d.number||'Vault')}${p.ticket?' · #'+esc(String(p.ticket).replace(/^#/,'')):''} · ${esc(prizeWinnerEmail(p)||'no email on file')}</div>
       <div style="font-size:12px;margin:10px 0 4px">${stepper}</div>
       ${item.next?`<div style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--gold2)">${item.bucket==='todo'?'Next: ':''}${esc(item.next)}</div>`:''}
-      ${p.type==='cash'&&p.bankDetailsDate?`<div style="font-size:12.5px;margin-bottom:12px;padding:9px 12px;border-radius:8px;background:var(--panel2);font-family:monospace">Sort ${esc(p.sortCode||'—')} · Acc ${esc(p.accountNo||'—')}</div>`:''}
+      ${p.type==='cash'&&p.bankDetailsDate?`<div style="font-size:12.5px;margin-bottom:12px;padding:9px 12px;border-radius:8px;background:var(--panel2);font-family:monospace">${esc(p.accountName||'(no name saved)')} · Sort ${esc(p.sortCode||'—')} · Acc ${esc(p.accountNo||'—')}</div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${actions}</div>
       <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:8px">Emails</div>
       ${keys.map((k,idx)=>{
@@ -3292,6 +3300,7 @@ function openHubBankDetails(dropId,prizeId){
   openModal(`<div class="modal" style="max-width:440px">
     <div class="modal-h"><h3>🏦 Bank details — ${esc(p.winnerName||'')}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
+      <div class="field"><label>Account holder full name</label><input id="hb_name" value="${esc(p.accountName||'')}" placeholder="${esc(p.winnerName||'Full name on the account')}" style="${inp}"></div>
       <div class="field"><label>Sort code</label><input id="hb_sort" value="${esc(p.sortCode||'')}" placeholder="00-00-00" style="${inp}"></div>
       <div class="field"><label>Account number</label><input id="hb_acct" value="${esc(p.accountNo||'')}" placeholder="12345678" style="${inp}"></div>
     </div>
@@ -3302,11 +3311,16 @@ function openHubBankDetails(dropId,prizeId){
 function saveHubBankDetails(dropId,prizeId){
   const d=dropById(dropId); if(!d) return;
   const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
-  const sc=(document.getElementById('hb_sort')||{}).value||'', an=(document.getElementById('hb_acct')||{}).value||'';
-  if(!sc.trim()&&!an.trim()){ toast('Enter sort code or account number'); return; }
-  p.sortCode=sc.trim(); p.accountNo=an.trim(); p.bankDetailsDate=new Date().toISOString(); p.chasing=false;
+  const nm=((document.getElementById('hb_name')||{}).value||'').trim();
+  const sc=((document.getElementById('hb_sort')||{}).value||'').trim(), an=((document.getElementById('hb_acct')||{}).value||'').trim();
+  if(!nm){ toast('Enter the account holder\'s full name'); return; }
+  const scDigits=sc.replace(/\D/g,''), anDigits=an.replace(/\D/g,'');
+  if(scDigits.length!==6){ toast('Sort code should be 6 digits'); return; }
+  if(anDigits.length!==8){ toast('Account number should be 8 digits'); return; }
+  p.accountName=nm; p.sortCode=scDigits.replace(/(\d{2})(\d{2})(\d{2})/,'$1-$2-$3'); p.accountNo=anDigits;
+  p.bankDetailsDate=new Date().toISOString(); p.chasing=false;
   const cw=(d.cashWins||[]).find(w=>w.winnerName===p.winnerName&&String(w.amount)===String(p.amount)&&!w.paid);
-  if(cw){ cw.sortCode=p.sortCode; cw.accountNo=p.accountNo; }
+  if(cw){ cw.accountName=p.accountName; cw.sortCode=p.sortCode; cw.accountNo=p.accountNo; }
   saveDB(); closeModal(); render(); toast('Bank details saved ✓ — confirmation email is ready to send');
 }
 
