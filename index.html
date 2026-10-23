@@ -2498,6 +2498,8 @@ function vDashboard(){
 
   ${emailHubCard()}
 
+  ${watchFulfilmentCard()}
+
   <div class="kpi-row">
     <div class="kpi"><div class="label">Live Drops</div><div class="val green">${live.length}</div><div class="sub">${upcoming.length} upcoming</div></div>
     <div class="kpi"><div class="label">Awaiting dispatch</div><div class="val">${awaitingDispatch.length}</div><div class="sub">winners</div></div>
@@ -3287,6 +3289,7 @@ function openPrizeEmailPicker(dropId,prizeId){
     act(p.type==='watch'&&!p.dispatched&&!p.addressReceived,'✓ Address received',`markPrizeAddressReceived('${dropId}','${prizeId}')`),
     act(p.type==='cash'&&!p.paid,p.bankDetailsDate?'🏦 Edit bank details':'🏦 Add bank details',`openHubBankDetails('${dropId}','${prizeId}')`),
     act(p.type==='cash'&&!p.paid&&p.bankDetailsDate,'Mark paid ✓',`markVaultPrizePaid('${dropId}','${prizeId}');closeModal()`,true),
+    act(p.type==='watch'&&p.needsPurchasing&&!p.purchased&&!p.dispatched,'🛒 Mark purchased',`openHubPurchase('${dropId}','${prizeId}')`),
     act(true,'Open in Vault Hub',`closeModal();vaultHubTab='${dropId}';vaultHubView='tracker';go('vaulthub')`)
   ].join('');
   openModal(`<div class="modal" id="pe_picker" style="max-width:620px">
@@ -3380,6 +3383,7 @@ function prizeSteps(p){
   return [
     {label:'Win email',done:!!log.watch_win},
     {label:'Address',done:!!p.addressReceived||!!p.dispatched},
+    {label:'Purchased',done:!!p.purchased||!!p.dispatched||(!p.needsPurchasing&&!!p.addressReceived)},
     {label:'Dispatched',done:!!p.dispatched&&!!log.watch_dispatched},
     {label:'Review ask',done:!!log.review_request}];
 }
@@ -3423,6 +3427,8 @@ function emailHubItems(){
           } else done({note:'Dispatched '+(p.dispatchDate?fmtDate(p.dispatchDate):'')+' · review requested'});
         } else if(!log.watch_win){
           todo({cat:'new',key:'watch_win',next:'Send win email',note:'Won '+_dayLabel(base.age),dueSince:base.logged});
+        } else if(p.addressReceived&&p.needsPurchasing&&!p.purchased){
+          todo({cat:'dispatch',task:'purchase',next:`Purchase the ${p.label||'watch'}`,note:'Address received '+_dayLabel(_daysSince(p.addressReceivedDate))+' · then QA & dispatch',dueSince:p.addressReceivedDate,overdueAfter:3});
         } else if(p.addressReceived){
           todo({cat:'dispatch',task:'dispatch',next:'QA check, then dispatch',note:'Address received '+_dayLabel(_daysSince(p.addressReceivedDate))+' · aim: in their hands within 14 working days',dueSince:p.addressReceivedDate,overdueAfter:EMAIL_DISPATCH_OVERDUE_DAYS});
         } else {
@@ -3491,6 +3497,7 @@ function _ehRow(i){
   if(i.key) primary=`<button class="btn btn-sm btn-ghost" style="font-size:11px" title="Not needed — skip this email and move on" onclick="skipPrizeEmail('${i.dropId}','${i.prizeId}','${i.key}',event)">Skip</button>
     <button class="btn btn-sm btn-gold" onclick="openPrizeEmail('${i.dropId}','${i.prizeId}','${i.key}')">${PRIZE_EMAILS[i.key].label}</button>`;
   else if(i.task==='pay') primary=`<button class="btn btn-sm btn-gold" onclick="markVaultPrizePaid('${i.dropId}','${i.prizeId}')">Mark paid ✓</button>`;
+  else if(i.task==='purchase') primary=`<button class="btn btn-sm btn-gold" onclick="openHubPurchase('${i.dropId}','${i.prizeId}')">🛒 Mark purchased</button>`;
   else if(i.task==='dispatch') primary=`<button class="btn btn-sm btn-gold" onclick="openPrizeEmail('${i.dropId}','${i.prizeId}','watch_dispatched')">📦 Dispatch &amp; send tracking</button>`;
   else if(i.reply==='address') primary=`<button class="btn btn-sm" onclick="markPrizeAddressReceived('${i.dropId}','${i.prizeId}')">✓ They replied with address</button>`;
   else if(i.reply==='bank') primary=`<button class="btn btn-sm" onclick="openHubBankDetails('${i.dropId}','${i.prizeId}')">🏦 They sent bank details</button>`;
@@ -3586,6 +3593,113 @@ function emailHubCard(){
     <div style="display:flex;gap:16px;flex-wrap:wrap;padding:10px 18px;font-size:11.5px;color:var(--ink3)">${legend}
       <span style="margin-left:auto">Chase after ${EMAIL_CHASE_AFTER_DAYS} days · nothing sends without your click</span></div>
   </div>`;
+}
+
+/* ---------- Dashboard — Watch Fulfilment board ----------
+   Every won watch, from "buy it" to "in their hands", with the 14-working-day promise as a countdown. */
+const WATCH_DELIVERY_WORKING_DAYS = 14;
+function _addWorkingDays(iso,n){
+  const d=new Date((iso||today()).slice(0,10)+'T12:00:00'); let added=0;
+  while(added<n){ d.setDate(d.getDate()+1); const w=d.getDay(); if(w!==0&&w!==6) added++; }
+  return localISODate(d);
+}
+function _workingDaysBetween(fromIso,toIso){
+  const a=new Date(fromIso+'T12:00:00'), b=new Date(toIso+'T12:00:00'); if(b<=a) return -Math.round((a-b)/86400000);
+  let n=0; const d=new Date(a); while(d<b){ d.setDate(d.getDate()+1); const w=d.getDay(); if(w!==0&&w!==6) n++; } return n;
+}
+function watchFulfilmentItems(){
+  const out=[];
+  (DB.drops||[]).forEach(d=>(d.vaultPrizes||[]).forEach(p=>{
+    if(p.type!=='watch'||!p.winnerName) return;
+    const won=(p.date||p.created||today()).slice(0,10);
+    const due=_addWorkingDays(won,WATCH_DELIVERY_WORKING_DAYS);
+    const left=_workingDaysBetween(today(),due);
+    let stage;
+    if(p.dispatched){ if(_daysSince(p.dispatchDate)>7) return; stage='sent'; }
+    else if(p.purchased) stage='ready';
+    else stage='buy';
+    out.push({d,p,dropId:d.id,vault:d.name||d.number||'Vault',won,due,left,stage});
+  }));
+  return out.sort((a,b)=>a.due.localeCompare(b.due));
+}
+function watchFulfilmentCard(){
+  const items=watchFulfilmentItems();
+  if(!items.length) return '';
+  const buy=items.filter(i=>i.stage==='buy'), ready=items.filter(i=>i.stage==='ready'), sent=items.filter(i=>i.stage==='sent');
+  const buyTotal=buy.reduce((a,i)=>a+(Number(i.p.cost)||0),0);
+  const open=buy.concat(ready);
+  const late=open.filter(i=>i.left<0).length, tight=open.filter(i=>i.left>=0&&i.left<=3).length;
+  const fmtD=iso=>new Date(iso+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+  const countdown=i=>{
+    if(i.stage==='sent') return `<span style="color:var(--live)">✓ Sent ${i.p.dispatchDate?fmtD(i.p.dispatchDate.slice(0,10)):''}${i.p.courier?' · '+esc(i.p.courier):''}</span>`;
+    const c=i.left<0?'#F26D6D':i.left<=3?'#F5A524':'var(--ink3)';
+    const txt=i.left<0?`${Math.abs(i.left)} working day${Math.abs(i.left)!==1?'s':''} late`:i.left===0?'due today':`${i.left} working day${i.left!==1?'s':''} left`;
+    return `<span style="color:${c};font-weight:${i.left<=3?700:500}">⏱ Deliver by ${fmtD(i.due)} · ${txt}</span>`;
+  };
+  const card=i=>{
+    const p=i.p, addr=p.addressReceived||p.dispatched;
+    const border=i.stage==='sent'?'#4ADE80':i.left<0?'#F26D6D':i.left<=3?'#F5A524':'var(--line2)';
+    const btn=i.stage==='buy'
+      ?`<button class="btn btn-sm btn-gold" onclick="openHubPurchase('${i.dropId}','${p.id}')">🛒 Mark purchased</button>`
+      :i.stage==='ready'
+        ?`<button class="btn btn-sm btn-gold" ${addr?'':'title="No delivery address yet"'} onclick="openPrizeEmail('${i.dropId}','${p.id}','watch_dispatched')">📦 Dispatch &amp; send tracking</button>`
+        :'';
+    return `<div style="border:1px solid var(--line2);border-left:4px solid ${border};border-radius:10px;padding:12px 14px;background:var(--panel2);margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+        <div style="font-weight:800;font-size:14.5px;line-height:1.3">⌚ ${esc(p.label||'Watch')}</div>
+        ${i.stage==='buy'&&p.cost?`<div class="mono" style="font-weight:700;color:var(--gold2);white-space:nowrap">~£${Number(p.cost).toLocaleString('en-GB')}</div>`:''}
+        ${i.stage==='ready'&&(p.purchasedCost||p.cost)?`<div class="mono" style="color:var(--ink3);white-space:nowrap">£${Number(p.purchasedCost||p.cost).toLocaleString('en-GB')}</div>`:''}
+      </div>
+      <div style="font-size:12px;color:var(--ink3);margin-top:3px">${esc(p.winnerName)} · ${esc(i.vault)}${p.ticket?' · #'+esc(String(p.ticket).replace(/^#/,'')):''} · won ${fmtD(i.won)}</div>
+      ${i.stage==='ready'&&p.purchasedFrom?`<div style="font-size:12px;color:var(--ink2);margin-top:3px">From ${esc(p.purchasedFrom)}</div>`:''}
+      <div style="font-size:12px;margin-top:6px">${countdown(i)}</div>
+      ${i.stage!=='sent'?`<div style="font-size:11.5px;margin-top:4px;${addr?'color:var(--live)':'color:#F5A524'}">${addr?'✓ Delivery address received':'⚠ Waiting for delivery address'}</div>`:''}
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">${btn}
+        <button class="btn btn-sm" onclick="openPrizeEmailPicker('${i.dropId}','${p.id}')">⋯</button></div>
+    </div>`;
+  };
+  const col=(title,sub,list,empty)=>`<div style="min-width:0">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+      <div style="font-weight:800;font-size:13.5px">${title} <span style="margin-left:4px;padding:1px 8px;border-radius:10px;font-size:11px;background:${list.length?'var(--line2)':'transparent'};color:var(--ink2)">${list.length}</span></div>
+      <div style="font-size:11.5px;color:var(--ink3)">${sub}</div></div>
+    ${list.length?list.map(card).join(''):`<div style="padding:18px;text-align:center;color:var(--ink3);font-size:12.5px;border:1px dashed var(--line2);border-radius:10px">${empty}</div>`}
+  </div>`;
+  return `<div class="card" style="margin-bottom:20px;${late?'border-color:rgba(242,109,109,.45)':buy.length?'border-color:rgba(201,162,75,.35)':''}">
+    <div class="card-h"><h3>⌚ Watch Fulfilment</h3>
+      <span style="font-size:12.5px;color:var(--ink3)">${late?`<strong style="color:#F26D6D">${late} late</strong> · `:''}${tight?`<strong style="color:#F5A524">${tight} due within 3 days</strong> · `:''}promise: in their hands within ${WATCH_DELIVERY_WORKING_DAYS} working days</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:16px 18px">
+      ${col('🛒 To purchase',buy.length?`~£${buyTotal.toLocaleString('en-GB')} to spend`:'',buy,'Nothing to buy ✓')}
+      ${col('🔍 QA &amp; dispatch','bought, ready to check &amp; send',ready,'Nothing waiting to send')}
+      ${col('✓ Sent this week','last 7 days',sent,'No watches sent this week')}
+    </div>
+  </div>`;
+}
+function openHubPurchase(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  const inp='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;margin-top:5px';
+  openModal(`<div class="modal" style="max-width:480px">
+    <div class="modal-h"><h3>🛒 Purchased — ${esc(p.label||'Watch')}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="muted" style="font-size:12.5px;margin-bottom:12px">For ${esc(p.winnerName||'')} · ${esc(d.name||'Vault')}${p.cost?' · est. £'+Number(p.cost).toLocaleString('en-GB'):''}</div>
+      <div class="field"><label>Purchased from</label><input id="hp_from" value="${esc(p.purchasedFrom||'')}" placeholder="Dealer / supplier name" style="${inp}"></div>
+      <div class="field"><label>Cost paid (£)</label><input id="hp_cost" type="number" value="${p.purchasedCost||p.cost||''}" style="${inp}"></div>
+      <div class="field"><label>Notes (optional)</label><input id="hp_notes" value="${esc(p.purchaseNotes||'')}" placeholder="e.g. box &amp; papers confirmed" style="${inp}"></div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveHubPurchase('${dropId}','${prizeId}')">✓ Confirm purchased</button></div>
+  </div>`);
+}
+function saveHubPurchase(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  const from=((document.getElementById('hp_from')||{}).value||'').trim();
+  const cost=parseFloat((document.getElementById('hp_cost')||{}).value)||0;
+  if(!from){ toast('Enter who you bought it from'); return; }
+  p.purchasedFrom=from; p.purchasedCost=cost||p.cost||0; p.purchaseNotes=((document.getElementById('hp_notes')||{}).value||'').trim();
+  p.purchased=true; p.purchasedDate=today(); p.needsPurchasing=false;
+  if(p.purchasedCost&&p.purchasedCost!==p.cost) p.cost=p.purchasedCost;
+  saveDB(); closeModal(); render(); toast('✓ Purchased — moved to QA & dispatch');
 }
 
 function markPrizeAddressReceived(dropId,prizeId){
@@ -3701,6 +3815,8 @@ function markVaultPrizePaid(dropId,prizeId){
   const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
   if(!p.sortCode&&!p.accountNo){ if(!confirm('No bank details saved — mark as paid anyway?')) return; }
   p.paid=true; p.paidDate=today();
+  const cw=(d.cashWins||[]).find(w=>w.winnerName===p.winnerName&&String(w.amount)===String(p.amount)&&!w.paid);
+  if(cw){ cw.paid=true; cw.paidDate=today(); }
   saveDB(); render(); toast('Cash prize marked as paid ✓');
 }
 
