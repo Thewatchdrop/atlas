@@ -3546,7 +3546,9 @@ function emailHubCard(){
 
   return `<div class="card" style="margin-bottom:20px;${overdue?'border-color:rgba(242,109,109,.45)':todo.length?'border-color:rgba(201,162,75,.35)':''}">
     <div class="card-h"><h3>📧 Winner Emails</h3>
-      <span style="font-size:12.5px;color:var(--ink3);display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn btn-sm" onclick="vaultHubTab='all';vaultHubView='checker';go('vaulthub')">🔎 Check new winners</button><span>${overdue?`<strong style="color:#F26D6D">${overdue} overdue</strong> · `:''}${todo.length?`<strong style="color:var(--gold2)">${todo.length} to do</strong> · `:'✓ all caught up · '}${winner.length} waiting on winners</span></span>
+      <span style="font-size:12.5px;color:var(--ink3);display:flex;align-items:center;gap:12px;flex-wrap:wrap">${(()=>{const li=wcLastImport(); if(!li) return '<span style="color:#F26D6D">No winners imported yet</span>'; const b=_wcDayDiff(li.to,today());
+      return `<span style="color:${b<=1?'var(--live)':b<=3?'#F5A524':'#F26D6D'}">📅 Winners imported up to ${esc(_wcFmtDay(li.to))}</span>`;})()}
+      <button class="btn btn-sm" onclick="vaultHubTab='all';vaultHubView='checker';go('vaulthub')">🔎 Check new winners</button><span>${overdue?`<strong style="color:#F26D6D">${overdue} overdue</strong> · `:''}${todo.length?`<strong style="color:var(--gold2)">${todo.length} to do</strong> · `:'✓ all caught up · '}${winner.length} waiting on winners</span></span>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line)">${tiles}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)">
@@ -4356,9 +4358,32 @@ function _wcSuggestVault(r){
   }
   return '';
 }
+let wcGapNote='';
+function _wcFmtDay(iso){ try{ return new Date(iso+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}); }catch(e){ return iso; } }
+function _wcDayDiff(a,b){ return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000); }
+function wcLastImport(){ return (DB.winnerImports||[])[0]||null; }
+function _wcRecordImport(rows){
+  const dates=rows.map(x=>x.date).filter(Boolean).sort(); if(!dates.length){ wcGapNote=''; return; }
+  const from=dates[0], to=dates[dates.length-1];
+  DB.winnerImports=DB.winnerImports||[];
+  const prev=DB.winnerImports.find(x=>!(x.from===from&&x.to===to));
+  wcGapNote='';
+  if(prev&&prev.to){
+    const gap=_wcDayDiff(prev.to,from);
+    if(gap>1) wcGapNote=`⚠ Possible gap: your last import ended ${_wcFmtDay(prev.to)}, but this list starts ${_wcFmtDay(from)}. Check nothing was missed in between.`;
+    else if(to<prev.to) wcGapNote=`ℹ This list is older than your last import (which went up to ${_wcFmtDay(prev.to)}). Duplicates are skipped automatically.`;
+  }
+  const entry={id:uid('wi'),at:now(),from,to,lines:rows.length,hits:rows.filter(x=>x.type!=='credit').length};
+  const top=DB.winnerImports[0];
+  if(top&&top.from===from&&top.to===to) DB.winnerImports[0]=Object.assign(top,{at:entry.at,lines:entry.lines,hits:entry.hits});
+  else DB.winnerImports.unshift(entry);
+  DB.winnerImports=DB.winnerImports.slice(0,30);
+  saveDB();
+}
 function runWinnerCheck(){
   wcText=(document.getElementById('wc_text')||{}).value||'';
   const r=parseWinnerPaste(wcText); wcUnread=r.unread;
+  _wcRecordImport(r.rows);
   r.rows.forEach(x=>{
     const ms=_wcCustomerMatches(x.name); if(ms.length===1) x.custId=ms[0].id;
     x.preLogged=!!_wcAlreadyLogged(x.ticket);
@@ -4374,6 +4399,38 @@ function wcSet(id,field,val){
   if(field==='type'){ if(r.type!=='credit'&&!r.dropId){ r.dropId=_wcSuggestVault(r); r.suggested=!!r.dropId; } render(); }
 }
 
+/* Add the winner as a customer when they're not in the customer list yet */
+function wcAddWinnerDetails(id,thenAllocate){
+  const r=(wcRows||[]).find(x=>x.id===id); if(!r) return;
+  const inp='width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px;margin-top:5px';
+  openModal(`<div class="modal" style="max-width:460px">
+    <div class="modal-h"><h3>＋ Winner details — ${esc(r.name)}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="muted" style="font-size:12.5px;margin-bottom:12px">${r.type==='cash'?'💷 £'+Number(r.amount).toLocaleString('en-GB')+' cash':'⌚ '+esc(r.prize)} · Ticket #${esc(r.ticket)} · ${esc(_wcFmtDay(r.date))}<br>Find their full name and email on the website order for this ticket.</div>
+      <div class="field"><label>Full name</label><input id="wcd_name" placeholder="e.g. ${esc(r.name.replace(/\.$/,''))}…" style="${inp}"></div>
+      <div class="field"><label>Email</label><input id="wcd_email" type="email" placeholder="needed for their win emails" style="${inp}"></div>
+      <div class="field"><label>Phone (optional)</label><input id="wcd_phone" type="tel" placeholder="+44…" style="${inp}"></div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="wcSaveWinnerDetails('${id}',${thenAllocate?'true':'false'})">${thenAllocate?'Save &amp; allocate →':'Save details'}</button></div>
+  </div>`);
+}
+function wcSaveWinnerDetails(id,thenAllocate){
+  const r=(wcRows||[]).find(x=>x.id===id); if(!r) return;
+  const name=((document.getElementById('wcd_name')||{}).value||'').trim();
+  const email=((document.getElementById('wcd_email')||{}).value||'').trim();
+  const phone=((document.getElementById('wcd_phone')||{}).value||'').trim();
+  if(!name){ toast('Enter their full name'); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('Enter a valid email — it\'s needed for their win emails'); return; }
+  DB.customers=DB.customers||[];
+  let c=DB.customers.find(x=>(x.email||'').toLowerCase()===email.toLowerCase());
+  if(c){ if(!c.name) c.name=name; if(phone&&!c.phone) c.phone=phone; }
+  else { c={id:uid('cust'),name,email,phone,orders:0,totalSpend:0,source:'Winner Checker',created:now()}; DB.customers.push(c); }
+  r.custId=c.id;
+  saveDB(); closeModal();
+  if(thenAllocate) allocateCheckedWinner(id); else { render(); toast('✓ Winner details saved'); }
+}
+
 /* Pre-fill the normal allocate pages with the winner's details */
 function _wcPrefill(prefix,r){
   const set=(id,v)=>{const el=document.getElementById(id); if(el) el.value=v;};
@@ -4386,6 +4443,7 @@ function allocateCheckedWinner(id){
   const r=(wcRows||[]).find(x=>x.id===id); if(!r) return;
   const d=dropById(r.dropId); if(!d){ toast('Choose which vault this win belongs to first'); return; }
   if(_wcAlreadyLogged(r.ticket)){ toast('Ticket #'+r.ticket+' is already logged'); return; }
+  if(!r.custId){ wcAddWinnerDetails(id,true); return; }
   if(r.type==='watch'){
     const ms=_wcPoolMatch(r.prize,d.id);
     if(ms.length===1){ markVaultWatchWon(ms[0].id); _wcPrefill('mww',r); return; }
@@ -4447,7 +4505,7 @@ function vaultWinnerCheckerView(vaults){
     const logged=_wcAlreadyLogged(r.ticket);
     const locked=!!logged;
     const ms=_wcCustomerMatches(r.name);
-    const col=r.preLogged?'#7688A8':logged?'#4ADE80':r.dropId?'#F5A524':'#F26D6D';
+    const col=r.preLogged?'#7688A8':logged?'#4ADE80':(r.dropId&&r.custId)?'#F5A524':'#F26D6D';
     const lbl='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:3px';
     return `<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:12px 18px 12px 14px;border-bottom:1px solid var(--line);border-left:4px solid ${col};${locked?'opacity:.75':''}">
       <div style="font-size:20px;align-self:center">${r.type==='cash'?'💷':'⌚'}</div>
@@ -4473,9 +4531,17 @@ function vaultWinnerCheckerView(vaults){
       </div>
       <div style="flex:0 1 210px;min-width:170px">
         <div style="${lbl}">Customer</div>
-        ${locked?`<div style="font-size:12.5px;color:var(--ink2);padding:7px 0">${esc(logged.winner)}</div>`:`<select onchange="wcSet('${r.id}','custId',this.value)" style="${inp};width:100%">
-          <option value="">${ms.length?'Pick customer…':'No match — use name'}</option>
-          ${ms.map(c=>`<option value="${c.id}" ${r.custId===c.id?'selected':''}>${esc(c.name)}${c.email?' · '+esc(c.email):''}</option>`).join('')}</select>`}
+        ${locked?`<div style="font-size:12.5px;color:var(--ink2);padding:7px 0">${esc(logged.winner)}</div>`
+          :(()=>{
+            const sel=r.custId&&(DB.customers||[]).find(c=>c.id===r.custId);
+            const extra=sel&&!ms.find(c=>c.id===sel.id)?[sel]:[];
+            const opts=ms.concat(extra);
+            if(!opts.length) return `<button class="btn btn-sm" style="width:100%;color:#F26D6D;border-color:rgba(242,109,109,.45)" onclick="wcAddWinnerDetails('${r.id}')">⚠ Not found — add winner details</button>`;
+            return `<div style="display:flex;gap:6px"><select onchange="wcSet('${r.id}','custId',this.value);render()" style="${inp};flex:1;min-width:0">
+              <option value="">Pick customer…</option>
+              ${opts.map(c=>`<option value="${c.id}" ${r.custId===c.id?'selected':''}>${esc(c.name)}${c.email?' · '+esc(c.email):''}</option>`).join('')}</select>
+              <button class="btn btn-sm" title="Not listed — add new" onclick="wcAddWinnerDetails('${r.id}')">＋</button></div>`;
+          })()}
       </div>
       <div style="margin-left:auto;flex-shrink:0;align-self:center">
         ${r.preLogged?`<span style="color:var(--ink3);font-size:12px">Already logged · ${esc(logged?logged.vault:'')}</span>`
@@ -4486,6 +4552,21 @@ function vaultWinnerCheckerView(vaults){
   };
   return `<div class="card" style="margin-bottom:16px">
     <div class="card-h"><h3>🔎 Check for New Winners</h3><span class="muted" style="font-size:12px">Paste the full winners list (all vaults) — store credit is ignored automatically</span></div>
+    ${(()=>{
+      const li=wcLastImport();
+      if(!li) return `<div style="padding:12px 18px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink3)">No imports yet — paste your first winners list below.</div>`;
+      const behind=_wcDayDiff(li.to,today());
+      const col=behind<=1?'var(--live)':behind<=3?'#F5A524':'#F26D6D';
+      const hist=(DB.winnerImports||[]).slice(0,6);
+      return `<div style="padding:12px 18px;border-bottom:1px solid var(--line);display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+        <div style="flex:1;min-width:260px">
+          <div style="font-size:13.5px;font-weight:700;color:${col}">📅 Imported up to ${esc(_wcFmtDay(li.to))}${behind>1?` · ${behind} days behind`:' · up to date'}</div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:2px">Next paste should start from ${esc(_wcFmtDay(localISODate(new Date(new Date(li.to+'T12:00:00').getTime()+86400000))))} · last checked ${esc(fmtSentAt(li.at))}</div>
+        </div>
+        <details style="font-size:12px;color:var(--ink3)"><summary style="cursor:pointer">Import history (${(DB.winnerImports||[]).length})</summary>
+          <div style="margin-top:8px;line-height:1.8">${hist.map(h=>`<div>${esc(fmtSentAt(h.at))} · list ${h.from===h.to?esc(_wcFmtDay(h.from)):esc(_wcFmtDay(h.from))+' → '+esc(_wcFmtDay(h.to))} · ${h.lines} lines · <strong style="color:var(--ink2)">${h.hits} cash/watch</strong></div>`).join('')}</div></details>
+      </div>`;
+    })()}
     <div style="padding:16px 18px">
       <textarea id="wc_text" rows="7" placeholder="Wed 14th of October 2026&#10;Watch Drop Credit - 50p: samuel m. - Ticket #21183&#10;Moonswatch MISSION TO THE MOON: PJ H. - Ticket #25514"
         style="width:100%;${inp};font-family:monospace;font-size:12.5px;line-height:1.5;resize:vertical">${esc(wcText)}</textarea>
@@ -4502,6 +4583,10 @@ function vaultWinnerCheckerView(vaults){
     ${tile(pre.length,'Already logged','var(--ink2)','skipped, no duplicates')}
     ${tile(credit.length,'Store credit','var(--ink2)','ignored')}
   </div>
+  ${(()=>{const ds=rows.map(x=>x.date).sort(); if(!ds.length) return '';
+    const a=ds[0],b=ds[ds.length-1];
+    return `<div style="margin-bottom:12px;font-size:13px;color:var(--ink2)">📅 This list covers <strong>${esc(_wcFmtDay(a))}${a!==b?' → '+esc(_wcFmtDay(b)):''}</strong></div>
+      ${wcGapNote?`<div style="margin-bottom:16px;padding:10px 14px;border-radius:9px;border:1px solid rgba(245,165,36,.35);background:rgba(245,165,36,.08);color:#F5A524;font-size:12.5px">${esc(wcGapNote)}</div>`:''}`;})()}
   ${wcUnread.length?`<div class="card" style="margin-bottom:16px;border-color:rgba(242,109,109,.35)"><div class="card-h"><h3>⚠ ${wcUnread.length} line${wcUnread.length>1?'s':''} couldn't be read</h3><span class="muted" style="font-size:12px">Check these by hand</span></div>
     <div style="padding:10px 18px;font-family:monospace;font-size:12px;color:var(--ink2);line-height:1.7">${wcUnread.map(esc).join('<br>')}</div></div>`:''}
   <div class="card">
