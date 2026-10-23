@@ -3187,6 +3187,9 @@ function skipPrizeEmail(dropId,prizeId,key,ev){
   if(ev) ev.stopPropagation();
   const d=dropById(dropId); if(!d) return;
   const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  if(key==='watch_dispatched'&&!p.dispatched&&confirm('Has this watch already been sent out?\n\nOK = mark it as dispatched too\nCancel = just skip the email')){
+    p.dispatched=true; p.dispatchDate=today(); p.dispatchMethod=p.dispatchMethod||'office'; p.needsPurchasing=false; p.addressReceived=true;
+  }
   p.emailSkipped=p.emailSkipped||{}; p.emailSkipped[key]=new Date().toISOString();
   if(key==='vault_cash_chaser'||key==='address_chaser'){ p.chasing=false; }
   saveDB(); toast('Skipped: '+PRIZE_EMAILS[key].title+' — moved to the next step');
@@ -3290,6 +3293,9 @@ function openPrizeEmailPicker(dropId,prizeId){
     act(p.type==='cash'&&!p.paid,p.bankDetailsDate?'🏦 Edit bank details':'🏦 Add bank details',`openHubBankDetails('${dropId}','${prizeId}')`),
     act(p.type==='cash'&&!p.paid&&p.bankDetailsDate,'Mark paid ✓',`markVaultPrizePaid('${dropId}','${prizeId}');closeModal()`,true),
     act(p.type==='watch'&&p.needsPurchasing&&!p.purchased&&!p.dispatched,'🛒 Mark purchased',`openHubPurchase('${dropId}','${prizeId}')`),
+    act(p.type==='watch'&&!p.dispatched,'📦 Mark dispatched (no email)',`markPrizeDispatchedNoEmail('${dropId}','${prizeId}')`),
+    act(!p.flowClosed,'✓ Close — no more emails',`openCloseWinner('${dropId}','${prizeId}')`),
+    act(!!p.flowClosed,'↺ Reopen emails',`reopenWinner('${dropId}','${prizeId}')`),
     act(true,'Open in Vault Hub',`closeModal();vaultHubTab='${dropId}';vaultHubView='tracker';go('vaulthub')`)
   ].join('');
   openModal(`<div class="modal" id="pe_picker" style="max-width:620px">
@@ -3297,7 +3303,7 @@ function openPrizeEmailPicker(dropId,prizeId){
     <div class="modal-b">
       <div class="muted" style="font-size:12.5px">${esc(prize)} · ${esc(d.name||d.number||'Vault')}${p.ticket?' · #'+esc(String(p.ticket).replace(/^#/,'')):''} · ${esc(prizeWinnerEmail(p)||'no email on file')}</div>
       <div style="font-size:12px;margin:10px 0 4px">${stepper}</div>
-      ${item.next?`<div style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--gold2)">${item.bucket==='todo'?'Next: ':''}${esc(item.next)}</div>`:''}
+      ${item.next?`<div style="font-size:13px;font-weight:700;margin-bottom:12px;color:${item.bucket==='done'?'var(--live)':'var(--gold2)'}">${item.bucket==='todo'?'Next: ':''}${esc(item.next)}</div>`:''}
       ${p.type==='cash'&&p.bankDetailsDate?`<div style="font-size:12.5px;margin-bottom:12px;padding:9px 12px;border-radius:8px;background:var(--panel2);font-family:monospace">${esc(p.accountName||'(no name saved)')} · Sort ${esc(p.sortCode||'—')} · Acc ${esc(p.accountNo||'—')}</div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${actions}</div>
       <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:8px">Emails</div>
@@ -3401,6 +3407,7 @@ function emailHubItems(){
       const todo=(o)=>items.push(Object.assign({},base,{bucket:'todo',overdueAfter:EMAIL_OVERDUE_DAYS},o));
       const wait=(o)=>items.push(Object.assign({},base,{bucket:'winner'},o));
       const done=(o)=>items.push(Object.assign({},base,{bucket:'done',next:'Complete'},o));
+      if(p.flowClosed){ done({next:'Closed — no more emails',note:'Closed '+(p.flowClosedDate?fmtDate(p.flowClosedDate):'')+(p.type==='watch'?(p.dispatched?' · dispatched':' · ⚠ not marked dispatched'):(p.paid?' · paid':' · ⚠ not marked paid'))}); return; }
       if(p.type==='cash'){
         const amt=_gbpShort(p.amount);
         if(p.paid){
@@ -3702,6 +3709,48 @@ function saveHubPurchase(dropId,prizeId){
   saveDB(); closeModal(); render(); toast('✓ Purchased — moved to QA & dispatch');
 }
 
+/* Close a winner: no more emails. Optionally record that it's been dispatched / paid. */
+function openCloseWinner(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  const needDisp=p.type==='watch'&&!p.dispatched, needPaid=p.type==='cash'&&!p.paid;
+  openModal(`<div class="modal" style="max-width:460px">
+    <div class="modal-h"><h3>✓ Close — ${esc(p.winnerName||'')}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div style="font-size:13.5px;line-height:1.6;margin-bottom:14px">No more emails will be suggested for <strong>${esc(p.label||'')}</strong>. They'll move to <strong>Complete</strong> in Winner Emails. You can reopen any time from the ⋯ panel.</div>
+      ${needDisp?`<label style="display:flex;gap:10px;align-items:center;font-size:13.5px;cursor:pointer;padding:10px 12px;border:1px solid var(--line2);border-radius:9px">
+        <input type="checkbox" id="cw_disp" checked style="width:16px;height:16px;accent-color:var(--gold)"> The watch has been sent out — mark it as dispatched</label>`:''}
+      ${needPaid?`<label style="display:flex;gap:10px;align-items:center;font-size:13.5px;cursor:pointer;padding:10px 12px;border:1px solid var(--line2);border-radius:9px">
+        <input type="checkbox" id="cw_paid" checked style="width:16px;height:16px;accent-color:var(--gold)"> The money has been paid — mark it as paid</label>`:''}
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="confirmCloseWinner('${dropId}','${prizeId}')">✓ Close winner</button></div>
+  </div>`);
+}
+function confirmCloseWinner(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  const disp=document.getElementById('cw_disp'), paid=document.getElementById('cw_paid');
+  if(disp&&disp.checked){ p.dispatched=true; p.dispatchDate=p.dispatchDate||today(); p.dispatchMethod=p.dispatchMethod||'office'; p.needsPurchasing=false; p.addressReceived=true; }
+  if(paid&&paid.checked){ p.paid=true; p.paidDate=p.paidDate||today();
+    const cw=(d.cashWins||[]).find(w=>w.winnerName===p.winnerName&&String(w.amount)===String(p.amount)&&!w.paid); if(cw){ cw.paid=true; cw.paidDate=today(); } }
+  p.flowClosed=true; p.flowClosedDate=today(); p.chasing=false;
+  saveDB(); closeModal(); render(); toast('✓ '+(p.winnerName||'Winner')+' closed — no more emails');
+}
+function reopenWinner(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  p.flowClosed=false; delete p.flowClosedDate;
+  saveDB(); render(); openPrizeEmailPicker(dropId,prizeId); toast('Reopened — emails will be suggested again');
+}
+function markPrizeDispatchedNoEmail(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  if(!confirm('Mark '+(p.label||'this watch')+' as dispatched without sending the tracking email?')) return;
+  p.dispatched=true; p.dispatchDate=today(); p.dispatchMethod=p.dispatchMethod||'office'; p.needsPurchasing=false; p.addressReceived=true; p.chasing=false;
+  p.emailSkipped=p.emailSkipped||{}; if(!(p.emailLog||{}).watch_dispatched) p.emailSkipped.watch_dispatched=p.emailSkipped.watch_dispatched||new Date().toISOString();
+  saveDB(); render(); openPrizeEmailPicker(dropId,prizeId); toast('📦 Marked as dispatched');
+}
 function markPrizeAddressReceived(dropId,prizeId){
   const d=dropById(dropId); if(!d) return;
   const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
