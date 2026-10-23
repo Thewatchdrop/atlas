@@ -2498,7 +2498,7 @@ function vDashboard(){
 
   ${emailHubCard()}
 
-  ${watchFulfilmentCard()}
+  ${fulfilmentCard()}
 
   <div class="kpi-row">
     <div class="kpi"><div class="label">Live Drops</div><div class="val green">${live.length}</div><div class="sub">${upcoming.length} upcoming</div></div>
@@ -3631,7 +3631,6 @@ function watchFulfilmentItems(){
 }
 function watchFulfilmentCard(){
   const items=watchFulfilmentItems();
-  if(!items.length) return '';
   const buy=items.filter(i=>i.stage==='buy'), ready=items.filter(i=>i.stage==='ready'), sent=items.filter(i=>i.stage==='sent');
   const buyTotal=buy.reduce((a,i)=>a+(Number(i.p.cost)||0),0);
   const open=buy.concat(ready);
@@ -3672,7 +3671,7 @@ function watchFulfilmentCard(){
     ${list.length?list.map(card).join(''):`<div style="padding:18px;text-align:center;color:var(--ink3);font-size:12.5px;border:1px dashed var(--line2);border-radius:10px">${empty}</div>`}
   </div>`;
   return `<div class="card" style="margin-bottom:20px;${late?'border-color:rgba(242,109,109,.45)':buy.length?'border-color:rgba(201,162,75,.35)':''}">
-    <div class="card-h"><h3>⌚ Watch Fulfilment</h3>
+    <div class="card-h">${fulfilTabs('watch')}
       <span style="font-size:12.5px;color:var(--ink3)">${late?`<strong style="color:#F26D6D">${late} late</strong> · `:''}${tight?`<strong style="color:#F5A524">${tight} due within 3 days</strong> · `:''}promise: in their hands within ${WATCH_DELIVERY_WORKING_DAYS} working days</span></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:16px 18px">
       ${col('🛒 To purchase',buy.length?`~£${buyTotal.toLocaleString('en-GB')} to spend`:'',buy,'Nothing to buy ✓')}
@@ -3681,6 +3680,105 @@ function watchFulfilmentCard(){
     </div>
   </div>`;
 }
+/* ---------- Dashboard — Cash Payouts (tab next to Watch Fulfilment) ---------- */
+let fulfilTab='watch'; const _revealBank=new Set();
+function setFulfilTab(t){ fulfilTab=t; render(); }
+function fulfilmentCard(){ return fulfilTab==='cash'?cashPayoutsCard():watchFulfilmentCard(); }
+function fulfilTabs(active){
+  const w=watchFulfilmentItems().filter(i=>i.stage!=='sent').length;
+  const c=cashPayoutItems().filter(i=>i.stage!=='paid').length;
+  const tab=(k,label,n)=>`<div onclick="setFulfilTab('${k}')" style="cursor:pointer;padding:4px 0;font-size:15px;font-weight:800;border-bottom:2px solid ${active===k?'var(--gold)':'transparent'};color:${active===k?'var(--ink)':'var(--ink3)'}">${label}${n?` <span style="margin-left:4px;padding:1px 8px;border-radius:10px;font-size:11px;background:var(--gold);color:#0B1220">${n}</span>`:''}</div>`;
+  return `<div style="display:flex;gap:22px;align-items:center">${tab('watch','⌚ Watch Fulfilment',w)}${tab('cash','💷 Cash Payouts',c)}</div>`;
+}
+function cashPayoutItems(){
+  const out=[];
+  (DB.drops||[]).forEach(d=>(d.vaultPrizes||[]).forEach(p=>{
+    if(p.type!=='cash'||!p.winnerName) return;
+    let stage;
+    if(p.paid){ if(_daysSince(p.paidDate)>7) return; stage='paid'; }
+    else if(p.bankDetailsDate||p.sortCode||p.accountNo) stage='pay';
+    else stage='bank';
+    const hrs=p.bankDetailsDate?Math.floor((Date.now()-new Date(p.bankDetailsDate).getTime())/3600000):null;
+    out.push({d,p,dropId:d.id,vault:d.name||d.number||'Vault',stage,hrs,won:(p.date||p.created||'').slice(0,10)});
+  }));
+  return out.sort((a,b)=>(b.hrs||0)-(a.hrs||0));
+}
+function _copyText(t,label){ navigator.clipboard.writeText(String(t||'')).then(()=>toast((label||'Copied')+' ✓')).catch(()=>toast('Copy failed')); }
+function _payRef(p){ return (p.payRef||('WATCHDROP '+String(p.ticket||'').replace(/\D/g,''))).trim().slice(0,18); }
+function toggleRevealBank(id){ _revealBank.has(id)?_revealBank.delete(id):_revealBank.add(id); render(); }
+function payAndEmail(dropId,prizeId){
+  const d=dropById(dropId); const p=d&&(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  if(!confirm(`Confirm you've sent £${Number(p.amount||0).toLocaleString('en-GB')} to ${p.accountName||p.winnerName}?`)) return;
+  markVaultPrizePaid(dropId,prizeId);
+  if(p.paid) openPrizeEmail(dropId,prizeId,'cash_paid');
+}
+function cashPayoutsCard(){
+  const items=cashPayoutItems();
+  const bank=items.filter(i=>i.stage==='bank'), pay=items.filter(i=>i.stage==='pay'), paid=items.filter(i=>i.stage==='paid');
+  const payTotal=pay.reduce((a,i)=>a+Number(i.p.amount||0),0);
+  const late=pay.filter(i=>i.hrs!==null&&i.hrs>=24).length;
+  const fmtD=iso=>iso?new Date(iso.slice(0,10)+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}):'';
+  const amt=v=>'£'+Number(v||0).toLocaleString('en-GB',{minimumFractionDigits:Number(v)%1?2:0});
+  const copyBtn=(val,label)=>`<button class="btn btn-sm btn-ghost" style="font-size:10.5px;padding:2px 8px" data-copy="${esc(String(val))}" onclick="_copyText(this.dataset.copy,'${label} copied')">Copy</button>`;
+  const card=i=>{
+    const p=i.p, show=_revealBank.has(p.id);
+    const border=i.stage==='paid'?'#4ADE80':i.stage==='pay'?(i.hrs>=24?'#F26D6D':'#F5A524'):'var(--line2)';
+    const head=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+        <div style="font-weight:800;font-size:20px;color:${i.stage==='paid'?'var(--live)':'var(--ink)'}">${amt(p.amount)}</div>
+        <div style="font-size:11.5px;color:var(--ink3);text-align:right">${esc(i.vault)}${p.ticket?' · #'+esc(String(p.ticket).replace(/^#/,'')):''}</div></div>
+      <div style="font-size:13px;font-weight:700;margin-top:2px">${esc(p.winnerName)}</div>`;
+    if(i.stage==='bank'){
+      const log=_effLog(p), sentAt=log.vault_cash_chaser||log.vault_cash_win;
+      return `<div style="border:1px solid var(--line2);border-left:4px solid ${border};border-radius:10px;padding:12px 14px;background:var(--panel2);margin-bottom:10px">${head}
+        <div style="font-size:12px;color:var(--ink3);margin-top:4px">Won ${fmtD(i.won)} · ${sentAt?'asked for details '+_dayLabel(_daysSince(sentAt)):'<span style="color:#F5A524">win email not sent yet</span>'}</div>
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-gold" onclick="openHubBankDetails('${i.dropId}','${p.id}')">🏦 Add bank details</button>
+          <button class="btn btn-sm" onclick="openPrizeEmailPicker('${i.dropId}','${p.id}')">⋯</button></div></div>`;
+    }
+    if(i.stage==='paid'){
+      return `<div style="border:1px solid var(--line2);border-left:4px solid ${border};border-radius:10px;padding:12px 14px;background:var(--panel2);margin-bottom:10px">${head}
+        <div style="font-size:12px;color:var(--live);margin-top:4px">✓ Paid ${fmtD(p.paidDate)}${(p.emailLog||{}).cash_paid?' · winner emailed':''}</div>
+        <div style="margin-top:8px"><button class="btn btn-sm" onclick="openPrizeEmailPicker('${i.dropId}','${p.id}')">⋯</button></div></div>`;
+    }
+    const acc=String(p.accountNo||''), ref=_payRef(p);
+    const masked=acc?(show?acc:'••••'+acc.slice(-4)):'—';
+    const timer=i.hrs===null?'':i.hrs>=24?`<span style="color:#F26D6D;font-weight:700">⏱ Bank details received ${i.hrs}h ago · past the 24h promise</span>`:`<span style="color:#F5A524;font-weight:700">⏱ Pay within ${24-i.hrs}h (24h promise)</span>`;
+    const line=(label,val,copyVal)=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">
+      <span style="font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);width:92px;flex-shrink:0">${label}</span>
+      <span class="mono" style="flex:1;font-size:13.5px;font-weight:600">${val}</span>${copyVal?copyBtn(copyVal,label):''}</div>`;
+    return `<div style="border:1px solid var(--line2);border-left:4px solid ${border};border-radius:10px;padding:12px 14px;background:var(--panel2);margin-bottom:10px">${head}
+      <div style="font-size:12px;margin-top:4px">${timer}</div>
+      <div style="margin-top:10px;padding:6px 12px;border-radius:9px;background:var(--bg2);border:1px solid var(--line2)">
+        ${line('Name',esc(p.accountName||'⚠ not saved'),p.accountName)}
+        ${line('Sort code',esc(p.sortCode||'—'),p.sortCode)}
+        ${line('Account',esc(masked)+(acc?` <span onclick="toggleRevealBank('${p.id}')" style="cursor:pointer;font-family:inherit;font-size:11px;color:var(--gold2);margin-left:6px">${show?'hide':'show'}</span>`:''),acc)}
+        ${line('Reference',esc(ref),ref)}
+        ${line('Amount',amt(p.amount),String(p.amount))}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-gold" onclick="payAndEmail('${i.dropId}','${p.id}')">💸 Mark paid &amp; email winner</button>
+        <button class="btn btn-sm" onclick="openHubBankDetails('${i.dropId}','${p.id}')">Edit</button>
+        <button class="btn btn-sm" onclick="openPrizeEmailPicker('${i.dropId}','${p.id}')">⋯</button></div>
+    </div>`;
+  };
+  const col=(title,sub,list,empty)=>`<div style="min-width:0">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+      <div style="font-weight:800;font-size:13.5px">${title} <span style="margin-left:4px;padding:1px 8px;border-radius:10px;font-size:11px;background:${list.length?'var(--line2)':'transparent'};color:var(--ink2)">${list.length}</span></div>
+      <div style="font-size:11.5px;color:var(--ink3)">${sub}</div></div>
+    ${list.length?list.map(card).join(''):`<div style="padding:18px;text-align:center;color:var(--ink3);font-size:12.5px;border:1px dashed var(--line2);border-radius:10px">${empty}</div>`}
+  </div>`;
+  return `<div class="card" style="margin-bottom:20px;${late?'border-color:rgba(242,109,109,.45)':pay.length?'border-color:rgba(201,162,75,.35)':''}">
+    <div class="card-h">${fulfilTabs('cash')}
+      <span style="font-size:12.5px;color:var(--ink3)">${late?`<strong style="color:#F26D6D">${late} past 24h</strong> · `:''}${pay.length?`<strong style="color:var(--gold2)">${amt(payTotal)} to pay</strong> · `:''}promise: paid within 24 hours of bank details</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:16px 18px">
+      ${col('🏦 Waiting for bank details','',bank,'Nobody waiting ✓')}
+      ${col('💷 Ready to pay',pay.length?amt(payTotal)+' total':'',pay,'Nothing to pay right now')}
+      ${col('✓ Paid this week','last 7 days',paid,'Nothing paid this week')}
+    </div>
+    <div style="padding:0 18px 12px;font-size:11.5px;color:var(--ink3)">🔒 Account numbers are hidden by default — click <em>show</em> to reveal, or <em>Copy</em> to paste straight into your banking app.</div>
+  </div>`;
+}
+
 function openHubPurchase(dropId,prizeId){
   const d=dropById(dropId); if(!d) return;
   const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
