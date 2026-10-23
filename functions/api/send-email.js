@@ -68,17 +68,19 @@ const TEMPLATES = {
       <p>Congratulations again, and good luck in the next drop. 👀</p>`,
   },
 
-  // 4. Cash paid confirmation
+  // 4. Cash paid confirmation + Trustpilot review ask
   cash_paid: {
     required: ["firstName", "amount"],
     subject: (v) => `💷 Paid! Your £${gbp(v.amount)} has been sent`,
-    preview: () => `Your winnings are on their way to your account.`,
+    preview: () => `Your winnings are on their way, plus a quick favour.`,
     body: (v) => `
       <p>Hi ${esc(v.firstName)},</p>
       ${headline(`Your £${esc(gbp(v.amount))} has been sent. ✅`)}
-      <p>We've just transferred your winnings to the account you gave us. Depending on your bank, it can take a few hours to show.</p>
-      <p>If it hasn't arrived by tomorrow, just reply to this email and we'll look into it straight away.</p>
-      <p>Enjoy it, and see you in the next drop.</p>`,
+      <p>We've just transferred your winnings to the account you gave us. Depending on your bank, it can take a few hours to show. If it hasn't arrived by tomorrow, just reply and we'll look into it straight away.</p>
+      <p><strong>One quick favour?</strong> If you've enjoyed winning with us, would you leave us a review on Trustpilot? It really helps other players know we're the real deal.</p>
+      ${button(REVIEW_URL, "Leave a review ⭐")}
+      <p>Once it's posted, reply to this email with a screenshot. There might just be a little gift from us. 🎁</p>
+      <p>See you in the next drop.</p>`,
   },
 
   // 5. Watch win – confirm delivery address
