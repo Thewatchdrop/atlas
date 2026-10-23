@@ -3153,6 +3153,20 @@ const PRIZE_EMAILS = {
   watch_dispatched:      {label:'📦 Dispatch email',     title:'Watch dispatched — tracking'},
   review_request:        {label:'⭐ Review request',     title:'Trustpilot review request'}
 };
+const PRIZE_EMAIL_DESC = {
+  vault_cash_win:'Congratulations + asks for their bank details',
+  vault_cash_chaser:'Nudge if bank details haven\'t come back yet',
+  bank_details_received:'Confirms we have their details, payment coming soon',
+  cash_paid:'Confirms the money has been sent',
+  watch_win:'Congratulations + asks for their delivery address',
+  address_chaser:'Nudge if the address hasn\'t come back yet',
+  watch_dispatched:'Courier + tracking details',
+  review_request:'Trustpilot review ask (with gift mention)'
+};
+const PRIZE_EMAIL_SETS = {
+  cash:['vault_cash_win','vault_cash_chaser','bank_details_received','cash_paid'],
+  watch:['watch_win','address_chaser','watch_dispatched','review_request']
+};
 const PRIZE_EMAIL_FIELD_NAMES = {firstName:'winner name',amount:'prize amount',vaultName:'vault name',ticketNumber:'ticket number',
   watchName:'watch name',courier:'courier',trackingNumber:'tracking number'};
 let _pe = null;
@@ -3190,6 +3204,7 @@ function prizeEmailStrip(p){
   return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px">
     <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3)">Emails</span>
     ${btns}
+    <button class="btn btn-sm" style="font-size:11px" onclick="openPrizeEmailPicker('${p._dropId}','${p.id}')">✉ All emails</button>
     ${p.type==='watch'&&!p.dispatched&&(p.emailLog||{}).watch_win?(p.addressReceived
       ?`<span style="font-size:11px;color:var(--live)">✓ Address received</span>`
       :`<button class="btn btn-sm" style="font-size:11px" onclick="markPrizeAddressReceived('${p._dropId}','${p.id}')">✓ Address received</button>`):''}
@@ -3207,6 +3222,80 @@ function prizeEmailVars(d,p){
     courier:p.courier||'', trackingNumber:p.trackingNo||'', trackingUrl:p.trackingUrl||''
   };
 }
+/* Sending certain emails also moves the prize forward, so Atlas stays in step with reality */
+function prizeEmailSideEffect(p,key){
+  if(key==='watch_dispatched'&&!p.dispatched) return 'Sending this will also mark the watch as dispatched.';
+  if(key==='cash_paid'&&!p.paid) return 'Sending this will also mark the prize as paid.';
+  if(key==='bank_details_received'&&!p.bankDetailsDate) return 'Sending this will mark bank details as received. Remember to save them in Vault Hub before paying.';
+  return '';
+}
+function applyPrizeEmailSideEffect(d,p,key){
+  if(key==='watch_dispatched'&&!p.dispatched){
+    const m=(document.getElementById('pe_method')||{}).value||'office';
+    p.dispatched=true; p.dispatchDate=today(); p.dispatchMethod=m; p.needsPurchasing=false; p.addressReceived=true; p.chasing=false;
+  }
+  if(key==='cash_paid'&&!p.paid){
+    p.paid=true; p.paidDate=today();
+    const cw=(d.cashWins||[]).find(w=>w.winnerName===p.winnerName&&String(w.amount)===String(p.amount)&&!w.paid);
+    if(cw){ cw.paid=true; cw.paidDate=today(); }
+  }
+  if(key==='bank_details_received'&&!p.bankDetailsDate){ p.bankDetailsDate=new Date().toISOString(); p.chasing=false; }
+}
+
+/* "All emails" picker — choose any email for this winner */
+function openPrizeEmailPicker(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  const keys=PRIZE_EMAIL_SETS[p.type]||[];
+  const suggested=(emailHubItems().find(i=>i.prizeId===prizeId&&i.bucket==='action')||{}).key;
+  const log=p.emailLog||{}, cnt=p.emailCounts||{};
+  const prize=p.type==='cash'?'£'+Number(p.amount||0).toLocaleString('en-GB')+' cash':(p.label||'Watch');
+  openModal(`<div class="modal" style="max-width:600px">
+    <div class="modal-h"><h3>✉ Emails — ${esc(p.winnerName||'')}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="muted" style="font-size:12.5px;margin-bottom:14px">${esc(prize)} · ${esc(d.name||d.number||'Vault')} · ${esc(prizeWinnerEmail(p)||'no email on file')}</div>
+      ${keys.map((k,idx)=>{
+        const sent=log[k];
+        return `<div onclick="openPrizeEmail('${dropId}','${prizeId}','${k}')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:8px;border-radius:10px;cursor:pointer;
+          border:1px solid ${k===suggested?'var(--gold)':'var(--line2)'};background:${k===suggested?'var(--goldsoft)':'var(--panel)'}">
+          <span style="font-size:11px;color:var(--ink3);width:16px">${idx+1}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13.5px">${PRIZE_EMAILS[k].label}${k===suggested?' <span class="pill pill-done" style="margin-left:6px">Suggested next</span>':''}</div>
+            <div style="font-size:12px;color:var(--ink3);margin-top:2px">${PRIZE_EMAIL_DESC[k]}</div>
+          </div>
+          <span style="font-size:11.5px;white-space:nowrap;${sent?'color:var(--live)':'color:var(--ink3)'}">${sent?'✓ '+esc(fmtSentAt(sent))+(cnt[k]>1?' ('+cnt[k]+'×)':''):'Not sent'}</span>
+        </div>`;}).join('')}
+      <div class="muted" style="font-size:11.5px;margin-top:6px">Pick any email to preview it. Nothing sends until you click Send.</div>
+    </div>
+  </div>`);
+}
+
+/* Quick bank-details entry from the hub */
+function openHubBankDetails(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  const inp='background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:8px 10px;font-size:13px;color:var(--ink);width:100%';
+  openModal(`<div class="modal" style="max-width:440px">
+    <div class="modal-h"><h3>🏦 Bank details — ${esc(p.winnerName||'')}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>Sort code</label><input id="hb_sort" value="${esc(p.sortCode||'')}" placeholder="00-00-00" style="${inp}"></div>
+      <div class="field"><label>Account number</label><input id="hb_acct" value="${esc(p.accountNo||'')}" placeholder="12345678" style="${inp}"></div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveHubBankDetails('${dropId}','${prizeId}')">Save details</button></div>
+  </div>`);
+}
+function saveHubBankDetails(dropId,prizeId){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  const sc=(document.getElementById('hb_sort')||{}).value||'', an=(document.getElementById('hb_acct')||{}).value||'';
+  if(!sc.trim()&&!an.trim()){ toast('Enter sort code or account number'); return; }
+  p.sortCode=sc.trim(); p.accountNo=an.trim(); p.bankDetailsDate=new Date().toISOString(); p.chasing=false;
+  const cw=(d.cashWins||[]).find(w=>w.winnerName===p.winnerName&&String(w.amount)===String(p.amount)&&!w.paid);
+  if(cw){ cw.sortCode=p.sortCode; cw.accountNo=p.accountNo; }
+  saveDB(); closeModal(); render(); toast('Bank details saved ✓ — confirmation email is ready to send');
+}
+
 /* ---------- Dashboard — Winner Email Hub ----------
    One daily list of every vault winner, sorted into: action needed / waiting on winner / sent today. */
 const EMAIL_CHASE_AFTER_DAYS = 2;   // chase if no reply after this many days
@@ -3227,19 +3316,21 @@ function emailHubItems(){
       const latest=(...k)=>k.map(x=>log[x]).filter(Boolean).sort().pop()||null;
       const act=(o)=>items.push(Object.assign({},base,{bucket:'action'},o));
       const wait=(o)=>items.push(Object.assign({},base,{bucket:'waiting'},o));
+      const done=(o)=>items.push(Object.assign({},base,{bucket:'done',stage:'Complete',tone:'live'},o));
       if(p.type==='cash'){
         if(p.paid){
           if(!log.cash_paid) act({key:'cash_paid',stage:'Paid',tone:'live',prio:3,note:'Payment sent — confirm it to them'});
+          else done({note:'Paid '+(p.paidDate?fmtDate(p.paidDate):'')+' · all emails sent'});
         } else if(p.bankDetailsDate){
           if(!log.bank_details_received) act({key:'bank_details_received',stage:'Bank details in',tone:'live',prio:2,note:'Let them know we\'ve got their details'});
-          else wait({stage:'Ready to pay',tone:'gold',note:'Details confirmed '+_dayLabel(_daysSince(log.bank_details_received))+' — pay, then mark paid in Vault Hub'});
+          else wait({stage:'Ready to pay',tone:'gold',payBtn:true,note:'Details confirmed '+_dayLabel(_daysSince(log.bank_details_received))+' — pay them, then click Mark paid'});
         } else if(!log.vault_cash_win){
           act({key:'vault_cash_win',stage:'New win',tone:'gold',prio:0,note:'Logged '+_dayLabel(base.age)+' — send win email'});
         } else {
           const n=_daysSince(latest('vault_cash_win','vault_cash_chaser'));
           const chased=cnt.vault_cash_chaser?` · chased ${cnt.vault_cash_chaser}×`:'';
-          if(n>=EMAIL_CHASE_AFTER_DAYS) act({key:'vault_cash_chaser',stage:'Chase due',tone:'warn',prio:1,note:`No bank details · last emailed ${_dayLabel(n)}${chased}`});
-          else wait({stage:'Awaiting bank details',tone:'blue',extraKey:'vault_cash_chaser',note:`Emailed ${_dayLabel(n)}${chased} · chase ${_inDays(EMAIL_CHASE_AFTER_DAYS-n)}`});
+          if(n>=EMAIL_CHASE_AFTER_DAYS) act({key:'vault_cash_chaser',stage:'Chase due',tone:'warn',prio:1,bankBtn:true,note:`No bank details · last emailed ${_dayLabel(n)}${chased}`});
+          else wait({stage:'Awaiting bank details',tone:'blue',bankBtn:true,extraKey:'vault_cash_chaser',note:`Emailed ${_dayLabel(n)}${chased} · chase ${_inDays(EMAIL_CHASE_AFTER_DAYS-n)}`});
         }
       } else {
         if(p.dispatched){
@@ -3250,11 +3341,11 @@ function emailHubItems(){
             const n=_daysSince(log.watch_dispatched);
             if(n>=EMAIL_REVIEW_AFTER_DAYS) act({key:'review_request',stage:'Review due',tone:'gold',prio:3,note:`Tracking sent ${_dayLabel(n)} — ask for a Trustpilot review`});
             else wait({stage:'On its way',tone:'blue',extraKey:'review_request',note:`Tracking sent ${_dayLabel(n)} · review ask ${_inDays(EMAIL_REVIEW_AFTER_DAYS-n)}`});
-          }
+          } else done({note:'Dispatched '+(p.dispatchDate?fmtDate(p.dispatchDate):'')+' · review requested'});
         } else if(!log.watch_win){
           act({key:'watch_win',stage:'New win',tone:'gold',prio:0,note:'Logged '+_dayLabel(base.age)+' — send win email'});
         } else if(p.addressReceived){
-          wait({stage:'Preparing watch',tone:'gold',note:'Address received '+_dayLabel(_daysSince(p.addressReceivedDate))+' · QA check, then dispatch'});
+          wait({stage:'Preparing watch',tone:'gold',dispatchBtn:true,note:'Address received '+_dayLabel(_daysSince(p.addressReceivedDate))+' · QA check, then dispatch & send tracking'});
         } else {
           const n=_daysSince(latest('watch_win','address_chaser'));
           const chased=cnt.address_chaser?` · chased ${cnt.address_chaser}×`:'';
@@ -3294,32 +3385,41 @@ function emailHubCard(){
   };
   const openBtn=(i)=>`<button class="btn btn-sm btn-ghost" style="font-size:11px" title="Open in Vault Hub" onclick="vaultHubTab='${i.dropId}';vaultHubView='tracker';go('vaulthub')">Open</button>`;
   const addrBtn=(i)=>i.addressBtn?`<button class="btn btn-sm" style="font-size:11px" onclick="markPrizeAddressReceived('${i.dropId}','${i.prizeId}')">✓ Address received</button>`:'';
+  const stateBtns=(i)=>`${addrBtn(i)}
+    ${i.bankBtn?`<button class="btn btn-sm" style="font-size:11px" onclick="openHubBankDetails('${i.dropId}','${i.prizeId}')">🏦 Add bank details</button>`:''}
+    ${i.payBtn?`<button class="btn btn-sm btn-gold" style="font-size:11px" onclick="markVaultPrizePaid('${i.dropId}','${i.prizeId}')">Mark paid ✓</button>`:''}
+    ${i.dispatchBtn?`<button class="btn btn-sm btn-gold" style="font-size:11px" onclick="openPrizeEmail('${i.dropId}','${i.prizeId}','watch_dispatched')">📦 Dispatch &amp; send tracking</button>`:''}`;
+  const pickBtn=(i)=>`<button class="btn btn-sm" style="font-size:11px" onclick="openPrizeEmailPicker('${i.dropId}','${i.prizeId}')">✉ All emails</button>`;
 
   const actionRows=action.map(i=>`<div class="row-item" style="flex-wrap:wrap;gap:12px">
       ${pill(i.stage,i.tone)}${who(i)}
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        ${addrBtn(i)}${openBtn(i)}
+        ${stateBtns(i)}${pickBtn(i)}${openBtn(i)}
         <button class="btn btn-sm btn-gold" onclick="openPrizeEmail('${i.dropId}','${i.prizeId}','${i.key}')">Review &amp; send ${PRIZE_EMAILS[i.key].label}</button>
       </div></div>`).join('');
   const waitingRows=waiting.map(i=>`<div class="row-item" style="flex-wrap:wrap;gap:12px">
       ${pill(i.stage,i.tone)}${who(i)}
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        ${addrBtn(i)}${openBtn(i)}
+        ${stateBtns(i)}${pickBtn(i)}${openBtn(i)}
         ${i.extraKey?`<button class="btn btn-sm" style="font-size:11px" onclick="openPrizeEmail('${i.dropId}','${i.prizeId}','${i.extraKey}')">Send ${PRIZE_EMAILS[i.extraKey].label} early</button>`:''}
       </div></div>`).join('');
+  const all=items.slice().sort((a,b)=>a.age-b.age);
+  const allRows=all.map(i=>`<div class="row-item" style="flex-wrap:wrap;gap:12px">
+      ${pill(i.stage,i.tone)}${who(i)}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${pickBtn(i)}${openBtn(i)}</div></div>`).join('');
   const sentRows=sent.map(s=>`<div class="row-item" style="gap:12px;flex-wrap:wrap">
       <span class="mono" style="font-size:12px;color:var(--live);min-width:52px">✓ ${new Date(s.iso).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>
       <div style="flex:1;min-width:200px;font-size:13px"><strong>${esc(s.p.winnerName||'')}</strong> <span style="color:var(--ink3)">· ${esc((PRIZE_EMAILS[s.key]||{}).title||s.key)} · ${esc(s.vault)}</span></div>
     </div>`).join('');
 
-  const tabs=[['action','Action needed',action.length,'var(--gold)'],['waiting','Waiting on winner',waiting.length,'var(--blue)'],['sent','Sent today',sent.length,'var(--live)']];
+  const tabs=[['action','Action needed',action.length,'var(--gold)'],['waiting','In progress',waiting.length,'var(--blue)'],['sent','Sent today',sent.length,'var(--live)'],['all','All winners',all.length,'var(--ink2)']];
   const tabBar=`<div style="display:flex;gap:8px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--line)">
     ${tabs.map(([k,l,c,col])=>`<div onclick="setEmailHubTab('${k}')" style="padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;
       border:1px solid ${emailHubTab===k?col:'var(--line2)'};background:${emailHubTab===k?'var(--panel2)':'transparent'};color:${emailHubTab===k?'var(--ink)':'var(--ink3)'}">
       ${l} <span style="margin-left:4px;padding:1px 7px;border-radius:10px;font-size:11px;background:${c?col:'var(--line2)'};color:${c?'#0B1220':'var(--ink3)'}">${c}</span></div>`).join('')}
   </div>`;
-  const empty={action:'✓ All caught up — no emails to send right now.',waiting:'Nobody we\'re waiting on.',sent:'No emails sent yet today.'}[emailHubTab];
-  const body={action:actionRows,waiting:waitingRows,sent:sentRows}[emailHubTab];
+  const empty={action:'✓ All caught up — no emails to send right now.',waiting:'Nothing in progress.',sent:'No emails sent yet today.',all:'No vault winners logged yet.'}[emailHubTab];
+  const body={action:actionRows,waiting:waitingRows,sent:sentRows,all:allRows}[emailHubTab];
 
   return `<div class="card" style="margin-bottom:20px;${action.length?'border-color:rgba(201,162,75,.35)':''}">
     <div class="card-h"><h3>📧 Winner Emails</h3>
@@ -3363,11 +3463,14 @@ function openPrizeEmail(dropId,prizeId,key){
     <div class="modal-h"><h3>📧 ${esc(PRIZE_EMAILS[key].title)}</h3><span class="x" onclick="closeModal()">×</span></div>
     <div class="modal-b">
       ${sent?`<div style="margin-bottom:12px;padding:9px 12px;border-radius:8px;background:rgba(245,165,36,.1);border:1px solid rgba(245,165,36,.3);color:var(--warn);font-size:12.5px">⚠ Already sent ${esc(fmtSentAt(sent))}. Sending again will send a second copy.</div>`:''}
+      ${(()=>{const n=prizeEmailSideEffect(p,key);return n?`<div style="margin-bottom:12px;padding:9px 12px;border-radius:8px;background:rgba(106,169,255,.08);border:1px solid rgba(106,169,255,.25);color:var(--blue);font-size:12.5px">ℹ ${n}</div>`:'';})()}
       <div class="field"><label>To</label><input id="pe_to" value="${esc(prizeWinnerEmail(p))}" placeholder="winner@email.com" style="${inp}"></div>
       ${isDispatch?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
         <div style="flex:1;min-width:140px"><div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Courier</div><input id="pe_courier" value="${esc(p.courier||'')}" placeholder="e.g. DPD" style="${inp}"></div>
         <div style="flex:1;min-width:160px"><div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Tracking number</div><input id="pe_trackno" value="${esc(p.trackingNo||'')}" style="${inp}"></div>
         <div style="flex:2;min-width:200px"><div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Tracking link (optional)</div><input id="pe_trackurl" value="${esc(p.trackingUrl||'')}" placeholder="https://…" style="${inp}"></div>
+        ${!p.dispatched?`<div style="flex:1;min-width:150px"><div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Sent from</div>
+          <select id="pe_method" style="${inp}"><option value="office">🏢 Our office</option><option value="dealer">🏪 Direct from dealer</option><option value="source">📦 New from source</option></select></div>`:''}
         <button class="btn btn-sm" style="align-self:flex-end" onclick="loadPrizeEmailPreview()">↻ Update preview</button>
       </div>`:''}
       <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Subject</div>
@@ -3419,6 +3522,7 @@ async function sendPrizeEmail(){
     p.emailCounts=p.emailCounts||{}; p.emailCounts[_pe.key]=(p.emailCounts[_pe.key]||0)+1;
     if(!prizeWinnerEmail(p)||to!==prizeWinnerEmail(p)) p.winnerEmail=to;
     if(_pe.key==='vault_cash_chaser'||_pe.key==='address_chaser'){ p.chasing=true; p.chasingDate=today(); }
+    applyPrizeEmailSideEffect(d,p,_pe.key);
     const label=PRIZE_EMAILS[_pe.key].title;
     _pe=null; saveDB(); closeModal(); render(); toast('✓ Sent: '+label);
   }catch(e){
