@@ -3174,7 +3174,7 @@ const PRIZE_EMAIL_DESC = {
   review_request:'Trustpilot review ask (with gift mention)'
 };
 const PRIZE_EMAIL_SETS = {
-  cash:['vault_cash_win','vault_cash_chaser','bank_details_received','cash_paid'],
+  cash:['vault_cash_win','vault_cash_chaser','cash_paid'],
   watch:['watch_win','address_chaser','watch_dispatched','review_request']
 };
 const PRIZE_EMAIL_FIELD_NAMES = {firstName:'winner name',amount:'prize amount',vaultName:'vault name',ticketNumber:'ticket number',
@@ -3208,7 +3208,7 @@ function prizeEmailKeys(p){
   const log=_effLog(p);
   if(p.type==='cash'){
     if(p.paid) return ['cash_paid'];
-    if(p.bankDetailsDate) return ['bank_details_received'];
+    if(p.bankDetailsDate) return [];
     return log.vault_cash_win?['vault_cash_win','vault_cash_chaser']:['vault_cash_win'];
   }
   if(p.type==='watch'){
@@ -3248,7 +3248,7 @@ function prizeEmailStrip(p){
 function prizeEmailVars(d,p){
   const vault=d.name||d.number||'The Watch Drop Vault';
   return {
-    firstName:(p.winnerName||'').trim().split(/\s+/)[0]||'',
+    firstName:(n=>n.length>2&&(n===n.toUpperCase()||n===n.toLowerCase())?n.charAt(0).toUpperCase()+n.slice(1).toLowerCase():n)((p.winnerName||'').trim().split(/\s+/)[0]||''),
     amount:String(p.amount||p.cost||''),
     vaultName:vault, dropName:vault,
     ticketNumber:String(p.ticket||'').replace(/^#/,'').trim(),
@@ -3356,7 +3356,7 @@ function saveHubBankDetails(dropId,prizeId){
   p.bankDetailsDate=new Date().toISOString(); p.chasing=false;
   const cw=(d.cashWins||[]).find(w=>w.winnerName===p.winnerName&&String(w.amount)===String(p.amount)&&!w.paid);
   if(cw){ cw.accountName=p.accountName; cw.sortCode=p.sortCode; cw.accountNo=p.accountNo; }
-  saveDB(); closeModal(); render(); toast('Bank details saved ✓ — confirmation email is ready to send');
+  saveDB(); closeModal(); render(); toast('Bank details saved ✓ — ready to pay in Cash Payouts');
 }
 
 /* ---------- Dashboard — Winner Email Hub (v2) ----------
@@ -3414,8 +3414,7 @@ function emailHubItems(){
           if(!log.cash_paid) todo({cat:'confirm',key:'cash_paid',next:'Send paid confirmation',note:'Marked paid '+(p.paidDate?fmtDate(p.paidDate):''),dueSince:p.paidDate||lastEmail});
           else done({note:'Paid '+(p.paidDate?fmtDate(p.paidDate):'')+' · all emails sent'});
         } else if(p.bankDetailsDate){
-          if(!log.bank_details_received) todo({cat:'confirm',key:'bank_details_received',next:'Confirm bank details received',note:'Details saved '+_dayLabel(_daysSince(p.bankDetailsDate)),dueSince:p.bankDetailsDate});
-          else todo({cat:'pay',task:'pay',next:`Pay ${amt}, then mark paid`,note:'Winner told payment is coming '+_dayLabel(_daysSince(log.bank_details_received)),dueSince:log.bank_details_received,overdueAfter:1});
+          todo({cat:'pay',task:'pay',next:`Pay ${amt}, then mark paid`,note:'Bank details received '+_dayLabel(_daysSince(p.bankDetailsDate))+' · aim: paid within 24 hours',dueSince:p.bankDetailsDate,overdueAfter:1});
         } else if(!log.vault_cash_win){
           todo({cat:'new',key:'vault_cash_win',next:'Send win email',note:'Won '+_dayLabel(base.age),dueSince:base.logged});
         } else {
@@ -3474,7 +3473,7 @@ const EH_URG = {
 const EH_CATS = [
   ['new',     '🆕','New wins to email'],
   ['chase',   '🔁','Chases due'],
-  ['confirm', '✅','Confirmations to send'],
+  ['confirm', '✅','Paid emails to send'],
   ['pay',     '💷','To pay'],
   ['dispatch','📦','To dispatch'],
   ['review',  '⭐','Review asks']
