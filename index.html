@@ -3012,14 +3012,11 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
         ${statusPill}
         ${!winnerName&&!chasing?`<button class="btn btn-sm" style="font-size:11px;color:var(--blue);border-color:rgba(106,169,255,.3)" onclick="markVaultPrizeChasing('${p._dropId}','${p.id}')">📧 Mark chasing</button>`:''}
         ${!winnerName&&chasing?`<button class="btn btn-sm" style="font-size:11px;color:var(--ink3)" onclick="clearVaultChasing('${p._dropId}','${p.id}')">Clear chasing</button>`:''}
-        ${isWatch&&winnerName&&!dispatched?`<button class="btn btn-sm" style="font-size:11px;color:var(--blue);border-color:rgba(106,169,255,.3)" onclick="copyVaultPrizeEmail('${p._dropId}','${p.id}','watchWon')">📧 Copy email</button>`:''}
-        ${isWatch&&dispatched?`<button class="btn btn-sm" style="font-size:11px;color:var(--live);border-color:rgba(74,222,128,.3)" onclick="copyVaultPrizeEmail('${p._dropId}','${p.id}','watchDispatched')">📦 Copy dispatch email</button>`:''}
-        ${isCash&&!paid&&p.bankDetailsDate?`<button class="btn btn-sm" style="font-size:11px;color:var(--ink3)" onclick="copyVaultPrizeEmail('${p._dropId}','${p.id}','bankRequest')">📧 Chase email</button>`:''}
         ${isCash&&!paid?`<button class="btn btn-sm btn-gold" style="font-size:11px" onclick="markVaultPrizePaid('${p._dropId}','${p.id}')">Mark paid ✓</button>`:''}
         <button class="btn-danger btn-sm" onclick="delVaultPrize('${p._dropId}','${p.id}')">✕</button>
       </div>
+      ${prizeEmailStrip(p)}
       ${isCash&&!paid?`<div style="margin-top:10px">
-        ${!p.bankDetailsDate&&p.winnerName?(()=>{const _ec=p.custId?(DB.customers||[]).find(x=>x.id===p.custId):null;const _em=_ec&&_ec.email?_ec.email:'';return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:10px 14px;background:rgba(106,169,255,.07);border:1px solid rgba(106,169,255,.2);border-radius:9px;flex-wrap:wrap"><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:2px">📧 Bank details needed — email the winner</div>${_em?`<div style="font-size:12px;color:var(--ink2);font-family:monospace">${esc(_em)}</div>`:''}</div><button class="btn btn-sm" style="background:var(--blue);color:#fff;border:none;font-weight:700" onclick="copyVaultBankRequestEmail('${p._dropId}','${p.id}')">📧 Copy email</button></div>`;})():''}
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         <div style="flex:1;min-width:130px">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Sort Code</div>
@@ -3078,10 +3075,18 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--warn);margin-bottom:6px">📦 Ready to Dispatch</div>
         ${p.purchasedFrom?`<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">From: <strong style="color:var(--ink)">${esc(p.purchasedFrom)}</strong></div>`:''}
         <div style="margin-bottom:10px">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:5px">Tracking (optional)</div>
-          <input value="${esc(p.trackingNo||'')}" placeholder="Royal Mail / DHL reference"
-            style="background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:12.5px;color:var(--ink);width:260px"
-            oninput="updVaultPrizeField('${p._dropId}','${p.id}','trackingNo',this.value)">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:5px">Tracking (needed for the dispatch email)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input value="${esc(p.courier||'')}" placeholder="Courier, e.g. DPD"
+              style="background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:12.5px;color:var(--ink);width:160px"
+              oninput="updVaultPrizeField('${p._dropId}','${p.id}','courier',this.value)">
+            <input value="${esc(p.trackingNo||'')}" placeholder="Tracking number"
+              style="background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:12.5px;color:var(--ink);width:200px"
+              oninput="updVaultPrizeField('${p._dropId}','${p.id}','trackingNo',this.value)">
+            <input value="${esc(p.trackingUrl||'')}" placeholder="Tracking link (optional)"
+              style="background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:12.5px;color:var(--ink);flex:1;min-width:200px"
+              oninput="updVaultPrizeField('${p._dropId}','${p.id}','trackingUrl',this.value)">
+          </div>
         </div>
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:8px">Dispatch Method — tap to confirm dispatched</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -3099,7 +3104,7 @@ function vaultHubPrizeRows(vaults, showVaultBadge){
           </button>
         </div>
       </div>`:''}
-      ${isWatch&&dispatched?`<div style="margin-top:8px;font-size:11.5px;color:var(--live)">✓ Dispatched ${p.dispatchDate?fmtDate(p.dispatchDate):''}${p.dispatchMethod==='dealer'?' · 🏪 Dealer':p.dispatchMethod==='source'?' · 📦 Source':p.dispatchMethod==='office'?' · 🏢 Office':''}${p.trackingNo?' · '+esc(p.trackingNo):''}</div>`:''}
+      ${isWatch&&dispatched?`<div style="margin-top:8px;font-size:11.5px;color:var(--live)">✓ Dispatched ${p.dispatchDate?fmtDate(p.dispatchDate):''}${p.dispatchMethod==='dealer'?' · 🏪 Dealer':p.dispatchMethod==='source'?' · 📦 Source':p.dispatchMethod==='office'?' · 🏢 Office':''}${p.courier?' · '+esc(p.courier):''}${p.trackingNo?' · '+esc(p.trackingNo):''}</div>`:''}
     </div>`;
   }).join('');
 }
@@ -3132,6 +3137,158 @@ function saveVaultPrizeBankDetails(dropId,prizeId){
 
 function copyVaultBankRequestEmail(dropId,prizeId){
   copyVaultPrizeEmail(dropId,prizeId,'cashWon');
+}
+
+/* ---------- Vault Hub — Send prize emails (Resend via /api/send-email) ----------
+   Every email is previewed first and only sent on a button press. */
+const PRIZE_EMAILS = {
+  vault_cash_win:        {label:'💷 Win email',          title:'Cash win — request bank details'},
+  vault_cash_chaser:     {label:'🔁 Chase bank details', title:'Chase — bank details'},
+  bank_details_received: {label:'✅ Details received',   title:'Bank details received'},
+  cash_paid:             {label:'💸 Paid email',         title:'Cash paid confirmation'},
+  watch_win:             {label:'🏆 Win email',          title:'Watch win — confirm address'},
+  address_chaser:        {label:'🔁 Chase address',      title:'Chase — delivery address'},
+  watch_dispatched:      {label:'📦 Dispatch email',     title:'Watch dispatched — tracking'},
+  review_request:        {label:'⭐ Review request',     title:'Trustpilot review request'}
+};
+const PRIZE_EMAIL_FIELD_NAMES = {firstName:'winner name',amount:'prize amount',vaultName:'vault name',ticketNumber:'ticket number',
+  watchName:'watch name',courier:'courier',trackingNumber:'tracking number'};
+let _pe = null;
+
+function prizeEmailKeys(p){
+  const log=p.emailLog||{};
+  if(p.type==='cash'){
+    if(p.paid) return ['cash_paid'];
+    if(p.bankDetailsDate) return ['bank_details_received'];
+    return log.vault_cash_win?['vault_cash_win','vault_cash_chaser']:['vault_cash_win'];
+  }
+  if(p.type==='watch'){
+    if(p.dispatched) return log.watch_dispatched?['watch_dispatched','review_request']:['watch_dispatched'];
+    return log.watch_win?['watch_win','address_chaser']:['watch_win'];
+  }
+  return [];
+}
+function fmtSentAt(iso){
+  try{ return new Date(iso).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; }
+}
+function prizeWinnerEmail(p){
+  if(p.winnerEmail) return p.winnerEmail;
+  const c=p.custId?(DB.customers||[]).find(x=>x.id===p.custId):null;
+  return c&&c.email?c.email:'';
+}
+function prizeEmailStrip(p){
+  if(!p.winnerName) return '';
+  const keys=prizeEmailKeys(p); if(!keys.length) return '';
+  const log=p.emailLog||{};
+  const email=prizeWinnerEmail(p);
+  const btns=keys.map(k=>{
+    const sent=log[k];
+    return `<button class="btn btn-sm" style="font-size:11px;${sent?'color:var(--live);border-color:rgba(74,222,128,.3)':'color:var(--blue);border-color:rgba(106,169,255,.35)'}" onclick="openPrizeEmail('${p._dropId}','${p.id}','${k}')">${sent?'✓ ':''}${PRIZE_EMAILS[k].label}${sent?' · '+fmtSentAt(sent):''}</button>`;
+  }).join('');
+  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px">
+    <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3)">Emails</span>
+    ${btns}
+    <span style="font-size:11px;${email?'color:var(--ink3);font-family:monospace':'color:var(--danger)'}">${email?esc(email):'⚠ No email on file'}</span>
+  </div>`;
+}
+function prizeEmailVars(d,p){
+  const vault=d.name||d.number||'The Watch Drop Vault';
+  return {
+    firstName:(p.winnerName||'').trim().split(/\s+/)[0]||'',
+    amount:String(p.amount||p.cost||''),
+    vaultName:vault, dropName:vault,
+    ticketNumber:String(p.ticket||'').replace(/^#/,'').trim(),
+    watchName:p.label||'',
+    courier:p.courier||'', trackingNumber:p.trackingNo||'', trackingUrl:p.trackingUrl||''
+  };
+}
+async function apiEmail(body){
+  if(!sb) throw new Error('Not connected — sign in to Atlas first');
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session) throw new Error('Not signed in — sign in to Atlas first');
+  const r=await fetch('/api/send-email',{method:'POST',
+    headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},
+    body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||!j.ok){
+    let msg=j.error||('Error '+r.status);
+    if(msg.startsWith('Missing: ')) msg='Missing: '+msg.slice(9).split(', ').map(k=>PRIZE_EMAIL_FIELD_NAMES[k]||k).join(', ');
+    throw new Error(msg);
+  }
+  return j;
+}
+function openPrizeEmail(dropId,prizeId,key){
+  const d=dropById(dropId); if(!d) return;
+  const p=(d.vaultPrizes||[]).find(x=>x.id===prizeId); if(!p) return;
+  _pe={dropId,prizeId,key};
+  const sent=(p.emailLog||{})[key];
+  const isDispatch=key==='watch_dispatched';
+  const inp='background:var(--bg2);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;font-size:13px;color:var(--ink);width:100%';
+  openModal(`<div class="modal" style="max-width:700px">
+    <div class="modal-h"><h3>📧 ${esc(PRIZE_EMAILS[key].title)}</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b">
+      ${sent?`<div style="margin-bottom:12px;padding:9px 12px;border-radius:8px;background:rgba(245,165,36,.1);border:1px solid rgba(245,165,36,.3);color:var(--warn);font-size:12.5px">⚠ Already sent ${esc(fmtSentAt(sent))}. Sending again will send a second copy.</div>`:''}
+      <div class="field"><label>To</label><input id="pe_to" value="${esc(prizeWinnerEmail(p))}" placeholder="winner@email.com" style="${inp}"></div>
+      ${isDispatch?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="flex:1;min-width:140px"><div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Courier</div><input id="pe_courier" value="${esc(p.courier||'')}" placeholder="e.g. DPD" style="${inp}"></div>
+        <div style="flex:1;min-width:160px"><div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Tracking number</div><input id="pe_trackno" value="${esc(p.trackingNo||'')}" style="${inp}"></div>
+        <div style="flex:2;min-width:200px"><div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Tracking link (optional)</div><input id="pe_trackurl" value="${esc(p.trackingUrl||'')}" placeholder="https://…" style="${inp}"></div>
+        <button class="btn btn-sm" style="align-self:flex-end" onclick="loadPrizeEmailPreview()">↻ Update preview</button>
+      </div>`:''}
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Subject</div>
+      <div id="pe_subject" style="font-weight:700;font-size:14px;margin-bottom:10px">Loading preview…</div>
+      <div id="pe_err" style="display:none;margin-bottom:10px;padding:9px 12px;border-radius:8px;background:rgba(242,109,109,.1);border:1px solid rgba(242,109,109,.3);color:var(--danger);font-size:12.5px"></div>
+      <iframe id="pe_frame" style="width:100%;height:460px;border:1px solid var(--line2);border-radius:10px;background:#f4f1ea"></iframe>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-gold" id="pe_send" onclick="sendPrizeEmail()" disabled>Send email</button>
+    </div>
+  </div>`);
+  loadPrizeEmailPreview();
+}
+function _peCurrent(){
+  if(!_pe) return {};
+  const d=dropById(_pe.dropId); const p=d?(d.vaultPrizes||[]).find(x=>x.id===_pe.prizeId):null;
+  if(p&&_pe.key==='watch_dispatched'){
+    const c=document.getElementById('pe_courier'), t=document.getElementById('pe_trackno'), u=document.getElementById('pe_trackurl');
+    if(c) p.courier=c.value.trim(); if(t) p.trackingNo=t.value.trim(); if(u) p.trackingUrl=u.value.trim();
+  }
+  return {d,p};
+}
+async function loadPrizeEmailPreview(){
+  const {d,p}=_peCurrent(); if(!p) return;
+  const subj=document.getElementById('pe_subject'), err=document.getElementById('pe_err'),
+        frame=document.getElementById('pe_frame'), btn=document.getElementById('pe_send');
+  if(err) err.style.display='none'; if(btn) btn.disabled=true;
+  if(subj) subj.textContent='Loading preview…';
+  try{
+    const j=await apiEmail({template:_pe.key,vars:prizeEmailVars(d,p),preview:true});
+    if(subj) subj.textContent=j.subject;
+    if(frame) frame.srcdoc=j.html;
+    if(btn) btn.disabled=false;
+  }catch(e){
+    if(subj) subj.textContent='—';
+    if(err){ err.textContent=e.message; err.style.display='block'; }
+  }
+}
+async function sendPrizeEmail(){
+  const {d,p}=_peCurrent(); if(!p) return;
+  const to=((document.getElementById('pe_to')||{}).value||'').trim();
+  const err=document.getElementById('pe_err'), btn=document.getElementById('pe_send');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){ if(err){err.textContent='Enter a valid email address';err.style.display='block';} return; }
+  if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
+  try{
+    const j=await apiEmail({template:_pe.key,to,vars:prizeEmailVars(d,p)});
+    p.emailLog=p.emailLog||{}; p.emailLog[_pe.key]=j.sentAt||new Date().toISOString();
+    if(!prizeWinnerEmail(p)||to!==prizeWinnerEmail(p)) p.winnerEmail=to;
+    if(_pe.key==='vault_cash_chaser'||_pe.key==='address_chaser'){ p.chasing=true; p.chasingDate=today(); }
+    const label=PRIZE_EMAILS[_pe.key].title;
+    _pe=null; saveDB(); closeModal(); render(); toast('✓ Sent: '+label);
+  }catch(e){
+    if(err){ err.textContent=e.message; err.style.display='block'; }
+    if(btn){ btn.disabled=false; btn.textContent='Send email'; }
+  }
 }
 
 function updVaultPrizeField(dropId,prizeId,field,value){
