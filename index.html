@@ -4652,7 +4652,7 @@ let wcGapNote='';
 function _wcFmtDay(iso){ try{ return new Date(iso+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}); }catch(e){ return iso; } }
 function _wcDayDiff(a,b){ return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000); }
 function wcLastImport(){ return (DB.winnerImports||[])[0]||null; }
-function _wcRecordImport(rows){
+function _wcRecordImport(rows, rawText){
   const dates=rows.map(x=>x.date).filter(Boolean).sort(); if(!dates.length){ wcGapNote=''; return; }
   const from=dates[0], to=dates[dates.length-1];
   DB.winnerImports=DB.winnerImports||[];
@@ -4663,9 +4663,10 @@ function _wcRecordImport(rows){
     if(gap>1) wcGapNote=`⚠ Possible gap: your last import ended ${_wcFmtDay(prev.to)}, but this list starts ${_wcFmtDay(from)}. Check nothing was missed in between.`;
     else if(to<prev.to) wcGapNote=`ℹ This list is older than your last import (which went up to ${_wcFmtDay(prev.to)}). Duplicates are skipped automatically.`;
   }
-  const entry={id:uid('wi'),at:now(),from,to,lines:rows.length,hits:rows.filter(x=>x.type!=='credit').length};
+  const realWinners=rows.filter(x=>x.type!=='credit').map(x=>({name:x.name,prize:x.prize,ticket:x.ticket,type:x.type,amount:x.amount,date:x.date}));
+  const entry={id:uid('wi'),at:now(),from,to,lines:rows.length,hits:realWinners.length,winners:realWinners,raw:String(rawText||'').slice(0,8000)};
   const top=DB.winnerImports[0];
-  if(top&&top.from===from&&top.to===to) DB.winnerImports[0]=Object.assign(top,{at:entry.at,lines:entry.lines,hits:entry.hits});
+  if(top&&top.from===from&&top.to===to) DB.winnerImports[0]=Object.assign(top,{at:entry.at,lines:entry.lines,hits:entry.hits,winners:entry.winners,raw:entry.raw});
   else DB.winnerImports.unshift(entry);
   DB.winnerImports=DB.winnerImports.slice(0,30);
   saveDB();
@@ -4673,7 +4674,7 @@ function _wcRecordImport(rows){
 function runWinnerCheck(){
   wcText=(document.getElementById('wc_text')||{}).value||'';
   const r=parseWinnerPaste(wcText); wcUnread=r.unread;
-  _wcRecordImport(r.rows);
+  _wcRecordImport(r.rows, wcText);
   r.rows.forEach(x=>{
     const ms=_wcCustomerMatches(x.name); if(ms.length===1) x.custId=ms[0].id;
     x.preLogged=!!_wcAlreadyLogged(x.ticket);
@@ -4853,8 +4854,44 @@ function vaultWinnerCheckerView(vaults){
           <div style="font-size:13.5px;font-weight:700;color:${col}">📅 Imported up to ${esc(_wcFmtDay(li.to))}${behind>1?` · ${behind} days behind`:' · up to date'}</div>
           <div style="font-size:12px;color:var(--ink3);margin-top:2px">Next paste should start from ${esc(_wcFmtDay(localISODate(new Date(new Date(li.to+'T12:00:00').getTime()+86400000))))} · last checked ${esc(fmtSentAt(li.at))}</div>
         </div>
-        <details style="font-size:12px;color:var(--ink3)"><summary style="cursor:pointer">Import history (${(DB.winnerImports||[]).length})</summary>
-          <div style="margin-top:8px;line-height:1.8">${hist.map(h=>`<div>${esc(fmtSentAt(h.at))} · list ${h.from===h.to?esc(_wcFmtDay(h.from)):esc(_wcFmtDay(h.from))+' → '+esc(_wcFmtDay(h.to))} · ${h.lines} lines · <strong style="color:var(--ink2)">${h.hits} cash/watch</strong></div>`).join('')}</div></details>
+        <details style="font-size:12px;color:var(--ink3)"><summary style="cursor:pointer;font-size:12.5px;color:var(--ink2);font-weight:600">Import history (${(DB.winnerImports||[]).length})</summary>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">${hist.map((h,hi)=>{
+            const dateRange=h.from===h.to?esc(_wcFmtDay(h.from)):esc(_wcFmtDay(h.from))+' → '+esc(_wcFmtDay(h.to));
+            const hitsLabel=h.hits===0?'<span style="color:var(--ink3)">0 cash/watch</span>':`<strong style="color:var(--live)">${h.hits} cash/watch winner${h.hits>1?'s':''}</strong>`;
+            const winnersHtml=(h.winners&&h.winners.length)?h.winners.map(w=>{
+              const icon=w.type==='cash'?'💷':'⌚';
+              const label=w.type==='cash'?`£${Number(w.amount).toLocaleString('en-GB')} cash`:esc(w.prize);
+              return `<div style="display:flex;align-items:baseline;gap:7px;padding:5px 9px;background:rgba(74,222,128,.08);border-radius:7px;border:1px solid rgba(74,222,128,.2)">
+                <span style="font-size:14px">${icon}</span>
+                <span style="font-weight:700;color:var(--ink);font-size:12.5px">${esc(w.name)}</span>
+                <span style="color:var(--ink3)">·</span>
+                <span style="color:var(--ink2)">${label}</span>
+                <span style="color:var(--ink3)">·</span>
+                <span style="color:var(--ink3)">Ticket #${esc(w.ticket)}</span>
+                <span style="color:var(--ink3)">·</span>
+                <span style="color:var(--ink3)">${esc(_wcFmtDay(w.date))}</span>
+              </div>`;
+            }).join(''):`<div style="color:var(--ink3);font-style:italic;padding:3px 0">No cash or watch winners — store credit only</div>`;
+            const rawId=`wc_raw_${hi}`;
+            return `<details style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 12px">
+              <summary style="cursor:pointer;display:flex;align-items:center;gap:10px;list-style:none;-webkit-appearance:none">
+                <span style="font-size:12px;color:var(--ink3);min-width:110px">${esc(fmtSentAt(h.at))}</span>
+                <span style="font-weight:600;color:var(--ink2)">${dateRange}</span>
+                <span style="color:var(--ink3)">·</span>
+                <span style="color:var(--ink3)">${h.lines} lines</span>
+                <span style="color:var(--ink3)">·</span>
+                ${hitsLabel}
+                <span style="margin-left:auto;color:var(--ink3);font-size:11px">▾ view</span>
+              </summary>
+              <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+                <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);padding-bottom:4px;border-bottom:1px solid var(--line)">Winners</div>
+                ${winnersHtml}
+                ${h.raw?`<details style="margin-top:4px"><summary style="cursor:pointer;color:var(--ink3);font-size:11.5px">▾ Raw paste text (${h.lines} lines)</summary>
+                  <pre id="${rawId}" style="margin-top:8px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px 12px;font-family:monospace;font-size:11px;line-height:1.55;color:var(--ink2);white-space:pre-wrap;word-break:break-word;max-height:240px;overflow-y:auto">${esc(h.raw)}</pre>
+                </details>`:''}
+              </div>
+            </details>`;
+          }).join('')}</div></details>
       </div>`;
     })()}
     <div style="padding:16px 18px">
