@@ -1510,12 +1510,7 @@ function seed(){
     ],
     notes:[],
     reviewRequests:[],
-    reviewTemplates:{
-      request:`Hi {name},\n\nThank you so much for winning with The Watch Drop — we hope you're absolutely loving your prize! 🎉\n\nWe'd love to hear about your experience. If you have a moment, an honest review on Trustpilot would mean the world to us and help other watch lovers discover The Watch Drop:\n\nhttps://uk.trustpilot.com/review/thewatchdrop.co.uk\n\nAs a thank you, we'll add £{credit} Watch Drop Credit to your account the moment we see your review go live — use it on any future drop.\n\nThank you — and don't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
-      chase:`Hi {name},\n\nJust a quick follow-up in case my last message got buried — I'd still love to hear about your experience with The Watch Drop!\n\nWe've extended our offer: leave an honest review and we'll add £{chaseCredit} Watch Drop Credit to your account. It only takes a minute:\n\nhttps://uk.trustpilot.com/review/thewatchdrop.co.uk\n\nYour feedback genuinely helps more than you'd think.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
-      finalChase:`Hi {name},\n\nLast one from us — we know life gets busy and we don't want to be a bother! We'd still love to read your thoughts if you ever get a spare moment:\n\nhttps://uk.trustpilot.com/review/thewatchdrop.co.uk\n\nOur offer of £{chaseCredit} Watch Drop Credit is still very much on the table.\n\nEither way, thank you for being part of The Watch Drop community. It means a lot.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
-      thankYou:`Hi {name},\n\nThank you so much for taking the time to leave us a review — it genuinely means everything to us! ⭐\n\nWe've added £{credit} Watch Drop Credit to your account. It'll be automatically applied when you next enter a drop at thewatchdrop.co.uk — no code needed.\n\nIf you ever have any questions or need anything at all, just reply to this email.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`
-    },
+    reviewTemplates:{},
     vaultWatches:[],
     timeline:[],
     settings:{team:['Felix','Leila']},
@@ -13102,7 +13097,20 @@ const TRUSTPILOT_URL = 'https://uk.trustpilot.com/review/thewatchdrop.co.uk';
 
 let reviewTab = 'waiting'; // waiting | inprogress | received | all
 
-function initReviews(){ DB.reviewRequests=DB.reviewRequests||[]; DB.reviewTemplates=DB.reviewTemplates||{}; }
+const RV_DEFAULT_TEMPLATES = {
+  request:`Hi {name},\n\nThank you so much for winning with The Watch Drop — we hope you're absolutely loving your prize! 🎉\n\nWe'd love to hear about your experience. If you have a moment, an honest review on Trustpilot would mean the world to us and help other watch lovers discover The Watch Drop:\n\nhttps://uk.trustpilot.com/review/thewatchdrop.co.uk\n\nAs a thank you, we'll add £{credit} Watch Drop Credit to your account the moment we see your review go live — use it on any future drop.\n\nThank you — and don't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
+  chase:`Hi {name},\n\nJust a quick follow-up in case my last message got buried — I'd still love to hear about your experience with The Watch Drop!\n\nWe've extended our offer: leave an honest review and we'll add £{chaseCredit} Watch Drop Credit to your account. It only takes a minute:\n\nhttps://uk.trustpilot.com/review/thewatchdrop.co.uk\n\nYour feedback genuinely helps more than you'd think.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
+  finalChase:`Hi {name},\n\nLast one from us — we know life gets busy and we don't want to be a bother! We'd still love to read your thoughts if you ever get a spare moment:\n\nhttps://uk.trustpilot.com/review/thewatchdrop.co.uk\n\nOur offer of £{chaseCredit} Watch Drop Credit is still very much on the table.\n\nEither way, thank you for being part of The Watch Drop community. It means a lot.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`,
+  thankYou:`Hi {name},\n\nThank you so much for taking the time to leave us a review — it genuinely means everything to us! ⭐\n\nWe've added £{credit} Watch Drop Credit to your account. It'll be automatically applied when you next enter a drop at thewatchdrop.co.uk — no code needed.\n\nIf you ever have any questions or need anything at all, just reply to this email.\n\nDon't just watch… win.\nFelix\nThe Watch Drop\nthewatchdrop.co.uk`
+};
+function initReviews(){
+  DB.reviewRequests=DB.reviewRequests||[];
+  DB.reviewTemplates=DB.reviewTemplates||{};
+  // Seed any missing template keys from defaults (safe for existing DBs)
+  Object.keys(RV_DEFAULT_TEMPLATES).forEach(k=>{
+    if(!DB.reviewTemplates[k]) DB.reviewTemplates[k]=RV_DEFAULT_TEMPLATES[k];
+  });
+}
 
 function _rvDaysSince(iso){ if(!iso) return null; const d=new Date(iso),n=new Date(); return Math.floor((n-d)/86400000); }
 
@@ -13354,11 +13362,11 @@ function openReviewEmail(id, type){
       <button class="btn btn-gold" id="rve_send" onclick="sendReviewEmail()">Send email</button>
     </div>
   </div>`);
-  // Render preview into iframe
+  // Render preview into iframe — initReviews() ensures templates are seeded first
   setTimeout(()=>{
     const frame=document.getElementById('rve_frame');
     if(frame) frame.srcdoc=_rvPreviewHtml(r,type);
-  },30);
+  },80);
 }
 
 async function sendReviewEmail(){
