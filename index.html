@@ -3017,17 +3017,22 @@ function vaultHubKpiRow(vaults){
   vaults.forEach(d=>{
     const t=d.tracker||{};
     const adsPerDay=Number(t.adsPerDay)||100;
-    // Days live = from launch to today (or draw date if closed)
+    // Days live so far = launch to today (for ads)
     const start=d.launch?new Date(d.launch):new Date();
-    const end=['Complete','Closed'].includes(d.status)&&d.draw?new Date(d.draw):new Date();
-    const daysLive=Math.max(0,Math.round((end-start)/(1000*60*60*24)));
+    const today=new Date();
+    const endDate=['Complete','Closed'].includes(d.status)&&d.draw?new Date(d.draw):today;
+    const daysLive=Math.max(0,Math.round((endDate-start)/(1000*60*60*24)));
     const adsTotal=adsPerDay*daysLive;
-    // Company running cost share: monthly total / active vaults × months running
-    const monthsLive=daysLive/30;
-    const companyShare=(globalMonthlyFixed/activeVaultCount)*monthsLive;
+    // Fixed costs: full competition duration (launch → draw), not just days elapsed — conservative
+    const drawDate=d.draw?new Date(d.draw):new Date(start.getTime()+90*86400000);
+    const totalCompDays=Math.max(1,Math.round((drawDate-start)/(1000*60*60*24)));
+    const totalCompMonths=totalCompDays/30;
+    // Monthly share: configurable per vault (default £1,500 = £6,000 ÷ 4 vaults)
+    const monthlyShare=Number(t.monthlyFixedShare)||1500;
+    const companyShare=monthlyShare*totalCompMonths;
     totalAdsSpend+=adsTotal;
     totalCompanyShare+=companyShare;
-    vaultFixedRows.push({label:d.name||d.number,adsPerDay,daysLive,adsTotal,companyShare,monthsLive,id:d.id});
+    vaultFixedRows.push({label:d.name||d.number,adsPerDay,daysLive,adsTotal,companyShare,monthlyShare,totalCompMonths,totalCompDays,id:d.id});
   });
 
   const totalPrizeCost=watchCost+cashPaid;
@@ -3042,7 +3047,7 @@ function vaultHubKpiRow(vaults){
     </div>`).join('');
   const companyRows=vaultFixedRows.map(v=>
     `<div class="cb-row" style="font-size:12px">
-      <span style="color:var(--ink3)">${esc(v.label)} — 1/${activeVaultCount} share × ${v.monthsLive.toFixed(1)} months</span>
+      <span style="color:var(--ink3)">${esc(v.label)} — £${v.monthlyShare.toLocaleString()}/mo × ${v.totalCompMonths.toFixed(1)} months (full run: ${v.totalCompDays}d)</span>
       <span style="color:var(--danger)">-${gbp(v.companyShare)}</span>
     </div>`).join('');
 
@@ -3235,14 +3240,20 @@ function vaultDeductionsCard(vaults){
         <button onclick="addVaultDed('${d.id}')" class="btn btn-sm btn-gold">＋ Add deduction</button>
         ${deds.length?`<div style="margin-left:auto;font-size:13px">Gross: ${gbp(gr)} &nbsp;−&nbsp; Deductions: ${gbp(totalDed)} &nbsp;=&nbsp; <strong style="color:var(--live)">${gbp(net)}</strong></div>`:''}
       </div>
-      <div style="padding-top:10px;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px">Meta Ads</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:12px;color:var(--ink3)">£ per day</span>
+      <div style="padding-top:10px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Ads £/day</span>
           <input type="number" step="1" value="${Number(t.adsPerDay)||100}" placeholder="100"
             style="width:80px;background:var(--bg2);border:1px solid var(--line2);color:var(--warn);border-radius:7px;padding:5px 9px;font-size:13px;font-weight:700"
             onchange="updTracker('${d.id}','adsPerDay',parseFloat(this.value)||0)">
-          <span style="font-size:12px;color:var(--ink3)">× days live = auto-calculated in Costs to Date</span>
+          <span style="font-size:11px;color:var(--ink3)">× days live</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Fixed £/mo</span>
+          <input type="number" step="1" value="${Number(t.monthlyFixedShare)||1500}" placeholder="1500"
+            style="width:80px;background:var(--bg2);border:1px solid var(--line2);color:var(--blue);border-radius:7px;padding:5px 9px;font-size:13px;font-weight:700"
+            onchange="updTracker('${d.id}','monthlyFixedShare',parseFloat(this.value)||0)">
+          <span style="font-size:11px;color:var(--ink3)">× full competition months</span>
         </div>
       </div>
     </div>`;
@@ -6881,7 +6892,7 @@ function trkPctFldC(d,label,field){
 function roFldC(label,val){ return `<div class="field-compact"><label>${label}</label><input value="${esc(val)}" disabled></div>`; }
 function updTracker(dropId,field,val){
   const d=dropById(dropId); if(!d) return;
-  const numFields=['statedValue','watchCost','maxTickets','fullTicketPrice','adsBudget','fixed','instantWins','adsSpent','ticketsSoldTotal','launchTicketsSold','couponBulkTicketsSold','freeTicketsGiven','creditPrizeFaceValue','adsPerDay'];
+  const numFields=['statedValue','watchCost','maxTickets','fullTicketPrice','adsBudget','fixed','instantWins','adsSpent','ticketsSoldTotal','launchTicketsSold','couponBulkTicketsSold','freeTicketsGiven','creditPrizeFaceValue','adsPerDay','monthlyFixedShare'];
   d.tracker=d.tracker||{};
   d.tracker[field] = numFields.includes(field) ? (Number(val)||0) : val;
   queueSave(); render();
