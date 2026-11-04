@@ -2980,9 +2980,14 @@ function vaultHubKpiRow(vaults){
     // Revenue: try history first; if prices are missing/zero fall back to sold × fullTicketPrice
     const grFromHistory=h.reduce((a,s)=>a+(Number(s.tickets)||0)*(Number(s.price)||0),0);
     const gr=grFromHistory||sold*(Number(t.fullTicketPrice)||2.49);
+    // Pro-rata credit: of the total credit prize pool, what fraction has been allocated so far?
+    // Conservative assumes 100% of allocated credit gets redeemed → that portion brings in £0 cash
+    const pool=Number(t.maxTickets)||99999;
+    const creditFaceValue=Number(t.creditPrizeFaceValue)||0;
+    const creditAllocatedSoFar=pool>0?(sold/pool)*creditFaceValue:0;
     totalEntries+=sold;
     grossRev+=gr;
-    totalCreditPool+=Number(t.creditPrizeFaceValue)||0;
+    totalCreditPool+=creditAllocatedSoFar;
     const prizes=d.vaultPrizes||[];
     prizes.forEach(p=>{
       if(p.type==='watch'){ watchCount++; watchCost+=(Number(p.cost)||0); }
@@ -3011,13 +3016,13 @@ function vaultHubKpiRow(vaults){
       <div class="label" style="${hasCreditPool?'color:var(--purple)':''}">Conservative Revenue</div>
       <div class="val" style="color:${hasCreditPool?'var(--purple)':'var(--live)'}">${gbp(hasCreditPool?conservativeRev:grossRev)}</div>
       <div class="sub">${hasCreditPool
-        ? `assumes 100% credit redeemed · net ex-VAT: ${gbp(conservNet)}`
-        : 'set credit prize pool below to calculate'}</div>
+        ? `100% credit redeemed on ${gbp(totalCreditPool)} allocated so far · net ex-VAT: ${gbp(conservNet)}`
+        : 'set credit prize pool in vault setup to calculate'}</div>
     </div>
     ${hasCreditPool?`<div class="kpi">
       <div class="label">Credit Prize Pool</div>
       <div class="val" style="color:var(--ink3)">${gbp(totalCreditPool)}</div>
-      <div class="sub">max credit exposure · ${gbp(grossRev-conservativeRev)} deducted</div>
+      <div class="sub">pro-rata at current sell-through · ${gbp(grossRev-conservativeRev)} deducted</div>
     </div>`:''}
     <div class="kpi">
       <div class="label">Prize Cost</div>
