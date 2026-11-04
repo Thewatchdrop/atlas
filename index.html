@@ -2974,12 +2974,12 @@ function vaultHubKpiRow(vaults){
   vaults.forEach(d=>{
     const t=d.tracker||{};
     const h=d.vaultPriceHistory||[];
-    // Mirror vaultNumbers() fallback: use price history if it has real data, else ticketsSoldTotal * price
-    const hTickets=h.reduce((a,s)=>a+(Number(s.tickets)||0),0);
-    const sold=hTickets||Number(t.ticketsSoldTotal)||0;
-    const gr=hTickets
-      ? h.reduce((a,s)=>a+(Number(s.tickets)||0)*(Number(s.price)||0),0)
-      : sold*(Number(t.fullTicketPrice)||2.49);
+    // Use vaultNumbers() for entries — it has the full 3-tier fallback (history → ticketsSoldTotal → ticketsLog)
+    const vn=vaultNumbers(d);
+    const sold=vn.entries;
+    // Revenue: try history first; if prices are missing/zero fall back to sold × fullTicketPrice
+    const grFromHistory=h.reduce((a,s)=>a+(Number(s.tickets)||0)*(Number(s.price)||0),0);
+    const gr=grFromHistory||sold*(Number(t.fullTicketPrice)||2.49);
     totalEntries+=sold;
     grossRev+=gr;
     totalCreditPool+=Number(t.creditPrizeFaceValue)||0;
