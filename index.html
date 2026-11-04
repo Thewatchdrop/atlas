@@ -2968,65 +2968,81 @@ function setVaultHubView(v){ vaultHubView=v; render(); }
 function setVaultAdCopyVersion(i){ vaultAdCopyVersion=i; render(); }
 function setVaultWatchFilter(f){ vaultWatchFilter=f; render(); }
 
-function vaultHubKpiRow(vaults){
-  let totalEntries=0, grossRev=0, totalCreditPool=0;
+function vaultPerTicketDeductions(vaults){
+  // Aggregate all deductions across active vaults, weighted by entries
+  // Returns {totalEntries, grossRev, deductions:[{label,totalAmt}], netRev}
+  let totalEntries=0, grossRev=0;
+  const dedMap={}; // label → total £ amount across vaults
   let watchCost=0, cashPaid=0, watchCount=0, cashCount=0;
   vaults.forEach(d=>{
     const t=d.tracker||{};
     const h=d.vaultPriceHistory||[];
-    // Use vaultNumbers() for entries — it has the full 3-tier fallback (history → ticketsSoldTotal → ticketsLog)
     const vn=vaultNumbers(d);
     const sold=vn.entries;
-    // Revenue: try history first; if prices are missing/zero fall back to sold × fullTicketPrice
     const grFromHistory=h.reduce((a,s)=>a+(Number(s.tickets)||0)*(Number(s.price)||0),0);
     const gr=grFromHistory||sold*(Number(t.fullTicketPrice)||2.49);
-    // Pro-rata credit: of the total credit prize pool, what fraction has been allocated so far?
-    // Conservative assumes 100% of allocated credit gets redeemed → that portion brings in £0 cash
-    const pool=Number(t.maxTickets)||99999;
-    const creditFaceValue=Number(t.creditPrizeFaceValue)||0;
-    const creditAllocatedSoFar=pool>0?(sold/pool)*creditFaceValue:0;
     totalEntries+=sold;
     grossRev+=gr;
-    totalCreditPool+=creditAllocatedSoFar;
+    // Per-ticket deductions stored on each vault
+    (t.perTicketDeductions||[]).forEach(ded=>{
+      const amt=(Number(ded.ppt)||0)*sold; // ppt = £ per ticket (not pence)
+      dedMap[ded.label]=(dedMap[ded.label]||0)+amt;
+    });
     const prizes=d.vaultPrizes||[];
     prizes.forEach(p=>{
       if(p.type==='watch'){ watchCount++; watchCost+=(Number(p.cost)||0); }
       else if(p.type==='cash'){ cashCount++; cashPaid+=(Number(p.amount)||0); }
     });
   });
-  // Conservative = assume 100% of credit prize pool is redeemed (worst case cash in)
-  const conservativeRev=Math.max(0,grossRev-totalCreditPool);
-  const conservVat=conservativeRev*(0.2/1.2);
-  const conservNet=conservativeRev-conservVat;
-  const hasCreditPool=totalCreditPool>0.01;
+  const deductions=Object.entries(dedMap).map(([label,amt])=>({label,amt}));
+  const totalDed=deductions.reduce((a,d)=>a+d.amt,0);
+  const netRev=grossRev-totalDed;
+  return {totalEntries,grossRev,deductions,totalDed,netRev,watchCost,cashPaid,watchCount,cashCount};
+}
+
+function vaultHubKpiRow(vaults){
+  const {totalEntries,grossRev,deductions,totalDed,netRev,watchCost,cashPaid,watchCount,cashCount}=vaultPerTicketDeductions(vaults);
+  const hasDeductions=totalDed>0.01;
   const allWinners=vaults.reduce((a,d)=>a.concat(d.instantWinners||[]),[]);
   const pending=allWinners.filter(w=>!w.dispatched).length;
-  return `<div class="kpi-row" style="margin-bottom:20px">
+  const dedBreakdown=deductions.map(d=>`<span style="color:var(--ink3)">${esc(d.label)}: -${gbp(d.amt)}</span>`).join(' · ');
+
+  // Fixed costs & ad spend from tracker
+  let fixedTotal=0, adsTotal=0, adsSpentTotal=0;
+  vaults.forEach(d=>{ const t=d.tracker||{}; fixedTotal+=Number(t.fixed)||0; adsTotal+=Number(t.adsBudget)||0; adsSpentTotal+=Number(t.adsSpent)||0; });
+  const totalPrizeCost=watchCost+cashPaid;
+  const totalFixedCosts=fixedTotal+(adsSpentTotal||adsTotal);
+  const totalAllCosts=totalPrizeCost+totalFixedCosts+totalDed;
+  const netProfit=grossRev-totalAllCosts;
+
+  // Costs to date breakdown rows
+  const costRows=[
+    ...deductions.map(d=>`<div class="cb-row"><span>${esc(d.label)}</span><span style="color:var(--danger)">-${gbp(d.amt)}</span></div>`),
+    watchCost>0?`<div class="cb-row"><span>Watch purchases (${watchCount})</span><span style="color:var(--danger)">-${gbp(watchCost)}</span></div>`:'',
+    cashPaid>0?`<div class="cb-row"><span>Cash prizes paid (${cashCount})</span><span style="color:var(--danger)">-${gbp(cashPaid)}</span></div>`:'',
+    fixedTotal>0?`<div class="cb-row"><span>Fixed costs</span><span style="color:var(--danger)">-${gbp(fixedTotal)}</span></div>`:'',
+    (adsSpentTotal||adsTotal)>0?`<div class="cb-row"><span>Ad spend${adsSpentTotal?` (actual)`:`(budget)`}</span><span style="color:var(--danger)">-${gbp(adsSpentTotal||adsTotal)}</span></div>`:'',
+  ].filter(Boolean).join('');
+
+  return `<div class="kpi-row" style="margin-bottom:12px">
     <div class="kpi">
       <div class="label">Entries Sold</div>
       <div class="val">${totalEntries.toLocaleString()}</div>
       <div class="sub">across ${vaults.length} vault${vaults.length!==1?'s':''}</div>
     </div>
     <div class="kpi">
-      <div class="label">Total Revenue</div>
+      <div class="label">Gross Revenue</div>
       <div class="val gold">${gbp(grossRev)}</div>
-      <div class="sub">tickets × price — includes credit-funded entries</div>
+      <div class="sub">tickets × price</div>
     </div>
-    <div class="kpi" style="${hasCreditPool?'border-color:var(--purple)':''}">
-      <div class="label" style="${hasCreditPool?'color:var(--purple)':''}">Conservative Revenue</div>
-      <div class="val" style="color:${hasCreditPool?'var(--purple)':'var(--live)'}">${gbp(hasCreditPool?conservativeRev:grossRev)}</div>
-      <div class="sub">${hasCreditPool
-        ? `100% credit redeemed on ${gbp(totalCreditPool)} allocated so far · net ex-VAT: ${gbp(conservNet)}`
-        : 'set credit prize pool in vault setup to calculate'}</div>
+    <div class="kpi" style="${hasDeductions?'border-color:var(--live)':''}">
+      <div class="label" style="${hasDeductions?'color:var(--live)':''}">Net Revenue</div>
+      <div class="val" style="color:${hasDeductions?'var(--live)':'var(--ink2)'}">${gbp(hasDeductions?netRev:grossRev)}</div>
+      <div class="sub">${hasDeductions?`-${gbp(totalDed)} deducted · ${dedBreakdown}`:'add deductions below'}</div>
     </div>
-    ${hasCreditPool?`<div class="kpi">
-      <div class="label">Credit Prize Pool</div>
-      <div class="val" style="color:var(--ink3)">${gbp(totalCreditPool)}</div>
-      <div class="sub">pro-rata at current sell-through · ${gbp(grossRev-conservativeRev)} deducted</div>
-    </div>`:''}
     <div class="kpi">
       <div class="label">Prize Cost</div>
-      <div class="val">${gbp(watchCost+cashPaid)}</div>
+      <div class="val">${gbp(totalPrizeCost)}</div>
       <div class="sub">${watchCount} watches ${gbp(watchCost)} · ${cashCount} cash ${gbp(cashPaid)}</div>
     </div>
     <div class="kpi">
@@ -3034,7 +3050,71 @@ function vaultHubKpiRow(vaults){
       <div class="val" style="${pending?'color:var(--warn)':''}">${pending}</div>
       <div class="sub">${allWinners.length} total logged</div>
     </div>
+  </div>
+  <!-- Costs to date summary -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-h"><h3>📊 Costs to Date</h3><span class="muted" style="font-size:11.5px">All deductions and costs against gross revenue</span></div>
+    <div style="padding:14px 18px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 32px">
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:600;margin-bottom:8px">Revenue</div>
+          <div class="cb-row"><span>Gross Revenue</span><span style="color:var(--gold2)">${gbp(grossRev)}</span></div>
+          ${hasDeductions?`<div class="cb-row"><span>Per-ticket deductions</span><span style="color:var(--danger)">-${gbp(totalDed)}</span></div>`:''}
+          <div class="cb-row" style="border-top:1px solid var(--line2);margin-top:4px;padding-top:8px;font-weight:700"><span>Net Revenue</span><span style="color:var(--live)">${gbp(netRev)}</span></div>
+        </div>
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:600;margin-bottom:8px">Costs</div>
+          ${costRows||`<div style="color:var(--ink3);font-size:12px;padding:8px 0">No costs recorded yet</div>`}
+          <div class="cb-row" style="border-top:1px solid var(--line2);margin-top:4px;padding-top:8px;font-weight:700"><span>Total Costs</span><span style="color:var(--danger)">-${gbp(totalAllCosts)}</span></div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:2px solid var(--line2);display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px;font-weight:700;color:var(--ink2)">Net Profit to Date</div>
+        <div style="font-size:26px;font-weight:800;color:${netProfit>=0?'var(--live)':'var(--danger)'}">
+          ${gbp(netProfit)}<span style="font-size:13px;font-weight:500;color:var(--ink3);margin-left:8px">${netProfit>=0?'PROFIT':'LOSS'}</span>
+        </div>
+      </div>
+    </div>
   </div>`;
+}
+
+function vaultDeductionsCard(vaults){
+  // Show per-ticket deductions editor — one set per vault when single vault selected, combined when all
+  return vaults.map(d=>{
+    const t=d.tracker||{};
+    const deds=t.perTicketDeductions||[];
+    const vn=vaultNumbers(d);
+    const sold=vn.entries;
+    const rows=deds.map((ded,i)=>{
+      const total=(Number(ded.ppt)||0)*sold;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
+        <input value="${esc(ded.label)}" placeholder="e.g. VAT"
+          style="flex:1;min-width:100px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:7px;padding:6px 10px;font-size:13px"
+          onchange="updVaultDed('${d.id}',${i},'label',this.value)">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:12px;color:var(--ink3)">£ per ticket</span>
+          <input type="number" step="0.001" value="${Number(ded.ppt)||''}" placeholder="0.000"
+            style="width:90px;background:var(--bg2);border:1px solid var(--line2);color:var(--gold2);border-radius:7px;padding:6px 10px;font-size:13px;font-weight:700"
+            onchange="updVaultDed('${d.id}',${i},'ppt',parseFloat(this.value)||0)">
+        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--danger);min-width:80px;text-align:right">-${gbp(total)}</div>
+        <button onclick="delVaultDed('${d.id}',${i})" style="background:transparent;border:none;color:var(--danger);font-size:16px;cursor:pointer;padding:0 4px">✕</button>
+      </div>`;
+    }).join('');
+    const h=d.vaultPriceHistory||[];
+    const grFromHistory=h.reduce((a,s)=>a+(Number(s.tickets)||0)*(Number(s.price)||0),0);
+    const gr=grFromHistory||sold*(Number(t.fullTicketPrice)||2.49);
+    const totalDed=deds.reduce((a,ded)=>a+(Number(ded.ppt)||0)*sold,0);
+    const net=gr-totalDed;
+    return `<div style="margin-bottom:${vaults.length>1?'20px':'0'}">
+      ${vaults.length>1?`<div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--gold2)">${esc(d.name||d.number)}</div>`:''}
+      ${rows||'<div style="padding:12px 0;color:var(--ink3);font-size:13px">No deductions yet — add one below.</div>'}
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;flex-wrap:wrap">
+        <button onclick="addVaultDed('${d.id}')" class="btn btn-sm btn-gold">＋ Add deduction</button>
+        ${deds.length?`<div style="margin-left:auto;font-size:13px">Gross: ${gbp(gr)} &nbsp;−&nbsp; Deductions: ${gbp(totalDed)} &nbsp;=&nbsp; <strong style="color:var(--live)">${gbp(net)}</strong></div>`:''}
+      </div>
+    </div>`;
+  }).join('<div style="height:1px;background:var(--line);margin:8px 0"></div>');
 }
 
 function vaultHubPrizeRows(vaults, showVaultBadge){
@@ -4635,27 +4715,10 @@ function vVaultHub(){
       `).join('')}
     </div>`;
     const allWinners=activeVaults.reduce((a,d)=>a+(d.instantWinners||[]).length,0);
-    const creditSetupRows=activeVaults.map(d=>{
-      const t=d.tracker||{};
-      const pool=Number(t.maxTickets)||99999;
-      const sold=vaultNumbers(d).entries;
-      const creditFV=Number(t.creditPrizeFaceValue)||0;
-      const proRata=pool>0?(sold/pool)*creditFV:0;
-      return `<div style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
-        <div style="flex:1;min-width:140px;font-weight:600;font-size:13px">${esc(d.name||d.number)}</div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px">Total Credit Prize Pool £</span>
-          <input type="number" step="0.01" value="${creditFV||''}" placeholder="e.g. 23094"
-            onchange="updTracker('${d.id}','creditPrizeFaceValue',parseFloat(this.value)||0)"
-            style="width:120px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:7px;padding:6px 10px;font-size:13px;font-weight:700">
-        </div>
-        ${creditFV>0?`<div style="font-size:12px;color:var(--purple)">pro-rata deduction at current sell-through: ${gbp(proRata)}</div>`:'<div style="font-size:12px;color:var(--ink3)">enter value to activate conservative revenue</div>'}
-      </div>`;
-    }).join('');
     return `${vaultHubKpiRow(activeVaults)}
       <div class="card" style="margin-bottom:16px">
-        <div class="card-h"><h3>💜 Conservative Revenue Setup</h3><span class="muted" style="font-size:11.5px">Total face value of all credit prizes in each vault's prize pool</span></div>
-        <div style="padding:4px 18px 14px">${creditSetupRows}</div>
+        <div class="card-h"><h3>📉 Per-Ticket Deductions</h3><span class="muted" style="font-size:11.5px">Enter each cost as £ per ticket — deducted from gross to give Net Revenue above</span></div>
+        <div style="padding:4px 18px 14px">${vaultDeductionsCard(activeVaults)}</div>
       </div>
       ${vaultHubLogForm(activeVaults)}
       <div class="card" style="margin-bottom:16px">
@@ -11514,6 +11577,24 @@ function updVaultTickets(dropId, val){
   // Current period = total minus all locked periods
   current.tickets=Math.max(0,total-lockedT);
   d.tracker=d.tracker||{}; d.tracker.ticketsSoldTotal=total;
+  queueSave(); render();
+}
+function addVaultDed(dropId){
+  const d=dropById(dropId); if(!d) return;
+  d.tracker=d.tracker||{};
+  d.tracker.perTicketDeductions=d.tracker.perTicketDeductions||[];
+  d.tracker.perTicketDeductions.push({label:'',ppt:0});
+  queueSave(); render();
+}
+function updVaultDed(dropId,idx,field,val){
+  const d=dropById(dropId); if(!d) return;
+  const deds=d.tracker.perTicketDeductions||[]; if(!deds[idx]) return;
+  deds[idx][field]=val;
+  queueSave(); render();
+}
+function delVaultDed(dropId,idx){
+  const d=dropById(dropId); if(!d) return;
+  (d.tracker.perTicketDeductions||[]).splice(idx,1);
   queueSave(); render();
 }
 function updVaultCreditPct(dropId, val){
