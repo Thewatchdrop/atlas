@@ -1,3 +1,6 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>
@@ -1313,6 +1316,10 @@ function migrate(){
         const price=Number((d.tracker||{}).fullTicketPrice)||2.49;
         const sold=Number((d.tracker||{}).ticketsSoldTotal)||0;
         d.vaultPriceHistory=[{id:uid('vph'),price,tickets:sold,from:(d.launch||today()),locked:false}];
+      }
+      // Rename legacy V-prefix numbers to Atlas prefix (e.g. V5 → Atlas 5)
+      if(d.number&&/^V\d+$/.test(d.number)){
+        d.number='Atlas '+d.number.slice(1);
       }
     }
   });
@@ -2962,29 +2969,65 @@ function setVaultAdCopyVersion(i){ vaultAdCopyVersion=i; render(); }
 function setVaultWatchFilter(f){ vaultWatchFilter=f; render(); }
 
 function vaultHubKpiRow(vaults){
-  const allPrizes=vaults.reduce((a,d)=>a.concat(d.vaultPrizes||[]),[]);
-  const watches=allPrizes.filter(p=>p.type==='watch');
-  const cash=allPrizes.filter(p=>p.type==='cash');
-  const credit=allPrizes.filter(p=>p.type==='credit');
-  const watchCost=watches.reduce((a,p)=>a+(Number(p.cost)||0),0);
-  const cashPaid=cash.reduce((a,p)=>a+(Number(p.amount)||0),0);
-  const totalEntries=vaults.reduce((a,d)=>{
+  // Aggregate using vaultNumbers() so credit deduction and fallbacks are consistent
+  let totalEntries=0, grossRev=0, cashRev=0, vatAmt=0, netRev=0, creditDeducted=0;
+  let watchCost=0, cashPaid=0;
+  let watchCount=0, cashCount=0, creditCount=0;
+  vaults.forEach(d=>{
+    const vn=vaultNumbers(d);
+    const t=d.tracker||{};
     const h=d.vaultPriceHistory||[];
-    return a+h.reduce((b,s)=>b+(Number(s.tickets)||0),0);
-  },0);
-  const grossRev=vaults.reduce((a,d)=>{
-    const h=d.vaultPriceHistory||[];
-    return a+h.reduce((b,s)=>b+(Number(s.tickets)||0)*(Number(s.price)||0),0);
-  },0);
+    const gr=h.reduce((a,s)=>a+(Number(s.tickets)||0)*(Number(s.price)||0),0);
+    const creditPct=(Number(t.creditRedemptionPct)||0)/100;
+    const cr=gr*(1-creditPct);
+    const va=cr*(0.2/1.2);
+    totalEntries+=vn.entries;
+    grossRev+=gr;
+    cashRev+=cr;
+    vatAmt+=va;
+    netRev+=cr-va;
+    creditDeducted+=gr-cr;
+    const prizes=d.vaultPrizes||[];
+    prizes.forEach(p=>{
+      if(p.type==='watch'){ watchCount++; watchCost+=(Number(p.cost)||0); }
+      else if(p.type==='cash'){ cashCount++; cashPaid+=(Number(p.amount)||0); }
+      else if(p.type==='credit'){ creditCount++; }
+    });
+  });
   const allWinners=vaults.reduce((a,d)=>a.concat(d.instantWinners||[]),[]);
   const pending=allWinners.filter(w=>!w.dispatched).length;
+  const hasCredit=creditDeducted>0.01;
   return `<div class="kpi-row" style="margin-bottom:20px">
-    <div class="kpi"><div class="label">Entries Sold</div><div class="val">${totalEntries.toLocaleString()}</div><div class="sub">across ${vaults.length} vault${vaults.length!==1?'s':''}</div></div>
-    <div class="kpi"><div class="label">Gross Revenue</div><div class="val gold">${gbp(grossRev)}</div></div>
-    <div class="kpi"><div class="label">Prizes Won</div><div class="val">${allPrizes.length}</div><div class="sub">${watches.length} watches · ${cash.length} cash · ${credit.length} credit</div></div>
-    <div class="kpi"><div class="label">Watch Cost Paid</div><div class="val">${gbp(watchCost)}</div></div>
-    <div class="kpi"><div class="label">Cash Paid Out</div><div class="val">${gbp(cashPaid)}</div></div>
-    <div class="kpi"><div class="label">Winners Pending</div><div class="val" style="${pending?'color:var(--warn)':''}">${pending}</div><div class="sub">${allWinners.length} total logged</div></div>
+    <div class="kpi">
+      <div class="label">Entries Sold</div>
+      <div class="val">${totalEntries.toLocaleString()}</div>
+      <div class="sub">across ${vaults.length} vault${vaults.length!==1?'s':''}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Gross Revenue</div>
+      <div class="val gold">${gbp(grossRev)}</div>
+      <div class="sub">${hasCredit?`incl. ${gbp(creditDeducted)} credit entries`:'no credit redemptions set'}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Real Cash Revenue</div>
+      <div class="val" style="color:var(--live)">${gbp(cashRev)}</div>
+      <div class="sub">net ex-VAT: ${gbp(netRev)} · VAT: ${gbp(vatAmt)}</div>
+    </div>
+    ${hasCredit?`<div class="kpi">
+      <div class="label">Credit Redeemed</div>
+      <div class="val" style="color:var(--purple)">${gbp(creditDeducted)}</div>
+      <div class="sub">entries paid with store credit — no cash in</div>
+    </div>`:''}
+    <div class="kpi">
+      <div class="label">Prize Cost</div>
+      <div class="val">${gbp(watchCost+cashPaid)}</div>
+      <div class="sub">${watchCount} watches ${gbp(watchCost)} · ${cashCount} cash ${gbp(cashPaid)}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Winners Pending</div>
+      <div class="val" style="${pending?'color:var(--warn)':''}">${pending}</div>
+      <div class="sub">${allWinners.length} total logged</div>
+    </div>
   </div>`;
 }
 
@@ -4224,7 +4267,7 @@ function newVaultFromHub(){
 function createVaultFromHub(){
   const num=parseInt(document.getElementById('nv_num').value);
   if(!num||isNaN(num)){ alert('Enter a vault number'); return; }
-  const dropNum='V'+num;
+  const dropNum='Atlas '+num;
   if(DB.drops.find(d=>d.number===dropNum)){ alert(`${dropNum} already exists — pick a different number`); return; }
   const name=(document.getElementById('nv_name').value||'').trim();
   const price=Number(document.getElementById('nv_price').value)||1.99;
@@ -6084,9 +6127,9 @@ function dropOverviewVault(d){
           ${['Main Drop','Weekend Drop','Tech Drop','Vault','Free Drop'].map(ty=>`<button type="button" class="btn btn-sm ${d.type===ty?'btn-gold':''}" onclick="updDrop('type','${ty}')">${ty.replace(' Drop','')}</button>`).join('')}
         </div>
       </div>
-      <div class="field"><label>Vault Number <span class="muted" style="font-size:11px;text-transform:none;font-weight:400">(digits only — V prefix auto-set)</span></label>
+      <div class="field"><label>Vault Number <span class="muted" style="font-size:11px;text-transform:none;font-weight:400">(digits only — Atlas prefix auto-set)</span></label>
         <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px;font-weight:800;color:var(--gold2);flex-shrink:0">V</span>
+          <span style="font-size:18px;font-weight:800;color:var(--gold2);flex-shrink:0">Atlas</span>
           <input type="number" value="${esc((d.number||'').replace(/\D/g,''))}" min="1" style="font-size:16px;font-weight:700;flex:1" onchange="updDropNumber(this.value)">
         </div>
       </div>
@@ -9481,7 +9524,7 @@ function setDropStatus(id,s){const d=dropById(id);const old=d.status;d.status=s;
   if(s==='Complete')logTL(id,`${d.number} completed`);
   queueSave();render();}
 
-const SERIES_PREFIX = {'Main Drop':'D','Weekend Drop':'W','Tech Drop':'T','Vault':'V','Free Drop':'F'};
+const SERIES_PREFIX = {'Main Drop':'D','Weekend Drop':'W','Tech Drop':'T','Vault':'Atlas ','Free Drop':'F'};
 const SERIES_DEFAULTS = {
   'Main Drop':{price:19.99,pool:499,draw:7},
   'Weekend Drop':{price:5.99,pool:399,draw:2},
@@ -9504,7 +9547,7 @@ function newDrop(){
           <button type="button" class="btn btn-sm btn-gold" data-type="Main Drop" data-prefix="D" onclick="selectNewDropSeries(this)">D — Main</button>
           <button type="button" class="btn btn-sm" data-type="Weekend Drop" data-prefix="W" onclick="selectNewDropSeries(this)">W — Weekend</button>
           <button type="button" class="btn btn-sm" data-type="Tech Drop" data-prefix="T" onclick="selectNewDropSeries(this)">T — Tech</button>
-          <button type="button" class="btn btn-sm" data-type="Vault" data-prefix="V" onclick="selectNewDropSeries(this)">V — Vault</button>
+          <button type="button" class="btn btn-sm" data-type="Vault" data-prefix="Atlas " onclick="selectNewDropSeries(this)">Atlas — Vault</button>
           <button type="button" class="btn btn-sm" data-type="Free Drop" data-prefix="F" onclick="selectNewDropSeries(this)">F — Free</button>
         </div>
       </div>
@@ -13607,3 +13650,4 @@ function saveReviewTemplates(){
 
 checkSessionAndBoot();
 </script>
+</head><body>
