@@ -3017,22 +3017,20 @@ function vaultHubKpiRow(vaults){
   vaults.forEach(d=>{
     const t=d.tracker||{};
     const adsPerDay=Number(t.adsPerDay)||100;
-    // Days live so far = launch to today (for ads)
     const start=d.launch?new Date(d.launch):new Date();
     const today=new Date();
-    const endDate=['Complete','Closed'].includes(d.status)&&d.draw?new Date(d.draw):today;
-    const daysLive=Math.max(0,Math.round((endDate-start)/(1000*60*60*24)));
-    const adsTotal=adsPerDay*daysLive;
-    // Fixed costs: full competition duration (launch → draw), not just days elapsed — conservative
+    const daysLiveSoFar=Math.max(0,Math.round((today-start)/(1000*60*60*24)));
+    // Both ads and fixed use full competition duration (launch → draw) — conservative, never goes down
     const drawDate=d.draw?new Date(d.draw):new Date(start.getTime()+90*86400000);
     const totalCompDays=Math.max(1,Math.round((drawDate-start)/(1000*60*60*24)));
     const totalCompMonths=totalCompDays/30;
+    const adsTotal=adsPerDay*totalCompDays; // full competition, not days elapsed
     // Monthly share: configurable per vault (default £1,500 = £6,000 ÷ 4 vaults)
     const monthlyShare=Number(t.monthlyFixedShare)||1500;
     const companyShare=monthlyShare*totalCompMonths;
     totalAdsSpend+=adsTotal;
     totalCompanyShare+=companyShare;
-    vaultFixedRows.push({label:d.name||d.number,adsPerDay,daysLive,adsTotal,companyShare,monthlyShare,totalCompMonths,totalCompDays,id:d.id});
+    vaultFixedRows.push({label:d.name||d.number,adsPerDay,daysLive:totalCompDays,daysLiveSoFar,adsTotal,companyShare,monthlyShare,totalCompMonths,totalCompDays,id:d.id});
   });
 
   const totalPrizeCost=watchCost+cashPaid;
@@ -3042,7 +3040,7 @@ function vaultHubKpiRow(vaults){
   // Build ads breakdown
   const adsRows=vaultFixedRows.map(v=>
     `<div class="cb-row" style="font-size:12px">
-      <span style="color:var(--ink3)">${esc(v.label)} — £${v.adsPerDay}/day × ${v.daysLive} days</span>
+      <span style="color:var(--ink3)">${esc(v.label)} — £${v.adsPerDay}/day × ${v.totalCompDays} days (full run · ${v.daysLiveSoFar}d elapsed)</span>
       <span style="color:var(--danger)">-${gbp(v.adsTotal)}</span>
     </div>`).join('');
   const companyRows=vaultFixedRows.map(v=>
