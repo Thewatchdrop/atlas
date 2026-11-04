@@ -3007,21 +3007,52 @@ function vaultHubKpiRow(vaults){
   const pending=allWinners.filter(w=>!w.dispatched).length;
   const dedBreakdown=deductions.map(d=>`<span style="color:var(--ink3)">${esc(d.label)}: -${gbp(d.amt)}</span>`).join(' · ');
 
-  // Fixed costs & ad spend from tracker
-  let fixedTotal=0, adsTotal=0, adsSpentTotal=0;
-  vaults.forEach(d=>{ const t=d.tracker||{}; fixedTotal+=Number(t.fixed)||0; adsTotal+=Number(t.adsBudget)||0; adsSpentTotal+=Number(t.adsSpent)||0; });
+  // --- Fixed costs: ads per day × days live, plus company running costs split ---
+  const activeVaultCount=Math.max(1,(DB.drops||[]).filter(d=>d.type==='Vault'&&!['Complete','Closed'].includes(d.status)).length);
+  const globalMonthlyFixed=(DB.fixedCosts||[]).filter(fc=>fc.active!==false).reduce((a,fc)=>a+fcMonthly(fc),0);
+
+  // Per-vault ad spend and running cost breakdown
+  let totalAdsSpend=0, totalCompanyShare=0;
+  const vaultFixedRows=[];
+  vaults.forEach(d=>{
+    const t=d.tracker||{};
+    const adsPerDay=Number(t.adsPerDay)||100;
+    // Days live = from launch to today (or draw date if closed)
+    const start=d.launch?new Date(d.launch):new Date();
+    const end=['Complete','Closed'].includes(d.status)&&d.draw?new Date(d.draw):new Date();
+    const daysLive=Math.max(0,Math.round((end-start)/(1000*60*60*24)));
+    const adsTotal=adsPerDay*daysLive;
+    // Company running cost share: monthly total / active vaults × months running
+    const monthsLive=daysLive/30;
+    const companyShare=(globalMonthlyFixed/activeVaultCount)*monthsLive;
+    totalAdsSpend+=adsTotal;
+    totalCompanyShare+=companyShare;
+    vaultFixedRows.push({label:d.name||d.number,adsPerDay,daysLive,adsTotal,companyShare,monthsLive,id:d.id});
+  });
+
   const totalPrizeCost=watchCost+cashPaid;
-  const totalFixedCosts=fixedTotal+(adsSpentTotal||adsTotal);
-  const totalAllCosts=totalPrizeCost+totalFixedCosts+totalDed;
+  const totalAllCosts=totalPrizeCost+totalDed+totalAdsSpend+totalCompanyShare;
   const netProfit=grossRev-totalAllCosts;
+
+  // Build ads breakdown
+  const adsRows=vaultFixedRows.map(v=>
+    `<div class="cb-row" style="font-size:12px">
+      <span style="color:var(--ink3)">${esc(v.label)} — £${v.adsPerDay}/day × ${v.daysLive} days</span>
+      <span style="color:var(--danger)">-${gbp(v.adsTotal)}</span>
+    </div>`).join('');
+  const companyRows=vaultFixedRows.map(v=>
+    `<div class="cb-row" style="font-size:12px">
+      <span style="color:var(--ink3)">${esc(v.label)} — 1/${activeVaultCount} share × ${v.monthsLive.toFixed(1)} months</span>
+      <span style="color:var(--danger)">-${gbp(v.companyShare)}</span>
+    </div>`).join('');
 
   // Costs to date breakdown rows
   const costRows=[
     ...deductions.map(d=>`<div class="cb-row"><span>${esc(d.label)}</span><span style="color:var(--danger)">-${gbp(d.amt)}</span></div>`),
     watchCost>0?`<div class="cb-row"><span>Watch purchases (${watchCount})</span><span style="color:var(--danger)">-${gbp(watchCost)}</span></div>`:'',
     cashPaid>0?`<div class="cb-row"><span>Cash prizes paid (${cashCount})</span><span style="color:var(--danger)">-${gbp(cashPaid)}</span></div>`:'',
-    fixedTotal>0?`<div class="cb-row"><span>Fixed costs</span><span style="color:var(--danger)">-${gbp(fixedTotal)}</span></div>`:'',
-    (adsSpentTotal||adsTotal)>0?`<div class="cb-row"><span>Ad spend${adsSpentTotal?` (actual)`:`(budget)`}</span><span style="color:var(--danger)">-${gbp(adsSpentTotal||adsTotal)}</span></div>`:'',
+    totalAdsSpend>0?`<div class="cb-row" style="font-weight:600"><span>Meta Ads total</span><span style="color:var(--danger)">-${gbp(totalAdsSpend)}</span></div>${adsRows}`:'',
+    totalCompanyShare>0?`<div class="cb-row" style="font-weight:600"><span>Company running costs (share)</span><span style="color:var(--danger)">-${gbp(totalCompanyShare)}</span></div>${companyRows}<div class="cb-row" style="font-size:11px"><span style="color:var(--ink3)">Total business fixed costs: ${gbp(globalMonthlyFixed)}/mo ÷ ${activeVaultCount} active vault${activeVaultCount!==1?'s':''}</span><span></span></div>`:'',
   ].filter(Boolean).join('');
 
   return `<div class="kpi-row" style="margin-bottom:12px">
@@ -3075,7 +3106,98 @@ function vaultHubKpiRow(vaults){
         </div>
       </div>
     </div>
-  </div>`;
+  </div>
+  <!-- Profitability progress -->
+  ${(()=>{
+    // Net revenue per ticket sold (after per-ticket deductions)
+    const netPptAvg=totalEntries>0?(netRev/totalEntries):0;
+    // Fixed costs that don't scale with tickets (prize costs are variable, so only ads + company share)
+    const fixedCostBase=totalAdsSpend+totalCompanyShare;
+    // Variable cost per ticket already baked into per-ticket deductions
+    // Break-even: need enough tickets so that netRev covers fixed + prize costs
+    // We approximate: at current prize cost per ticket rate...
+    const prizeCostPpt=totalEntries>0?(totalPrizeCost/totalEntries):0;
+    const profitPerTicket=netPptAvg-prizeCostPpt;
+    // Tickets needed to break even: fixedCostBase / profitPerTicket
+    const beTickets=profitPerTicket>0?Math.ceil(fixedCostBase/profitPerTicket):null;
+    const pctToBe=beTickets?Math.min(100,(totalEntries/beTickets*100)):( netProfit>=0?100:0 );
+    const ticketsToGo=beTickets?Math.max(0,beTickets-totalEntries):0;
+    // Run rate: tickets per day based on first vault's days live
+    const avgDaysLive=vaultFixedRows.length>0?(vaultFixedRows.reduce((a,v)=>a+v.daysLive,0)/vaultFixedRows.length):1;
+    const runRate=avgDaysLive>0?(totalEntries/Math.max(1,avgDaysLive)):0;
+    const daysToBreakEven=runRate>0?Math.ceil(ticketsToGo/runRate):null;
+    const beDate=daysToBreakEven!=null?new Date(Date.now()+daysToBreakEven*86400000):null;
+    const fmtBe=beDate?beDate.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):null;
+    // Sell-through scenarios
+    const totalPool=vaults.reduce((a,d)=>a+(Number((d.tracker||{}).maxTickets)||99999),0);
+    const rev50=grossRev*(totalPool/Math.max(1,totalEntries)*0.5);
+    const rev75=grossRev*(totalPool/Math.max(1,totalEntries)*0.75);
+    const isBe=netProfit>=0;
+    const barW=Math.min(100,Math.max(0,pctToBe));
+    const barColor=isBe?'var(--live)':pctToBe>66?'var(--warn)':pctToBe>33?'var(--gold)':'var(--danger)';
+    return `<div class="card" style="margin-bottom:16px">
+      <div class="card-h"><h3>📈 Route to Profitability</h3><span class="muted" style="font-size:11.5px">${isBe?'Break-even reached':'Tracking progress to break-even'}</span></div>
+      <div style="padding:16px 18px">
+        <!-- Progress bar -->
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <div style="font-size:13px;font-weight:700">${isBe?'✅ Profitable':'Break-even progress'}</div>
+          <div style="font-size:22px;font-weight:800;color:${barColor}">${pctToBe.toFixed(1)}%</div>
+        </div>
+        <div style="background:var(--line2);border-radius:8px;height:14px;overflow:hidden;margin-bottom:6px">
+          <div style="height:100%;width:${barW}%;background:${barColor};border-radius:8px;transition:width .4s ease"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink3);margin-bottom:16px">
+          <span>${totalEntries.toLocaleString()} tickets sold</span>
+          ${beTickets?`<span>Break-even: ${beTickets.toLocaleString()} tickets</span>`:'<span>Add deductions to calculate</span>'}
+        </div>
+        <!-- Stats row -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px">
+          ${beTickets&&!isBe?`
+          <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Tickets still needed</div>
+            <div style="font-size:20px;font-weight:800;color:var(--warn)">${ticketsToGo.toLocaleString()}</div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:2px">to reach break-even</div>
+          </div>`:''}
+          <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Daily run rate</div>
+            <div style="font-size:20px;font-weight:800">${runRate.toFixed(1)}</div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:2px">tickets / day avg</div>
+          </div>
+          ${fmtBe&&!isBe?`
+          <div style="background:var(--bg2);border:1px solid var(--line2);border-color:var(--gold);border-radius:10px;padding:12px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Break-even forecast</div>
+            <div style="font-size:18px;font-weight:800;color:var(--gold2)">${fmtBe}</div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:2px">at current run rate · ${daysToBreakEven}d away</div>
+          </div>`:''}
+          <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:4px">Profit per ticket</div>
+            <div style="font-size:20px;font-weight:800;color:${profitPerTicket>=0?'var(--live)':'var(--danger)'}">${gbp(profitPerTicket)}</div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:2px">after deductions &amp; prize costs</div>
+          </div>
+        </div>
+        <!-- Scenario forecasts -->
+        ${totalEntries>0?`<div style="border-top:1px solid var(--line);padding-top:12px">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:10px;font-weight:600">Sell-through scenarios — net profit forecast</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+            ${[25,50,75,100].map(pct=>{
+              const tickets=Math.round(totalPool*pct/100);
+              const gr=totalEntries>0?grossRev*(tickets/totalEntries):0;
+              const ded=totalEntries>0?totalDed*(tickets/totalEntries):0;
+              const prizes=totalEntries>0?totalPrizeCost*(tickets/totalEntries):0;
+              const net=gr-ded-prizes-fixedCostBase;
+              const daysNeeded=runRate>0?Math.ceil(Math.max(0,tickets-totalEntries)/runRate):null;
+              const fcastDate=daysNeeded!=null?new Date(Date.now()+daysNeeded*86400000).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):null;
+              return `<div style="background:var(--bg2);border:1px solid ${net>=0?'var(--live)':'var(--line)'};border-radius:10px;padding:11px 13px">
+                <div style="font-size:11px;font-weight:700;color:var(--ink3);margin-bottom:4px">${pct}% sold (${tickets.toLocaleString()} tickets)</div>
+                <div style="font-size:18px;font-weight:800;color:${net>=0?'var(--live)':'var(--danger)'}">${gbp(net)}</div>
+                ${fcastDate?`<div style="font-size:10px;color:var(--ink3);margin-top:3px">~${fcastDate} at run rate</div>`:''}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`:''}
+      </div>
+    </div>`;
+  })()}`;
 }
 
 function vaultDeductionsCard(vaults){
@@ -3112,6 +3234,16 @@ function vaultDeductionsCard(vaults){
       <div style="display:flex;align-items:center;gap:10px;padding:10px 0;flex-wrap:wrap">
         <button onclick="addVaultDed('${d.id}')" class="btn btn-sm btn-gold">＋ Add deduction</button>
         ${deds.length?`<div style="margin-left:auto;font-size:13px">Gross: ${gbp(gr)} &nbsp;−&nbsp; Deductions: ${gbp(totalDed)} &nbsp;=&nbsp; <strong style="color:var(--live)">${gbp(net)}</strong></div>`:''}
+      </div>
+      <div style="padding-top:10px;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px">Meta Ads</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:12px;color:var(--ink3)">£ per day</span>
+          <input type="number" step="1" value="${Number(t.adsPerDay)||100}" placeholder="100"
+            style="width:80px;background:var(--bg2);border:1px solid var(--line2);color:var(--warn);border-radius:7px;padding:5px 9px;font-size:13px;font-weight:700"
+            onchange="updTracker('${d.id}','adsPerDay',parseFloat(this.value)||0)">
+          <span style="font-size:12px;color:var(--ink3)">× days live = auto-calculated in Costs to Date</span>
+        </div>
       </div>
     </div>`;
   }).join('<div style="height:1px;background:var(--line);margin:8px 0"></div>');
@@ -6749,7 +6881,7 @@ function trkPctFldC(d,label,field){
 function roFldC(label,val){ return `<div class="field-compact"><label>${label}</label><input value="${esc(val)}" disabled></div>`; }
 function updTracker(dropId,field,val){
   const d=dropById(dropId); if(!d) return;
-  const numFields=['statedValue','watchCost','maxTickets','fullTicketPrice','adsBudget','fixed','instantWins','adsSpent','ticketsSoldTotal','launchTicketsSold','couponBulkTicketsSold','freeTicketsGiven','creditPrizeFaceValue'];
+  const numFields=['statedValue','watchCost','maxTickets','fullTicketPrice','adsBudget','fixed','instantWins','adsSpent','ticketsSoldTotal','launchTicketsSold','couponBulkTicketsSold','freeTicketsGiven','creditPrizeFaceValue','adsPerDay'];
   d.tracker=d.tracker||{};
   d.tracker[field] = numFields.includes(field) ? (Number(val)||0) : val;
   queueSave(); render();
