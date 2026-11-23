@@ -13103,17 +13103,18 @@ function planSubOf(o){
 }
 function planDefaultSubs(){
   return [
-    {id:'psub_web',name:'Website development',desc:'site builds, fixes, Vibe Code, plugins',color:'#1E3A8A'},
-    {id:'psub_email',name:'Emails',desc:'Klaviyo campaigns and flows',color:'#0369A1'},
-    {id:'psub_sms',name:'SMS',desc:'text campaigns and replies',color:'#0891B2'},
-    {id:'psub_ads',name:'Ad creation',desc:'Meta ads, creatives, copy',color:'#4338CA'},
-    {id:'psub_dropsetup',name:'Drop setup',desc:'building and checking drops',color:'#6D5BD0'},
-    {id:'psub_content',name:'Content creation',desc:'posts, blog, designs, video',color:'#0F766E'},
-    {id:'psub_stock',name:'Watches & stock',desc:'buying, suppliers, photos, vault prizes',color:'#38BDF8'},
-    {id:'psub_draws',name:'Draws & winners',desc:'live draws, results, winner handover',color:'#60A5FA'},
-    {id:'psub_support',name:'Customer support',desc:'tickets, inbox, queries',color:'#A5B4FC'},
-    {id:'psub_finance',name:'Finance & legal',desc:'Xero, compliance, Companies House',color:'#5B7DB1'},
-    {id:'psub_team',name:'Team & meetings',desc:'staff, calls, Dork plans',color:'#BAE6FD'}
+    {id:'psub_web',name:'Website development',desc:'site builds, fixes, Vibe Code, plugins',color:'#0C36C0'},
+    {id:'psub_email',name:'Emails',desc:'Klaviyo campaigns and flows',color:'#0584E6'},
+    {id:'psub_sms',name:'SMS',desc:'text campaigns and replies',color:'#00A8C2'},
+    {id:'psub_ads',name:'Ad creation',desc:'Meta ads, creatives, copy',color:'#4C31F6'},
+    {id:'psub_dropsetup',name:'Drop setup',desc:'building and checking drops',color:'#9849F3'},
+    {id:'psub_content',name:'Content creation',desc:'posts, blog, designs, video',color:'#00A88C'},
+    {id:'psub_stock',name:'Watches & stock',desc:'buying, suppliers, photos, vault prizes',color:'#3385FF'},
+    {id:'psub_draws',name:'Draws & winners',desc:'live draws, results, winner handover',color:'#1AC2FF'},
+    {id:'psub_comms',name:'Winners comms',desc:'emails and messages to winners',color:'#BA36E2'},
+    {id:'psub_support',name:'Customer support',desc:'tickets, inbox, queries',color:'#8088FF'},
+    {id:'psub_finance',name:'Finance & legal',desc:'Xero, compliance, Companies House',color:'#153379'},
+    {id:'psub_team',name:'Team & meetings',desc:'staff, calls, Dork plans',color:'#A3D1FF'}
   ];
 }
 function planDefaultCatId(){
@@ -13156,6 +13157,20 @@ function planMigrateCategories(){
   if(!DB.planSubSeeded.pcat_business && ids.has('pcat_business')){
     planDefaultSubs().forEach(sc=>{ if(!DB.planCategories.some(c=>c.id===sc.id)) DB.planCategories.push({...sc,parentId:'pcat_business'}); });
     DB.planSubSeeded.pcat_business=true;
+  }
+  // more vivid sub-category colours: only where the colour is still the old default (Felix's own colours are kept)
+  { const oldCol={psub_web:'#1E3A8A',psub_email:'#0369A1',psub_sms:'#0891B2',psub_ads:'#4338CA',psub_dropsetup:'#6D5BD0',psub_content:'#0F766E',psub_stock:'#38BDF8',psub_draws:'#60A5FA',psub_support:'#A5B4FC',psub_finance:'#5B7DB1',psub_team:'#BAE6FD'};
+    const dflt={}; planDefaultSubs().forEach(d=>{dflt[d.id]=d.color;});
+    DB.planCategories.forEach(c=>{ if(c.parentId&&oldCol[c.id]&&String(c.color).toUpperCase()===oldCol[c.id]) c.color=dflt[c.id]; }); }
+  // 'Winners comms' is added once, right after 'Draws & winners' (the flag stops it coming back if removed)
+  if(!DB.planSubSeeded.winners_comms && ids.has('pcat_business')){
+    if(!DB.planCategories.some(c=>c.id==='psub_comms')){
+      const def=planDefaultSubs().find(d=>d.id==='psub_comms');
+      let at=DB.planCategories.findIndex(c=>c.id==='psub_draws');
+      if(at<0){ for(let i=DB.planCategories.length-1;i>=0;i--) if(DB.planCategories[i].parentId==='pcat_business'){ at=i; break; } }
+      DB.planCategories.splice(at<0?DB.planCategories.length:at+1,0,{...def,parentId:'pcat_business'});
+    }
+    DB.planSubSeeded.winners_comms=true;
   }
   (DB.tasks||[]).forEach(t=>{
     if(!t.categoryId||!ids.has(t.categoryId)){
@@ -13556,6 +13571,8 @@ function vPlanning(){
                     style="cursor:pointer;font-size:11px;opacity:.8;background:rgba(0,0,0,.2);border-radius:3px;padding:0 4px;line-height:16px">
                     ${isDone?'↺':'✓'}
                   </span>
+                  ${isDone?'':`<span title="Push to tomorrow (same time)" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planPushDay('${t.id}')"
+                    style="cursor:pointer;font-size:10px;opacity:.85;background:rgba(0,0,0,.2);border-radius:3px;padding:0 4px;line-height:16px;white-space:nowrap">+1d</span>`}
                   <span class="plan-del" title="Delete task" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planDeleteTask('${t.id}')">🗑</span>
                   <span onclick="event.stopPropagation();planUnschedule('${t.id}')" title="Unschedule (back to the list)" style="opacity:.7;cursor:pointer;font-size:13px;line-height:1">×</span>
                 </div>
@@ -13611,7 +13628,10 @@ function vPlanning(){
   ${planDaySummaryMode ? planDaySummaryView(planDay, myName) : ''}
   <div style="display:flex;gap:16px;height:calc(100vh - 200px);overflow:hidden;${planDaySummaryMode?'display:none':''}">
     <!-- Task list panel -->
-    <div style="width:240px;flex-shrink:0;display:flex;flex-direction:column;gap:0">
+    <div id="plan_unsched_drop" style="width:240px;flex-shrink:0;display:flex;flex-direction:column;gap:0;border-radius:10px"
+      ondragover="if(planDragTask&&!planDragCat&&planDragIsScheduled()){event.preventDefault();this.style.outline='2px dashed var(--gold)';this.style.background='var(--goldsoft)'}"
+      ondragleave="if(!this.contains(event.relatedTarget)){this.style.outline='';this.style.background=''}"
+      ondrop="this.style.outline='';this.style.background='';planDropToUnscheduled(event)">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between;gap:8px">
         <span>Unscheduled (${unscheduled.length})</span>
         <button type="button" id="plan_newtask_btn" class="btn btn-sm btn-gold" style="font-size:11px;padding:3px 9px;text-transform:none;letter-spacing:0" onclick="planNewTaskOpen(this)">＋ New task</button>
@@ -13655,6 +13675,30 @@ function planDrop(event, day, hour){
   toast(`${t.title} → ${planDayLabel(day)} at ${hour<12?hour+'am':hour===12?'12pm':(hour-12)+'pm'}`);
 }
 
+// drag a scheduled block back onto the Unscheduled sidebar
+function planDragIsScheduled(){ const t=DB.tasks.find(x=>x.id===planDragTask); return !!(t&&t.scheduledDate); }
+function planDropToUnscheduled(event){
+  if(planDragCat||!planDragTask) return;
+  event.preventDefault();
+  const id=planDragTask; planDragTask=null;
+  const idx=DB.tasks.findIndex(x=>x.id===id); if(idx<0) return;
+  const t=DB.tasks[idx];
+  if(!t.scheduledDate&&t.scheduledHour==null) return; // already unscheduled
+  const snap=JSON.parse(JSON.stringify(t));
+  delete t.scheduledDate; delete t.scheduledHour; delete t.scheduledMin;
+  saveDB(); render();
+  planUndoToast(`"${t.title}" moved back to Unscheduled`,()=>planRestoreTask(snap,idx));
+}
+// push a scheduled task to the next day, same time and length
+function planPushDay(id){
+  const idx=DB.tasks.findIndex(x=>x.id===id); if(idx<0) return;
+  const t=DB.tasks[idx]; if(!t.scheduledDate) return;
+  const snap=JSON.parse(JSON.stringify(t));
+  t.scheduledDate=planAddDays(t.scheduledDate,1);
+  t.due=t.scheduledDate; // same as dragging into a slot
+  saveDB(); render();
+  planUndoToast(`"${t.title}" → ${planDayLabel(t.scheduledDate)}`,()=>planRestoreTask(snap,idx));
+}
 function planUnschedule(taskId){
   const t=DB.tasks.find(x=>x.id===taskId); if(!t) return;
   delete t.scheduledDate; delete t.scheduledHour;
