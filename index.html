@@ -335,7 +335,7 @@
   /* Planning page on phones (desktop is untouched: these defaults change nothing there) */
   .plan-seg,.plan-nav{display:contents}
   .plan-more,.plan-chev{display:none}
-  .plan-resize-handle .plan-grip{opacity:0;transition:opacity .12s}
+  .plan-resize-handle .plan-grip{opacity:0;transition:opacity .12s;pointer-events:none}
   .plan-resize-handle:hover{background:rgba(0,0,0,.25)}
   .plan-resize-handle:hover .plan-grip,.plan-block:hover .plan-grip{opacity:1}
   @media(max-width:700px){
@@ -7885,7 +7885,7 @@ function openTask(id){
       <div class="field">
         <label>Estimated time — <span id="tk_est_label" style="color:var(--gold2);font-weight:700">${planFmtEst(t.estMins)||'Not set'}</span></label>
         <input id="tk_est" type="range" min="0" max="8" step="1" value="${[0,15,30,45,60,90,120,180,240,480].indexOf(t.estMins||0)<0?0:[0,15,30,45,60,90,120,180,240,480].indexOf(t.estMins||0)}"
-          oninput="const v=[0,15,30,45,60,90,120,180,240,480][parseInt(this.value)];document.getElementById('tk_est_label').textContent=v?planFmtEst(v):'Not set'"
+          oninput="this.dataset.t='1';const v=[0,15,30,45,60,90,120,180,240,480][parseInt(this.value)];document.getElementById('tk_est_label').textContent=v?planFmtEst(v):'Not set'"
           style="width:100%;margin-top:6px;accent-color:var(--gold)">
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--ink3);margin-top:3px">
           <span>Not set</span><span>15m</span><span>30m</span><span>45m</span><span>1h</span><span>1.5h</span><span>2h</span><span>3h</span><span>4h</span><span>All day</span>
@@ -7967,7 +7967,7 @@ function saveTask(id){
   t.personRef = (t.type==='Prize Delivery') ? ddVal('tk_person') : '';
   t.notes=document.getElementById('tk_notes').value;
   const estEl=document.getElementById('tk_est');
-  if(estEl) t.estMins=[0,15,30,45,60,90,120,180,240,480][parseInt(estEl.value)]||0;
+  if(estEl&&estEl.dataset.t==='1') t.estMins=[0,15,30,45,60,90,120,180,240,480][parseInt(estEl.value)]||0;
   t.file=mediaVal('tk_file');
   // Recurring
   const recurBtn=document.getElementById('tk_recur_toggle');
@@ -13289,7 +13289,7 @@ function planLegend(){
   if(planSubFilter&&!subs.some(c=>c.id===planSubFilter)) planSubFilter='';
   return `<div class="plan-legend" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:${subs.length?'6':'12'}px">
     <button class="fbtn ${planCatFilter?'':'active'}" onclick="planSetCatFilter('${planCatFilter}')" ${planCatFilter?'':'disabled'}>All</button>
-    ${cats.map(c=>`<button type="button" draggable="true" ondragstart="planDragCat='${c.id}';event.dataTransfer.setData('text/plain','plancat:${c.id}');event.dataTransfer.effectAllowed='copyMove'" ondragend="planDragCat=''" onclick="planSetCatFilter('${c.id}')" title="Click to show only ${esc(c.name)}; click again to show all. Drag onto a time slot to add a new task."
+    ${cats.map(c=>`<button type="button" draggable="true" ondragstart="planDragCat='${c.id}';planGrabY=0;event.dataTransfer.setData('text/plain','plancat:${c.id}');event.dataTransfer.effectAllowed='copyMove'" ondragend="planDragCat=''" onclick="planSetCatFilter('${c.id}')" title="Click to show only ${esc(c.name)}; click again to show all. Drag onto a time slot to add a new task."
       style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:600;color:var(--ink);background:var(--panel);
       border:1px solid ${planCatFilter===c.id?c.color:'var(--line2)'};${planCatFilter===c.id?'box-shadow:0 0 0 2px '+c.color+'55;':''}${planCatFilter&&planCatFilter!==c.id?'opacity:.5;':''}">
       <span style="width:10px;height:10px;border-radius:50%;background:${c.color};flex-shrink:0"></span>${esc(c.name)}</button>`).join('')}
@@ -13615,7 +13615,7 @@ function vPlanning(){
   const taskList = unscheduled.length
     ? unscheduled.map(t=>`
         <div class="plan-task" draggable="true"
-          ondragstart="planDragTask='${t.id}';event.dataTransfer.effectAllowed='move'"
+          ondragstart="planDragTask='${t.id}';planGrabY=0;event.dataTransfer.effectAllowed='move'"
           ondragend="planDragTask=null"
           style="background:var(--panel);border:1px solid var(--line2);border-left:3px solid ${taskColor(t)};border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:grab">
           <span class="plan-del" title="Delete task" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planDeleteTask('${t.id}')">🗑</span>
@@ -13656,9 +13656,8 @@ function vPlanning(){
         return `<div class="plan-slot" data-day="${d}" data-hour="${h}"
           style="border-right:1px solid var(--line2);padding:0;position:relative;min-height:0;background:${isNowSlot&&d===today()?'rgba(201,162,75,.04)':'transparent'}"
           onmousedown="planDrawStart(event,'${d}',${h})"
-          ondragover="event.preventDefault();this.style.background='rgba(201,162,75,.12)'"
-          ondragleave="this.style.background=''"
-          ondrop="planDrop(event,'${d}',${h});this.style.background=''">
+          ondragover="planDragOver(event,this)"
+          ondrop="planDrop(event,'${d}',${h})">
           ${slotTasks.map(t=>{
             const mins=t.estMins||60;
             const bh=Math.max(SLOT_H,Math.round((mins/15)*SLOT_H)); // exact: n quarter-hours = n slot rows
@@ -13680,7 +13679,7 @@ function vPlanning(){
               class="plan-block ${short?'plan-short':''}" data-task-id="${t.id}"
               draggable="true"
               onmousedown="event.stopPropagation()"
-              ondragstart="planDragTask='${t.id}';event.dataTransfer.setData('text/plain','${t.id}');event.dataTransfer.effectAllowed='move'"
+              ondragstart="planDragTask='${t.id}';planGrabY=Math.max(1,event.clientY-this.getBoundingClientRect().top);event.dataTransfer.setData('text/plain','${t.id}');event.dataTransfer.effectAllowed='move'"
               ondragend="planDragTask=null"
               title="${esc(planCatById(t.categoryId).name)}${planSubOf(t)?' › '+esc(planSubOf(t).name):''}"
               style="background:${isDone?'var(--panel2)':taskColor(t)};color:${isDone?'var(--ink3)':planTextOn(taskColor(t))};${isDone?'border-left:4px solid '+taskColor(t)+';':''}
@@ -13708,7 +13707,7 @@ function vPlanning(){
             const t=o.t; const rc=taskColor(o); const sc=planSubOf(o);
             const rt=t.recurringType||'';
             const rh=Math.max(SLOT_H,Math.round(((o.estMins||30)/15)*SLOT_H));
-            return `<div class="plan-recur" draggable="true" ondragstart="planDragOcc={id:'${t.id}',date:'${o.date}'};event.dataTransfer.setData('text/plain','planocc:${t.id}');event.dataTransfer.effectAllowed='move'" ondragend="planDragOcc=null" onclick="planOpenOccurrence('${t.id}','${o.date}')"
+            return `<div class="plan-recur" draggable="true" ondragstart="planDragOcc={id:'${t.id}',date:'${o.date}'};planGrabY=Math.max(1,event.clientY-this.getBoundingClientRect().top);event.dataTransfer.setData('text/plain','planocc:${t.id}');event.dataTransfer.effectAllowed='move'" ondragend="planDragOcc=null" onclick="planOpenOccurrence('${t.id}','${o.date}')"
               title="${esc(planCatById(o.categoryId).name)}${sc?' › '+esc(sc.name):''} — repeats; click to edit"
               style="background:${rc}8C;color:var(--ink);border-left:4px solid ${rc};border-radius:3px;padding:0 8px;font-size:11px;font-weight:700;
                 position:absolute;top:0;left:1px;right:1px;height:${rh}px;box-sizing:border-box;overflow:hidden;box-shadow:inset 0 -1px 0 rgba(0,0,0,.25);
@@ -13778,7 +13777,40 @@ function planFmtEst(mins){
   return Math.floor(mins/60)+'hr '+(mins%60)+'min';
 }
 
+/* ===== Drop target time: worked out from the mouse height, not from which element is under it =====
+   (A block covers the rows under it, so the browser reports the block's own start slot as the target.
+    The time is read from clientY against the top of the 5:00 row instead, snapped to 15 minutes.) */
+let planGrabY=0; // how far below the top of the dragged block/chip the mouse grabbed it (px)
+function planDropGeom(event, slotEl){
+  const SH=planSlotPx(); const h0=parseFloat(slotEl.dataset.hour);
+  const r=slotEl.getBoundingClientRect();
+  const top0=r.top-((h0-PLAN_HOURS[0])/0.25)*SH; // y of the top of the first (5:00) row
+  const raw=(event.clientY-planGrabY-top0)/SH;
+  let n=planGrabY>0?Math.round(raw):Math.floor(raw); // keep the block's top where the preview shows; cards/chips use the row under the pointer
+  n=Math.max(0,Math.min(PLAN_HOURS.length-1,n));
+  return {hour:PLAN_HOURS[0]+n*0.25, top:top0+n*SH, left:r.left, width:r.width, SH};
+}
+function planDragMins(){
+  if(planDragOcc){ const t=DB.tasks.find(x=>x.id===planDragOcc.id); return (t&&t.estMins)||30; }
+  if(planDragCat) return 30;
+  const t=DB.tasks.find(x=>x.id===planDragTask); return (t&&t.estMins)||60;
+}
+function planDragOver(event, slotEl){
+  event.preventDefault();
+  if(!Number.isFinite(event.clientY)) return;
+  const g=planDropGeom(event, slotEl);
+  let pv=document.getElementById('plan_drop_prev');
+  if(!pv){ pv=document.createElement('div'); pv.id='plan_drop_prev'; pv.style.cssText='position:fixed;pointer-events:none;z-index:40;box-sizing:border-box;border:2px dashed var(--gold);background:rgba(201,162,75,.18);border-radius:3px;font-size:10px;font-weight:700;color:var(--ink);padding:0 4px;overflow:hidden'; document.body.appendChild(pv); }
+  pv.style.left=g.left+'px'; pv.style.width=g.width+'px'; pv.style.top=g.top+'px';
+  pv.style.height=Math.max(g.SH,Math.round(planDragMins()/15*g.SH))+'px';
+  pv.textContent=planHourLabel(g.hour);
+}
+function planDragClear(){ const pv=document.getElementById('plan_drop_prev'); if(pv) pv.remove(); }
+document.addEventListener('dragend',planDragClear);
+document.addEventListener('drop',planDragClear,true);
 function planDrop(event, day, hour){
+  const _slot=event.currentTarget;
+  if(_slot&&_slot.dataset&&_slot.dataset.hour!==undefined&&Number.isFinite(event.clientY)) hour=planDropGeom(event,_slot).hour;
   event.preventDefault();
   if(planDragOcc){ const o=planDragOcc; planDragOcc=null; planOccDropped(o,day,Number(hour)); return; }
   if(planDragCat){ // a category chip was dropped: open quick add with that category
@@ -13961,7 +13993,7 @@ function planQuickAddOpen(day, hour, durationMins, catId, timeOffMins, opts2){
   planQuickAddClose();
   const cats=planCats();
   const cat=cats.some(c=>c.id===catId)?catId:(planCatFilter&&cats.some(c=>c.id===planCatFilter)?planCatFilter:planDefaultCatId());
-  const opts=[15,30,45,60,90,120,180,240];
+  const opts=[15,30,45,60,75,90,120,180,240];
   const dur=opts.reduce((best,o)=>o<=durationMins&&Math.abs(o-durationMins)<=Math.abs(best-durationMins)?o:best,opts[0]);
   const sub=(!catId&&planSubFilter&&planSubOf({categoryId:cat,subcategoryId:planSubFilter}))?planSubFilter:'';
   _planQA={day,hour:(hour===null?null:Number(hour)),unsched:(hour===null),auto:'',preset:'',durPicked:(hour!==null&&Number(durationMins)!==30),cat,sub,dur,timeOffMins:timeOffMins||60,rfreq:'none',rdays:[planDayName(day)],rend:'never'};
@@ -14037,7 +14069,7 @@ function planQASubChips(){
     style="background:${c.color};color:${planTextOn(c.color)};border-radius:11px;padding:2px 8px;font-size:10.5px;font-weight:700;${_planQA.sub===c.id?'outline:2px solid var(--ink);outline-offset:1px':'opacity:.75'}">${esc(c.name)}</button>`).join('');
 }
 function planQADurChips(){
-  return [15,30,45,60,90,120,180,240].map(m=>`<button type="button" onclick="planQASetDur(${m})"
+  return [15,30,45,60,75,90,120,180,240].map(m=>`<button type="button" onclick="planQASetDur(${m})"
     style="background:${_planQA.dur===m?'var(--gold)':'var(--bg2)'};color:${_planQA.dur===m?'#111827':'var(--ink2)'};border:1px solid var(--line2);border-radius:12px;padding:3px 9px;font-size:11px;font-weight:700">${planFmtEst(m)}</button>`).join('');
 }
 function planQASetCat(id){
