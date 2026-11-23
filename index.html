@@ -335,6 +335,9 @@
   /* Planning page on phones (desktop is untouched: these defaults change nothing there) */
   .plan-seg,.plan-nav{display:contents}
   .plan-more,.plan-chev{display:none}
+  .plan-resize-handle .plan-grip{opacity:0;transition:opacity .12s}
+  .plan-resize-handle:hover{background:rgba(0,0,0,.25)}
+  .plan-resize-handle:hover .plan-grip,.plan-block:hover .plan-grip{opacity:1}
   @media(max-width:700px){
     .plan-head .desc{display:none}
     .plan-head{margin-bottom:10px!important}
@@ -363,14 +366,16 @@
     .plan-row-1{grid-template-columns:44px minmax(0,1fr)!important}
     .plan-row-5{grid-template-columns:44px repeat(5,minmax(150px,1fr))!important;min-width:794px}
     .plan-gutter{position:sticky;left:0;z-index:12;background:var(--bg2);padding:4px 3px!important;font-size:9px!important}
-    .plan-block{padding-bottom:0!important}
+    .plan-block.plan-open{min-height:40px;z-index:30!important;overflow:visible!important}
+    .plan-block.plan-open{padding-left:2px!important;padding-right:2px!important}
+    .plan-block.plan-open .plan-more{min-width:24px;padding:0 2px}
+    .plan-block.plan-open.plan-short{height:auto!important}
     .plan-resize-handle{display:none!important}
     .plan-btns{display:none!important}
     .plan-more{display:inline-flex;align-items:center;justify-content:center;align-self:stretch;min-width:36px;padding:0 6px;font-size:16px;font-weight:800;cursor:pointer;flex-shrink:0;border-radius:4px;background:rgba(0,0,0,.2)}
     .plan-block.plan-open .plan-btns{display:flex!important;flex:1;gap:4px;align-self:stretch}
-    .plan-block.plan-open .plan-btns>span{flex:1;display:inline-flex!important;align-items:center;justify-content:center;min-height:36px;font-size:14px!important;padding:0 4px!important;opacity:1!important;line-height:1!important}
+    .plan-block.plan-open .plan-btns>span{flex:1;display:inline-flex!important;align-items:center;justify-content:center;min-height:36px;min-width:0;font-size:14px!important;padding:0 1px!important;opacity:1!important;line-height:1!important}
     .plan-block.plan-open .plan-title,.plan-block.plan-open .plan-len{display:none!important}
-    .plan-recur{min-height:36px}
     .plan-recur .plan-del{padding:8px 12px;font-size:14px}
     #plan_quickadd{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-height:82dvh!important;border-radius:16px 16px 0 0!important;padding:14px 14px calc(14px + env(safe-area-inset-bottom))!important;z-index:260}
     #plan_quickadd input,#plan_quickadd select{font-size:16px!important}
@@ -7979,7 +7984,7 @@ function saveTask(id){
     t.recurringType=(activeType?activeType.dataset.type:'')||t.recurringType||'';
     t.recurringColor=(activeType?activeType.dataset.color:'')||t.recurringColor||'#CA8A04';
     t.recurringTime=document.getElementById('tk_recur_time')?document.getElementById('tk_recur_time').value:'09:00';
-    { const _p=(t.recurringTime||'09:00').split(':'); t.recurringHour=(parseInt(_p[0])||0)+((parseInt(_p[1])||0)>=30?0.5:0); }
+    { const _p=(t.recurringTime||'09:00').split(':'); t.recurringHour=(parseInt(_p[0])||0)+Math.floor((parseInt(_p[1])||0)/15)*0.25; }
   } else {
     t.recurringDays=[]; t.recurringTime=''; t.recurringHour=null; t.recurFreq='none';
   }
@@ -13102,9 +13107,11 @@ function tcKey(k){
 /* ================= PLANNING / TIME BLOCK ================= */
 let planView='day', planDay=today(), planDragTask=null, planDaySummaryMode=false;
 
-// 30-min slots: 5:00 to 22:00 — stored as floats (5, 5.5, 6, 6.5...)
-const PLAN_HOURS = Array.from({length:35},(_,i)=>5+(i*0.5)); // 5:00am to 10:00pm in 30min steps
-function planHourLabel(h){ const hr=Math.floor(h); const min=h%1?'30':'00'; const ampm=hr<12?'am':hr===12?'pm':'pm'; const disp=hr===12?12:hr>12?hr-12:hr; return `${disp}:${min}${ampm}`; }
+// 15-min slots: the day still runs 5:00am to 10:30pm (same range as before) — stored as floats (5, 5.25, 5.5, 5.75, 6...)
+const PLAN_HOURS = Array.from({length:70},(_,i)=>5+(i*0.25)); // 5:00am .. last slot starts 10:15pm (ends 10:30pm)
+function planMinOf(h){ return Math.round((Number(h)-Math.floor(Number(h)))*60); } // minutes past the hour (0/15/30/45)
+function planSlotPx(){ return (window.matchMedia&&window.matchMedia('(max-width:700px)').matches)?24:18; } // px per 15-min slot (taller on phones for tap targets)
+function planHourLabel(h){ const hr=Math.floor(h); const min=String(planMinOf(h)).padStart(2,'0'); const ampm=hr<12?'am':hr===12?'pm':'pm'; const disp=hr===12?12:hr>12?hr-12:hr; return `${disp}:${min}${ampm}`; }
 function planViewSummary(){ planDaySummaryMode=!planDaySummaryMode; render(); }
 const PLAN_EST_OPTIONS = [
   {label:'15 min',mins:15},{label:'30 min',mins:30},{label:'45 min',mins:45},
@@ -13498,7 +13505,7 @@ function planOccMove(id,fromDate,day,hour,scope){
   const idx=DB.tasks.findIndex(x=>x.id===id); if(idx<0) return;
   const t=DB.tasks[idx]; const occ=planRecurOccurrence(t,fromDate); if(!occ) return;
   const snap=JSON.parse(JSON.stringify(t));
-  const hhmm=String(Math.floor(hour)).padStart(2,'0')+':'+(hour%1?'30':'00');
+  const hhmm=String(Math.floor(hour)).padStart(2,'0')+':'+String(planMinOf(hour)).padStart(2,'0');
   const created=[]; let msg;
   if(scope==='this'){
     t.recurExceptions=t.recurExceptions||{};
@@ -13512,7 +13519,7 @@ function planOccMove(id,fromDate,day,hour,scope){
       ['recurStart','recurUntil','recurExceptions','recurFreq'].forEach(k=>delete c[k]);
       Object.assign(c,{id:uid('t'),title:occ.title,categoryId:occ.categoryId,estMins:occ.estMins,due:day,done:false,
         recurring:false,recurringDays:[],recurringTime:'',recurringHour:null,
-        scheduledDate:day,scheduledHour:hour,scheduledMin:hour%1?30:0,time:Math.floor(hour)+':'+(hour%1?'30':'00'),created:now()});
+        scheduledDate:day,scheduledHour:hour,scheduledMin:planMinOf(hour),time:Math.floor(hour)+':'+String(planMinOf(hour)).padStart(2,'0'),created:now()});
       if(occ.subcategoryId) c.subcategoryId=occ.subcategoryId; else delete c.subcategoryId;
       DB.tasks.splice(idx+1,0,c); created.push(c.id);
     }
@@ -13623,7 +13630,7 @@ function vPlanning(){
 
   // Build time grid
   const gridCols = days.length===1?'1fr':`repeat(${days.length},minmax(0,1fr))`; // minmax(0,..) so a long title can't stretch one row's columns
-  const SLOT_H = (window.matchMedia&&window.matchMedia('(max-width:700px)').matches)?40:28; // px per 30-min slot (taller on phones for bigger tap targets)
+  const SLOT_H = planSlotPx(); // px per 15-min slot
 
   const dayHeaders = days.map(d=>`
     <div style="text-align:center;padding:8px 4px;font-size:12px;font-weight:700;color:${d===today()?'var(--gold2)':'var(--ink)'};border-bottom:1px solid var(--line2);background:${d===today()?'rgba(201,162,75,.08)':'var(--bg2)'}">
@@ -13635,27 +13642,28 @@ function vPlanning(){
     const isHalf=h%1!==0;
     const timeLabel=isHalf?'':`${planHourLabel(h)}`;
     const nowH=new Date().getHours()+(new Date().getMinutes()>=30?0.5:0);
-    const isNowHour = Math.abs(nowH-h)<0.5 && days.includes(today());
-    const isHalfHr = h%1!==0;
-    gridRows += `<div class="plan-row-${days.length}" style="display:grid;grid-template-columns:52px ${gridCols};min-height:${SLOT_H}px;border-bottom:1px solid ${isHalfHr?'rgba(255,255,255,.04)':'var(--line)'}">
-      <div class="plan-gutter" style="font-size:10px;color:var(--ink3);padding:4px 6px;text-align:right;border-right:1px solid var(--line2);${isNowHour?'color:var(--gold2);font-weight:700':''}">${timeLabel}</div>
+    const isNowHour = Math.abs(nowH-h)<0.5 && days.includes(today()) && !isHalf; // gutter label
+    const isNowSlot = Math.floor(h*2)/2===nowH && days.includes(today());       // soft highlight of the current half hour
+    const lineCol = h%1===0?'var(--line)':(h%0.5===0?'rgba(127,127,127,.2)':'rgba(127,127,127,.09)'); // hour strong, half/quarter faint
+    gridRows += `<div class="plan-row-${days.length}" style="display:grid;grid-template-columns:52px ${gridCols};height:${SLOT_H}px;box-sizing:border-box;border-bottom:1px solid ${lineCol}">
+      <div class="plan-gutter" style="font-size:10px;line-height:12px;color:var(--ink3);padding:2px 6px;overflow:hidden;text-align:right;border-right:1px solid var(--line2);${isNowHour?'color:var(--gold2);font-weight:700':''}">${timeLabel}</div>
       ${days.map(d=>{
         // Tasks scheduled in this hour
         const slotTasks = DB.tasks.filter(t=>t.scheduledDate===d && t.scheduledHour===h && planPassesFilter(t.categoryId,t.subcategoryId));
-        const slotH = Math.floor(h); const slotMin = h%1?30:0;
+        const slotH = Math.floor(h); const slotMin = planMinOf(h);
         const dayName=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()];
         const recurTasks = (DB.tasks||[]).map(t=>planRecurOccurrence(t,d)).filter(o=>o&&o.hour!=null&&Number(o.hour)===h&&planPassesFilter(o.categoryId,o.subcategoryId));
         return `<div class="plan-slot" data-day="${d}" data-hour="${h}"
-          style="border-right:1px solid var(--line2);padding:2px 4px;position:relative;min-height:${SLOT_H}px;background:${isNowHour&&d===today()?'rgba(201,162,75,.04)':'transparent'}"
+          style="border-right:1px solid var(--line2);padding:0;position:relative;min-height:0;background:${isNowSlot&&d===today()?'rgba(201,162,75,.04)':'transparent'}"
           onmousedown="planDrawStart(event,'${d}',${h})"
           ondragover="event.preventDefault();this.style.background='rgba(201,162,75,.12)'"
           ondragleave="this.style.background=''"
           ondrop="planDrop(event,'${d}',${h});this.style.background=''">
           ${slotTasks.map(t=>{
             const mins=t.estMins||60;
-            const bh=Math.max(28,Math.round((mins/30)*SLOT_H));
+            const bh=Math.max(SLOT_H,Math.round((mins/15)*SLOT_H)); // exact: n quarter-hours = n slot rows
             const isDone=t.done;
-            const short=bh<48; // too short for two lines: title and duration share one line
+            const short=mins<=30; // too short for two lines: title and duration share one line
             const _titleSpan=`<span class="plan-title" onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}${planSubOf(t)?` <span style="opacity:.85;font-weight:500">· ${esc(planSubOf(t).name)}</span>`:''}</span>`;
             const _btns=`<div class="plan-btns" style="display:flex;gap:3px;flex-shrink:0">
                   <span onclick="event.stopPropagation();planMarkDone('${t.id}')"
@@ -13669,15 +13677,15 @@ function vPlanning(){
                   <span onclick="event.stopPropagation();planUnschedule('${t.id}')" title="Unschedule (back to the list)" style="opacity:.7;cursor:pointer;font-size:13px;line-height:1">×</span>
                 </div><span class="plan-more" title="Actions" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();this.closest('.plan-block').classList.toggle('plan-open')">⋯</span>`;
             return `<div
-              class="plan-block" data-task-id="${t.id}"
+              class="plan-block ${short?'plan-short':''}" data-task-id="${t.id}"
               draggable="true"
               onmousedown="event.stopPropagation()"
               ondragstart="planDragTask='${t.id}';event.dataTransfer.setData('text/plain','${t.id}');event.dataTransfer.effectAllowed='move'"
               ondragend="planDragTask=null"
               title="${esc(planCatById(t.categoryId).name)}${planSubOf(t)?' › '+esc(planSubOf(t).name):''}"
               style="background:${isDone?'var(--panel2)':taskColor(t)};color:${isDone?'var(--ink3)':planTextOn(taskColor(t))};${isDone?'border-left:4px solid '+taskColor(t)+';':''}
-                border-radius:6px;padding:${short?'0 8px 12px':'4px 8px 12px'};font-size:11px;font-weight:600;
-                position:absolute;top:2px;left:3px;right:3px;height:${bh}px;box-sizing:border-box;overflow:hidden;z-index:10;
+                border-radius:3px;padding:${short?'0 8px':'3px 8px'};font-size:11px;font-weight:600;
+                position:absolute;top:0;left:1px;right:1px;height:${bh}px;box-sizing:border-box;overflow:hidden;z-index:10;box-shadow:inset 0 -1px 0 rgba(0,0,0,.35);
                 cursor:grab;user-select:none;${isDone?'opacity:.6;text-decoration:line-through':''}">
               ${short?`<div style="display:flex;align-items:center;gap:6px;height:100%">
                 ${_titleSpan.replace('flex:1;cursor:pointer','flex:1;min-width:0;cursor:pointer')}
@@ -13690,19 +13698,21 @@ function vPlanning(){
               ${mins&&mins!==60?`<div class="plan-len" style="font-size:9px;opacity:.7;margin-top:2px">${planFmtEst(mins)}</div>`:''}`}
               <div class="plan-resize-handle"
                 onmousedown="event.stopPropagation();planResizeStart(event,'${t.id}')"
-                style="position:absolute;bottom:0;left:0;right:0;height:12px;cursor:ns-resize;
-                  background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center">
-                <div style="width:28px;height:2px;background:rgba(255,255,255,.7);border-radius:2px"></div>
+                style="position:absolute;bottom:0;left:0;right:0;height:${short?4:8}px;cursor:ns-resize;
+                  display:flex;align-items:center;justify-content:center">
+                <div class="plan-grip" style="width:28px;height:2px;background:rgba(255,255,255,.7);border-radius:2px"></div>
               </div>
             </div>`;
           }).join('')}
           ${recurTasks.map(o=>{
             const t=o.t; const rc=taskColor(o); const sc=planSubOf(o);
             const rt=t.recurringType||'';
+            const rh=Math.max(SLOT_H,Math.round(((o.estMins||30)/15)*SLOT_H));
             return `<div class="plan-recur" draggable="true" ondragstart="planDragOcc={id:'${t.id}',date:'${o.date}'};event.dataTransfer.setData('text/plain','planocc:${t.id}');event.dataTransfer.effectAllowed='move'" ondragend="planDragOcc=null" onclick="planOpenOccurrence('${t.id}','${o.date}')"
               title="${esc(planCatById(o.categoryId).name)}${sc?' › '+esc(sc.name):''} — repeats; click to edit"
-              style="background:${rc}8C;color:var(--ink);border-left:4px solid ${rc};border-radius:5px;padding:4px 8px;font-size:11px;font-weight:700;
-                margin-bottom:2px;cursor:pointer;display:flex;align-items:center;gap:5px">
+              style="background:${rc}8C;color:var(--ink);border-left:4px solid ${rc};border-radius:3px;padding:0 8px;font-size:11px;font-weight:700;
+                position:absolute;top:0;left:1px;right:1px;height:${rh}px;box-sizing:border-box;overflow:hidden;box-shadow:inset 0 -1px 0 rgba(0,0,0,.25);
+                cursor:pointer;display:flex;align-items:${(o.estMins||30)<=30?'center':'flex-start'};${(o.estMins||30)<=30?'':'padding-top:3px;'}gap:5px">
               <span class="plan-recur-icon" style="font-size:11px;opacity:.9">↻</span>
               <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(o.title)}${sc?` <span style="opacity:.8;font-weight:500">· ${esc(sc.name)}</span>`:''}</span>
               ${o.estMins?`<span style="font-size:9px;opacity:.75;white-space:nowrap;flex-shrink:0">${planFmtEst(o.estMins)}</span>`:''}
@@ -13711,9 +13721,10 @@ function vPlanning(){
             </div>`;
           }).join('')}
           ${(DB.planTimeBlocks||[]).filter(b=>b.date===d&&b.startHour===h&&planPassesFilter(b.categoryId)).map(b=>{ const bc=planCatById(b.categoryId); return `
-            <div class="plan-tb" title="${esc(bc.name)} — click to change category" onclick="planEditBlockCat('${b.id}')" style="background:${bc.color}2E;border:2px dashed ${bc.color};border-left:5px solid ${bc.color};border-radius:5px;padding:4px 8px;font-size:11px;
+            <div class="plan-tb" title="${esc(bc.name)} — click to change category" onclick="planEditBlockCat('${b.id}')" style="background:${bc.color}2E;border:1px dashed ${bc.color};border-left:5px solid ${bc.color};border-radius:3px;padding:0 8px;font-size:11px;
               color:var(--ink);font-weight:600;display:flex;align-items:center;justify-content:space-between;cursor:pointer;
-              height:${Math.max(28,(b.endHour-b.startHour+1)*SLOT_H-6)}px;box-sizing:border-box">
+              position:absolute;top:0;left:1px;right:1px;overflow:hidden;
+              height:${Math.max(SLOT_H,Math.round((b.mins||((b.endHour-b.startHour+1)*30))/15*SLOT_H))}px;box-sizing:border-box">
               <span>🚫 ${esc(b.label)} <span style="opacity:.75;font-weight:500">· ${esc(bc.name)}</span></span>
               <span onclick="event.stopPropagation();planDeleteTimeBlock('${b.id}')"
                 style="cursor:pointer;opacity:.6;font-size:13px">×</span>
@@ -13781,10 +13792,10 @@ function planDrop(event, day, hour){
   const h=Number(hour);
   t.scheduledDate=day;
   t.scheduledHour=h;
-  t.scheduledMin=h%1?30:0;
+  t.scheduledMin=planMinOf(h);
   t.due=day; // also set the due date
   saveDB(); render();
-  toast(`${t.title} → ${planDayLabel(day)} at ${hour<12?hour+'am':hour===12?'12pm':(hour-12)+'pm'}`);
+  toast(`${t.title} → ${planDayLabel(day)} at ${planHourLabel(h)}`);
 }
 
 // drag a scheduled block back onto the Unscheduled sidebar
@@ -13840,15 +13851,15 @@ function planResizeStart(e, taskId){
 function planResizeMove(e){
   if(!_planResizing) return;
   const t=DB.tasks.find(x=>x.id===_planResizing.taskId); if(!t) return;
-  const SLOT_H=56;
+  const SLOT_H=planSlotPx(); // px per 15 min
   const dy=e.clientY-_planResizing.startY;
-  const deltaMins=Math.round((dy/SLOT_H)*60/15)*15;
+  const deltaMins=Math.round(dy/SLOT_H)*15;
   const newMins=Math.max(15,Math.min(480,_planResizing.startMins+deltaMins));
   t.estMins=newMins;
   const block=document.querySelector('.plan-block[data-task-id="'+_planResizing.taskId+'"]');
   if(block){
-    block.style.height=Math.max(28,Math.round((newMins/30)*28))+'px';
-    const lbl=block.querySelector('div[style*="font-size:9px"]');
+    block.style.height=Math.max(SLOT_H,Math.round((newMins/15)*SLOT_H))+'px';
+    const lbl=block.querySelector('.plan-len');
     if(lbl) lbl.textContent=planFmtEst(newMins);
   }
 }
@@ -13916,9 +13927,11 @@ function planDrawEnd(e){
   if(!_planDraw) return;
   const {day, startHour, endHour}=_planDraw;
   _planDraw=null;
-  const durationMins=(endHour-startHour+1)*60;
-  // Show choice popup near mouse
-  planQuickAddOpen(day, startHour, (endHour-startHour)*60+30, '', durationMins);
+  const slots=Math.round((endHour-startHour)/0.25)+1;
+  const durationMins=slots*15;
+  // a plain click keeps the old defaults (30 min task / 60 min time off); a drag uses exactly what was drawn
+  if(slots===1) planQuickAddOpen(day, startHour, 30, '', 60);
+  else planQuickAddOpen(day, startHour, durationMins, '', durationMins);
 }
 
 
@@ -14090,8 +14103,8 @@ function planQuickAddSave(){
   }
   const t={id:uid('t'),title,dropId:'',due:day,done:false,category:'Task',categoryId:q.cat,
     type:'Admin',projectId:'',assignedTo:getPresenceName()||teamList()[0],
-    time:hour===null?'':Math.floor(hour)+':'+(hour%1?'30':'00'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
-    estMins:q.dur,scheduledDate:hour===null?'':day,scheduledHour:hour,scheduledMin:hour===null?undefined:(hour%1?30:0),
+    time:hour===null?'':Math.floor(hour)+':'+String(planMinOf(hour)).padStart(2,'0'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
+    estMins:q.dur,scheduledDate:hour===null?'':day,scheduledHour:hour,scheduledMin:hour===null?undefined:planMinOf(hour),
     recurring:false,recurringDays:[],recurringTime:'',recurringHour:null,
     recurringType:'',recurringColor:'#CA8A04',created:now()};
   if(hour===null) delete t.scheduledMin;
@@ -14101,7 +14114,7 @@ function planQuickAddSave(){
     t.scheduledDate=''; t.scheduledHour=null; delete t.scheduledMin;
     t.recurring=true; t.recurFreq=rf;
     t.recurringDays=rf==='weekly'?q.rdays.slice():(rf==='weekdays'?['Mon','Tue','Wed','Thu','Fri']:[]);
-    t.recurringTime=String(Math.floor(hour)).padStart(2,'0')+':'+(hour%1?'30':'00');
+    t.recurringTime=String(Math.floor(hour)).padStart(2,'0')+':'+String(planMinOf(hour)).padStart(2,'0');
     t.recurringHour=hour; t.recurStart=day; t.recurUntil=until; t.recurExceptions={};
   }
   DB.tasks.unshift(t);
@@ -14142,7 +14155,7 @@ function planCreateTask(day, hour, durationMins){
   const pop=document.getElementById('plan_create_popup'); if(pop) pop.remove();
   const t={id:uid('t'),title:'New task',dropId:'',due:day,done:false,category:'Task',categoryId:(planCatFilter?planCatById(planCatFilter).id:planDefaultCatId()),
     type:'Admin',projectId:'',assignedTo:getPresenceName()||teamList()[0],
-    time:Math.floor(hour)+':'+(Number(hour)%1?'30':'00'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
+    time:Math.floor(hour)+':'+String(planMinOf(hour)).padStart(2,'0'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
     estMins:durationMins,scheduledDate:day,scheduledHour:Number(hour),
     recurring:false,recurringDays:[],recurringTime:'',recurringHour:null,
     recurringType:'',recurringColor:'#CA8A04',created:now()};
@@ -14170,7 +14183,7 @@ function planCreateTimeOff(day, hour, durationMins){
 }
 function planSaveTimeOff(day, hour, durationMins, label){
   DB.planTimeBlocks=DB.planTimeBlocks||[];
-  DB.planTimeBlocks.push({id:uid('tb'),date:day,startHour:Number(hour),
+  DB.planTimeBlocks.push({id:uid('tb'),date:day,startHour:Number(hour),mins:Number(durationMins)||60,
     endHour:Number(hour)+Math.ceil(durationMins/60)-1,label,
     categoryId:(_planTbCat&&planCats().some(c=>c.id===_planTbCat))?_planTbCat:planGuessCatForLabel(label),created:now()});
   _planTbCat='';
