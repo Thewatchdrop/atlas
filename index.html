@@ -13897,7 +13897,7 @@ function planQuickAddOpen(day, hour, durationMins, catId, timeOffMins, opts2){
   const opts=[15,30,45,60,90,120,180,240];
   const dur=opts.reduce((best,o)=>o<=durationMins&&Math.abs(o-durationMins)<=Math.abs(best-durationMins)?o:best,opts[0]);
   const sub=(!catId&&planSubFilter&&planSubOf({categoryId:cat,subcategoryId:planSubFilter}))?planSubFilter:'';
-  _planQA={day,hour:(hour===null?null:Number(hour)),unsched:(hour===null),cat,sub,dur,timeOffMins:timeOffMins||60,rfreq:'none',rdays:[planDayName(day)],rend:'never'};
+  _planQA={day,hour:(hour===null?null:Number(hour)),unsched:(hour===null),auto:'',preset:'',durPicked:(hour!==null&&Number(durationMins)!==30),cat,sub,dur,timeOffMins:timeOffMins||60,rfreq:'none',rdays:[planDayName(day)],rend:'never'};
   const pop=document.createElement('div');
   pop.id='plan_quickadd';
   pop.style.cssText='position:fixed;z-index:250;width:290px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.45);padding:12px;max-height:calc(100vh - 16px);overflow-y:auto';
@@ -13938,6 +13938,7 @@ function planQuickAddOpen(day, hour, durationMins, catId, timeOffMins, opts2){
   const r=slot?slot.getBoundingClientRect():{left:window.innerWidth/2-135,top:window.innerHeight/3,bottom:window.innerHeight/3+28};
   _planQA.rect={left:r.left,top:r.top,bottom:r.bottom};
   { const sb=document.getElementById('pqa_subs'); sb.style.display=sb.innerHTML?'flex':'none'; }
+  planQAAutoFill(PLAN_PRESET_NAMES[cat]||'');
   planQAReposition();
   document.addEventListener('keydown',_planQAKey,true);
   document.addEventListener('mousedown',_planQAOutside,true);
@@ -13950,9 +13951,19 @@ function planQAReposition(){
   let top=r.bottom+4; if(top+ph>window.innerHeight-8) top=Math.max(8,r.top-ph-4);
   pop.style.left=left+'px'; pop.style.top=top+'px';
 }
+// names filled in for you when you pick these categories (or the Lunch preset)
+const PLAN_PRESET_NAMES={pcat_travel:'Travel',pcat_rest:'Rest'};
+function planQAAutoFill(text){
+  const el=document.getElementById('pqa_title'); if(!el||!_planQA) return;
+  // only when the name is empty or still the value we filled in ourselves - never overwrite what was typed
+  if(el.value===''||el.value===_planQA.auto){ el.value=text; _planQA.auto=text; }
+}
 function planQACatChips(){
+  const rest=planCats().find(c=>c.id==='pcat_rest');
   return planCats().map(c=>`<button type="button" onclick="planQASetCat('${c.id}')"
-    style="background:${c.color};color:${planTextOn(c.color)};border-radius:12px;padding:3px 9px;font-size:11px;font-weight:700;${_planQA.cat===c.id?'outline:2px solid var(--ink);outline-offset:1px':'opacity:.75'}">${esc(c.name)}</button>`).join('');
+    style="background:${c.color};color:${planTextOn(c.color)};border-radius:12px;padding:3px 9px;font-size:11px;font-weight:700;${_planQA.cat===c.id&&!_planQA.preset?'outline:2px solid var(--ink);outline-offset:1px':'opacity:.75'}">${esc(c.name)}</button>`).join('')
+   +(rest?`<button type="button" onclick="planQALunch()" title="Preset: Rest category, named Lunch, 1hr"
+    style="background:transparent;color:var(--ink);border:2px dashed ${rest.color};border-radius:12px;padding:1px 8px;font-size:11px;font-weight:700;${_planQA.preset==='lunch'?'outline:2px solid var(--ink);outline-offset:1px':'opacity:.85'}">🍽 Lunch</button>`:'');
 }
 function planQASubChips(){
   return planSubCats(_planQA.cat).map(c=>`<button type="button" onclick="planQASetSub('${c.id}')" title="${esc(c.desc||c.name)}"
@@ -13963,16 +13974,26 @@ function planQADurChips(){
     style="background:${_planQA.dur===m?'var(--gold)':'var(--bg2)'};color:${_planQA.dur===m?'#111827':'var(--ink2)'};border:1px solid var(--line2);border-radius:12px;padding:3px 9px;font-size:11px;font-weight:700">${planFmtEst(m)}</button>`).join('');
 }
 function planQASetCat(id){
-  if(!_planQA) return; if(_planQA.cat!==id) _planQA.sub=''; _planQA.cat=id;
+  if(!_planQA) return; if(_planQA.cat!==id) _planQA.sub=''; _planQA.cat=id; _planQA.preset='';
   document.getElementById('pqa_cats').innerHTML=planQACatChips();
   const sb=document.getElementById('pqa_subs'); sb.innerHTML=planQASubChips(); sb.style.display=sb.innerHTML?'flex':'none';
+  planQAAutoFill(PLAN_PRESET_NAMES[id]||'');
   planQAReposition();
+}
+// Lunch preset: Rest category, named Lunch, 1hr unless a length was already chosen
+function planQALunch(){
+  if(!_planQA) return;
+  planQASetCat('pcat_rest');
+  planQAAutoFill('Lunch');
+  _planQA.preset='lunch';
+  if(!_planQA.durPicked){ _planQA.dur=60; document.getElementById('pqa_durs').innerHTML=planQADurChips(); }
+  document.getElementById('pqa_cats').innerHTML=planQACatChips();
 }
 function planQASetSub(id){
   if(!_planQA) return; _planQA.sub=(_planQA.sub===id)?'':id; // click again to clear (sub-category is optional)
   document.getElementById('pqa_subs').innerHTML=planQASubChips();
 }
-function planQASetDur(m){ if(!_planQA) return; _planQA.dur=m; document.getElementById('pqa_durs').innerHTML=planQADurChips(); }
+function planQASetDur(m){ if(!_planQA) return; _planQA.dur=m; _planQA.durPicked=true; document.getElementById('pqa_durs').innerHTML=planQADurChips(); }
 function planQAToggleDay(dn){
   if(!_planQA) return; const a=_planQA.rdays; const i=a.indexOf(dn); if(i<0) a.push(dn); else a.splice(i,1); planQARepeat(true);
 }
