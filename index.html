@@ -327,6 +327,11 @@
   .tb-sub{font-size:10px;text-transform:uppercase;color:var(--ink3);font-weight:700;margin:8px 0 4px;letter-spacing:.5px}
   .tb-col-f{margin-top:8px;text-align:right}
   .tb-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+  .plan-task{position:relative}
+  .plan-del{opacity:0;cursor:pointer;font-size:11px;line-height:16px;padding:0 4px;border-radius:3px;background:rgba(0,0,0,.2);transition:opacity .12s;flex-shrink:0}
+  .plan-task:hover .plan-del,.plan-block:hover .plan-del,.plan-recur:hover .plan-del,.plan-del:focus{opacity:.9}
+  .plan-task .plan-del{position:absolute;top:6px;right:6px;background:var(--bg2);color:var(--ink2)}
+  @media (hover:none){.plan-del{opacity:.75}}
 
   .cal-nav{display:flex;align-items:center;gap:14px;margin-bottom:14px}
   .cal-nav h3{font-size:16px;font-weight:800;flex:1}
@@ -1328,6 +1333,7 @@ function migrate(){
   DB.notes=DB.notes||[];
   DB.dailyTakings=DB.dailyTakings||[];
   planMigrateCategories();
+  planMigrateRecurring();
   DB.contentScheduleTemplates=DB.contentScheduleTemplates||{};
   Object.keys(DEFAULT_CONTENT_SCHEDULE_TEMPLATES).forEach(ty=>{
     if(!DB.contentScheduleTemplates[ty]) DB.contentScheduleTemplates[ty]=JSON.parse(JSON.stringify(DEFAULT_CONTENT_SCHEDULE_TEMPLATES[ty]));
@@ -7757,6 +7763,7 @@ function taskTypeOptions(cat){
 }
 function openTask(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t)return;
+  const _occ=_planOccDate; _planOccDate=''; // date of the recurring block this window was opened from, if any
   const cat = t.category||'Task';
   const typeOpts = taskTypeOptions(cat);
   const currentType = typeOpts.includes(t.type) ? t.type : typeOpts[0];
@@ -7781,14 +7788,11 @@ function openTask(id){
         <div class="field"><label>Time (optional)</label><input id="tk_time" type="time" value="${esc(t.time||'')}"></div>
       </div>
       <div class="field">
-        <label style="display:flex;align-items:center;justify-content:space-between">
-          Recurring
-          <button type="button" id="tk_recur_toggle" class="btn btn-sm ${t.recurring?'btn-gold':''}" data-on="${t.recurring?'1':'0'}"
-            onclick="toggleRecurBtn()" style="font-size:11px;padding:4px 10px">
-            🔁 ${t.recurring?'On':'Off'}
-          </button>
-        </label>
+        <label>Repeats</label>
+        ${dd('tk_rfreq',[{value:'none',label:'None'},{value:'daily',label:'Daily'},{value:'weekdays',label:'Weekdays (Mon–Fri)'},{value:'weekly',label:'Weekly on chosen days'},{value:'monthly',label:'Monthly (same date)'}], planRecurFreq(t), 'planRepeatChanged')}
+        <button type="button" id="tk_recur_toggle" data-on="${t.recurring?'1':'0'}" style="display:none"></button>
         <div id="tk_recur_wrap" style="${t.recurring?'':'display:none'};margin-top:10px;background:var(--panel);border-radius:10px;padding:12px">
+          <div id="tk_rdays_wrap" style="${planRecurFreq(t)==='weekly'?'':'display:none'}">
           <div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">Repeat every week on</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
             ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day=>`
@@ -7797,11 +7801,20 @@ function openTask(id){
                 ${day}
               </button>`).join('')}
           </div>
+          </div>
           <div class="field-row" style="margin:0 0 12px">
             <div class="field" style="margin:0">
               <label>At time</label>
               <input id="tk_recur_time" type="time" value="${esc(t.recurringTime||'09:00')}"
                 style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px;width:100%">
+            </div>
+          </div>
+          <div class="field" style="margin:0 0 12px">
+            <label>Ends</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div style="width:130px">${dd('tk_rend',[{value:'never',label:'Never'},{value:'date',label:'On date'}], t.recurUntil?'date':'never','planRepeatEndChanged')}</div>
+              <div id="tk_runtil_wrap" style="${t.recurUntil?'':'display:none'}"><input id="tk_runtil" type="date" value="${esc(t.recurUntil||'')}"
+                style="background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 12px"></div>
             </div>
           </div>
           <div class="field" style="margin:0">
@@ -7812,7 +7825,8 @@ function openTask(id){
           </div>
         </div>
       </div>
-      <div class="field"><label>Planner colour category</label>${dd('tk_plancat',planCats().map(c=>({value:c.id,label:c.name})), planCatById(t.categoryId).id)}</div>
+      <div class="field"><label>Planner colour category</label>${dd('tk_plancat',planCats().map(c=>({value:c.id,label:c.name})), planCatById(t.categoryId).id,'planTaskCatChanged')}</div>
+      <div class="field" id="tk_plansub_field" style="${planSubCats(planCatById(t.categoryId).id).length?'':'display:none'}"><label>Sub-category (optional)</label><div id="tk_plansub_box">${planSubDD(planCatById(t.categoryId).id,t.subcategoryId)}</div></div>
       <div class="field"><label>Linked drop</label>${dd('tk_drop',[{value:'',label:'—'},...DB.drops.map(d=>({value:d.id,label:d.number}))], t.dropId||'')}</div>
       <div class="field"><label>Linked project</label>${dd('tk_project',[{value:'',label:'— None —'},...(DB.projects||[]).map(p=>({value:p.id,label:p.name}))], t.projectId||'')}</div>
       <div class="field" id="tk_person_field" style="${currentType==='Prize Delivery'?'':'display:none'}"><label>Linked customer/winner</label>${dd('tk_person',[{value:'',label:'— none —'},
@@ -7832,8 +7846,8 @@ function openTask(id){
         <button type="button" id="tk_urgent" class="btn btn-sm ${t.urgent?'btn-gold':''}" data-val="${t.urgent?'1':'0'}" onclick="toggleUrgentBtn()">⚡ ${t.urgent?'Urgent':'Mark urgent'}</button>
       </div>
     </div>
-    <div class="modal-f"><button class="btn btn-danger" onclick="delTask('${id}');closeModal()">Delete</button>
-      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="saveTask('${id}')">Save</button></div></div>`);
+    <div class="modal-f"><button class="btn btn-danger" onclick="${(_occ&&t.recurring)?`planOccDelete('${id}','${_occ}')`:`delTask('${id}');closeModal()`}">Delete</button>
+      <button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="${(_occ&&t.recurring)?`planOccSave('${id}','${_occ}')`:`saveTask('${id}')`}">Save</button></div></div>`);
 }
 function switchTaskCategory(cat){
   // Update all category buttons
@@ -7868,6 +7882,14 @@ function toggleRecurBtn(){
   btn.textContent='🔁 '+(on?'Off':'On');
   wrap.style.display=on?'none':'';
 }
+function planSubDD(catId,subId){
+  const subs=planSubCats(catId); if(!subs.length) return '';
+  return dd('tk_plansub',[{value:'',label:'— none —'},...subs.map(c=>({value:c.id,label:c.name}))], planSubOf({categoryId:catId,subcategoryId:subId})?subId:'');
+}
+function planTaskCatChanged(id,val){
+  const box=document.getElementById('tk_plansub_box'), f=document.getElementById('tk_plansub_field'); if(!box) return;
+  box.innerHTML=planSubDD(val,''); if(f) f.style.display=box.innerHTML?'':'none';
+}
 function toggleRecurDay(btn){
   btn.classList.toggle('btn-gold');
 }
@@ -7890,7 +7912,8 @@ function saveTask(id){
   t.type=ddVal('tk_type'); t.assignedTo=ddVal('tk_assignee');
   t.due=document.getElementById('tk_due').value; t.time=document.getElementById('tk_time').value;
   t.dropId=ddVal('tk_drop');
-  { const pc=ddVal('tk_plancat'); if(pc) t.categoryId=pc; }
+  { const pc=ddVal('tk_plancat'); if(pc) t.categoryId=pc;
+    const ps=ddVal('tk_plansub'); if(ps&&planSubOf({categoryId:t.categoryId,subcategoryId:ps})) t.subcategoryId=ps; else delete t.subcategoryId; }
   t.projectId=ddVal('tk_project')||'';
   t.personRef = (t.type==='Prize Delivery') ? ddVal('tk_person') : '';
   t.notes=document.getElementById('tk_notes').value;
@@ -7899,16 +7922,22 @@ function saveTask(id){
   t.file=mediaVal('tk_file');
   // Recurring
   const recurBtn=document.getElementById('tk_recur_toggle');
+  const _wasRec=!!t.recurring;
   t.recurring = recurBtn&&recurBtn.dataset.on==='1';
+  const _rf=ddVal('tk_rfreq'); if(_rf) t.recurring=(_rf!=='none');
   if(t.recurring){
-    t.recurringDays=[...document.querySelectorAll('.tk-recur-day.btn-gold')].map(b=>b.dataset.day);
+    t.recurFreq=(_rf&&_rf!=='none')?_rf:(t.recurFreq||'weekly');
+    t.recurringDays=t.recurFreq==='weekly'?[...document.querySelectorAll('.tk-recur-day.btn-gold')].map(b=>b.dataset.day):(t.recurFreq==='weekdays'?['Mon','Tue','Wed','Thu','Fri']:[]);
+    if(!_wasRec && !t.recurStart) t.recurStart=t.due||today(); // a newly repeating task starts on its due date
+    t.recurUntil=(ddVal('tk_rend')==='date')?((document.getElementById('tk_runtil')||{}).value||''):'';
+    t.recurExceptions=t.recurExceptions||{};
     const activeType=document.querySelector('.tk-recur-type[style*="color: rgb(255"],.tk-recur-type[style*="color:#fff"]');
     t.recurringType=(activeType?activeType.dataset.type:'')||t.recurringType||'';
     t.recurringColor=(activeType?activeType.dataset.color:'')||t.recurringColor||'#CA8A04';
     t.recurringTime=document.getElementById('tk_recur_time')?document.getElementById('tk_recur_time').value:'09:00';
-    t.recurringHour=t.recurringTime?parseInt(t.recurringTime.split(':')[0]):9;
+    { const _p=(t.recurringTime||'09:00').split(':'); t.recurringHour=(parseInt(_p[0])||0)+((parseInt(_p[1])||0)>=30?0.5:0); }
   } else {
-    t.recurringDays=[]; t.recurringTime=''; t.recurringHour=null;
+    t.recurringDays=[]; t.recurringTime=''; t.recurringHour=null; t.recurFreq='none';
   }
   const ub=document.getElementById('tk_urgent'); t.urgent = ub? ub.dataset.val==='1' : !!t.urgent;
   saveDB();closeModal();toast('Task saved');render();
@@ -13040,6 +13069,7 @@ const PLAN_EST_OPTIONS = [
 ];
 
 /* ===== Planner categories (colour coding) ===== */
+let planSubFilter=''; // sub-category filter (only while its category is the active filter)
 let planCatFilter=''; // '' = show all; otherwise a category id (this session only, not saved)
 let _planTbCat=''; // category chosen in the time-off picker ('' = automatic)
 let planDragCat=''; // category chip being dragged to a slot
@@ -13056,9 +13086,34 @@ function planDefaultCats(){
     {id:'pcat_rest',name:'Rest',color:'#15803D'}
   ];
 }
-function planCats(){
+function planAllCats(){
   if(!Array.isArray(DB.planCategories)||!DB.planCategories.length) DB.planCategories=planDefaultCats();
   return DB.planCategories;
+}
+// top-level categories only (sub-categories are entries in the same list with a parentId)
+function planCats(){ return planAllCats().filter(c=>!c.parentId); }
+function planSubCats(pid){ return planAllCats().filter(c=>c.parentId===pid); }
+function planSubById(id){ return id?(planAllCats().find(c=>c.parentId&&c.id===id)||null):null; }
+// the valid sub-category of a task-like object (it must belong to the object's category), or null
+function planSubOf(o){
+  if(!o||!o.subcategoryId) return null;
+  const sc=planSubById(o.subcategoryId);
+  return (sc&&sc.parentId===planCatById(o.categoryId).id)?sc:null;
+}
+function planDefaultSubs(){
+  return [
+    {id:'psub_web',name:'Website development',desc:'site builds, fixes, Vibe Code, plugins',color:'#1E3A8A'},
+    {id:'psub_email',name:'Emails',desc:'Klaviyo campaigns and flows',color:'#0369A1'},
+    {id:'psub_sms',name:'SMS',desc:'text campaigns and replies',color:'#0891B2'},
+    {id:'psub_ads',name:'Ad creation',desc:'Meta ads, creatives, copy',color:'#4338CA'},
+    {id:'psub_dropsetup',name:'Drop setup',desc:'building and checking drops',color:'#6D5BD0'},
+    {id:'psub_content',name:'Content creation',desc:'posts, blog, designs, video',color:'#0F766E'},
+    {id:'psub_stock',name:'Watches & stock',desc:'buying, suppliers, photos, vault prizes',color:'#38BDF8'},
+    {id:'psub_draws',name:'Draws & winners',desc:'live draws, results, winner handover',color:'#60A5FA'},
+    {id:'psub_support',name:'Customer support',desc:'tickets, inbox, queries',color:'#A5B4FC'},
+    {id:'psub_finance',name:'Finance & legal',desc:'Xero, compliance, Companies House',color:'#5B7DB1'},
+    {id:'psub_team',name:'Team & meetings',desc:'staff, calls, Dork plans',color:'#BAE6FD'}
+  ];
 }
 function planDefaultCatId(){
   const cats=planCats();
@@ -13070,16 +13125,26 @@ function planCatById(id){
 }
 function planMigrateCategories(){
   if(!Array.isArray(DB.planCategories)||!DB.planCategories.length) DB.planCategories=planDefaultCats();
+  // drop sub-categories whose parent no longer exists
+  { const top=new Set(DB.planCategories.filter(c=>!c.parentId).map(c=>c.id));
+    DB.planCategories=DB.planCategories.filter(c=>!c.parentId||top.has(c.parentId)); }
   DB.planCategories.forEach(c=>{
-    if(!c.id) c.id=uid('pcat');
+    if(!c.id) c.id=uid(c.parentId?'psub':'pcat');
     if(!c.name) c.name='Category';
     if(!/^#[0-9a-fA-F]{6}$/.test(c.color||'')) c.color='#64748B';
   });
-  if(!DB.planCategories.some(c=>c.id===DB.planDefaultCategoryId)){
-    const biz=DB.planCategories.find(c=>c.id==='pcat_business');
-    DB.planDefaultCategoryId=(biz||DB.planCategories[0]).id;
+  const _tops=DB.planCategories.filter(c=>!c.parentId);
+  if(!_tops.some(c=>c.id===DB.planDefaultCategoryId)){
+    const biz=_tops.find(c=>c.id==='pcat_business');
+    DB.planDefaultCategoryId=(biz||_tops[0]).id;
   }
-  const ids=new Set(DB.planCategories.map(c=>c.id));
+  const ids=new Set(_tops.map(c=>c.id));
+  // Business sub-categories: seeded once (the flag stops removed ones coming back)
+  DB.planSubSeeded=DB.planSubSeeded||{};
+  if(!DB.planSubSeeded.pcat_business && ids.has('pcat_business')){
+    planDefaultSubs().forEach(sc=>{ if(!DB.planCategories.some(c=>c.id===sc.id)) DB.planCategories.push({...sc,parentId:'pcat_business'}); });
+    DB.planSubSeeded.pcat_business=true;
+  }
   (DB.tasks||[]).forEach(t=>{
     if(!t.categoryId||!ids.has(t.categoryId)){
       // old Admin tasks go to Admin if it still exists; recurring tasks are mapped by type/title; everything else gets the default
@@ -13088,6 +13153,11 @@ function planMigrateCategories(){
       else if(t.category==='Admin') want='pcat_admin';
       t.categoryId=(want&&ids.has(want))?want:DB.planDefaultCategoryId;
     }
+    // a sub-category only counts if it still exists under the task's category; otherwise it's plain category
+    if(t.subcategoryId && !planSubOf(t)) delete t.subcategoryId;
+    if(t.recurExceptions) Object.keys(t.recurExceptions).forEach(k=>{
+      const ex=t.recurExceptions[k]; if(ex&&ex.subcategoryId&&!planSubOf({categoryId:ex.categoryId||t.categoryId,subcategoryId:ex.subcategoryId})) delete ex.subcategoryId;
+    });
   });
   DB.planTimeBlocks=DB.planTimeBlocks||[];
   DB.planTimeBlocks.forEach(b=>{
@@ -13113,44 +13183,72 @@ function planTextOn(hex){
   const m=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex||''); if(!m) return '#fff';
   const f=v=>{v=parseInt(v,16)/255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);};
   const L=0.2126*f(m[1])+0.7152*f(m[2])+0.0722*f(m[3]);
-  return L>0.4?'#111827':'#fff';
+  return (1.05/(L+0.05))>=((L+0.05)/0.06)?'#fff':'#111827';
 }
-function taskColor(t){ return planCatById(t&&t.categoryId).color; }
+function taskColor(t){ const sc=planSubOf(t); return sc?sc.color:planCatById(t&&t.categoryId).color; }
+// chip for a task-like object: its sub-category if it has one, otherwise its category
+function planTaskChip(o){
+  const sc=planSubOf(o);
+  return sc?`<span title="${esc(planCatById(o.categoryId).name)} › ${esc(sc.name)}" style="display:inline-flex;align-items:center;gap:4px;background:${sc.color};color:${planTextOn(sc.color)};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700">${esc(sc.name)}</span>`:planCatChip(planCatById(o&&o.categoryId));
+}
 function planCatChip(c){
   return `<span style="display:inline-flex;align-items:center;gap:4px;background:${c.color};color:${planTextOn(c.color)};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700">${esc(c.name)}</span>`;
 }
-function planPassesFilter(categoryId){
-  return !planCatFilter||planCatById(categoryId).id===planCatFilter;
+function planPassesFilter(categoryId,subId){
+  if(!planCatFilter) return true;
+  if(planCatById(categoryId).id!==planCatFilter) return false;
+  if(planSubFilter) return !!subId&&subId===planSubFilter&&!!planSubOf({categoryId,subcategoryId:subId});
+  return true; // filtering on a category shows its sub-categories too
 }
-function planSetCatFilter(id){ planCatFilter=(planCatFilter===id)?'':id; render(); }
+function planSetCatFilter(id){ planCatFilter=(planCatFilter===id)?'':id; planSubFilter=''; render(); }
+function planSetSubFilter(id){ planSubFilter=(planSubFilter===id)?'':id; render(); }
 function planLegend(){
   const cats=planCats();
   if(planCatFilter&&!cats.some(c=>c.id===planCatFilter)) planCatFilter='';
-  return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+  if(!planCatFilter) planSubFilter='';
+  const subs=planCatFilter?planSubCats(planCatFilter):[];
+  if(planSubFilter&&!subs.some(c=>c.id===planSubFilter)) planSubFilter='';
+  return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:${subs.length?'6':'12'}px">
     <button class="fbtn ${planCatFilter?'':'active'}" onclick="planSetCatFilter('${planCatFilter}')" ${planCatFilter?'':'disabled'}>All</button>
     ${cats.map(c=>`<button type="button" draggable="true" ondragstart="planDragCat='${c.id}';event.dataTransfer.setData('text/plain','plancat:${c.id}');event.dataTransfer.effectAllowed='copyMove'" ondragend="planDragCat=''" onclick="planSetCatFilter('${c.id}')" title="Click to show only ${esc(c.name)}; click again to show all. Drag onto a time slot to add a new task."
       style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:600;color:var(--ink);background:var(--panel);
       border:1px solid ${planCatFilter===c.id?c.color:'var(--line2)'};${planCatFilter===c.id?'box-shadow:0 0 0 2px '+c.color+'55;':''}${planCatFilter&&planCatFilter!==c.id?'opacity:.5;':''}">
       <span style="width:10px;height:10px;border-radius:50%;background:${c.color};flex-shrink:0"></span>${esc(c.name)}</button>`).join('')}
     <button type="button" class="btn btn-sm btn-ghost" onclick="planOpenCatEditor()">✎ Edit categories</button>
-  </div>`;
+  </div>
+  ${subs.length?`<div class="plan-sublegend" style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding-left:2px">
+    <span style="font-size:11px;color:var(--ink3)">${esc(planCatById(planCatFilter).name)}:</span>
+    ${subs.map(c=>`<button type="button" onclick="planSetSubFilter('${c.id}')" title="${esc(c.desc||c.name)}"
+      style="background:${c.color};color:${planTextOn(c.color)};border-radius:11px;padding:2px 9px;font-size:11px;font-weight:700;${planSubFilter===c.id?'outline:2px solid var(--ink);outline-offset:1px':(planSubFilter?'opacity:.5':'')}">${esc(c.name)}</button>`).join('')}
+  </div>`:''}`;
 }
 function planOpenCatEditor(){
-  _planCatEdit={cats:planCats().map(c=>({...c})),def:planDefaultCatId()};
+  _planCatEdit={cats:planAllCats().map(c=>({...c})),def:planDefaultCatId()};
   planRenderCatEditor();
 }
 function planRenderCatEditor(){
   const e=_planCatEdit; if(!e) return;
-  openModal(`<div class="modal"><div class="modal-h"><h3>Planner categories</h3><span class="x" onclick="closeModal()">×</span></div>
-    <div class="modal-b">
-      <div style="font-size:12px;color:var(--ink3);margin-bottom:10px">Rename, recolour, add or remove categories. The dot marks the default for new tasks. Removed categories move their tasks to the default.</div>
-      ${e.cats.map((c,i)=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+  const inp='background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:7px 10px';
+  const topCount=e.cats.filter(c=>!c.parentId).length;
+  const row=(c,i)=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
         <input type="radio" name="pcat_def" ${e.def===c.id?'checked':''} onchange="_planCatEdit.def='${c.id}'" title="Default category">
         <input type="color" value="${c.color}" oninput="_planCatEdit.cats[${i}].color=this.value" style="width:38px;height:32px;border:none;background:none;padding:0;cursor:pointer">
-        <input type="text" value="${esc(c.name)}" oninput="_planCatEdit.cats[${i}].name=this.value" maxlength="30"
-          style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:7px 10px">
-        <button type="button" class="btn btn-sm btn-danger" onclick="planCatEditRemove(${i})" ${e.cats.length<2?'disabled':''}>Remove</button>
-      </div>`).join('')}
+        <input type="text" value="${esc(c.name)}" oninput="_planCatEdit.cats[${i}].name=this.value" maxlength="30" style="flex:1;${inp}">
+        <button type="button" class="btn btn-sm btn-danger" onclick="planCatEditRemove(${i})" ${topCount<2?'disabled':''}>Remove</button>
+      </div>`;
+  const subRow=(c,i)=>`<div style="display:flex;gap:8px;align-items:center;margin:0 0 6px 28px">
+        <input type="color" value="${c.color}" oninput="_planCatEdit.cats[${i}].color=this.value" style="width:30px;height:26px;border:none;background:none;padding:0;cursor:pointer">
+        <input type="text" value="${esc(c.name)}" oninput="_planCatEdit.cats[${i}].name=this.value" maxlength="30" style="width:150px;${inp};padding:5px 8px;font-size:12px">
+        <input type="text" value="${esc(c.desc||'')}" placeholder="Description (optional)" oninput="_planCatEdit.cats[${i}].desc=this.value" maxlength="80" style="flex:1;${inp};padding:5px 8px;font-size:12px">
+        <button type="button" class="btn btn-sm btn-ghost" onclick="planCatEditRemove(${i})" title="Remove sub-category">×</button>
+      </div>`;
+  const html=e.cats.map((c,i)=>c.parentId?'':row(c,i)
+    +e.cats.map((sc,j)=>sc.parentId===c.id?subRow(sc,j):'').join('')
+    +`<div style="margin:0 0 12px 28px"><button type="button" class="btn btn-sm btn-ghost" style="font-size:11px" onclick="planCatEditAddSub('${c.id}')">＋ Sub-category</button></div>`).join('');
+  openModal(`<div class="modal"><div class="modal-h"><h3>Planner categories</h3><span class="x" onclick="closeModal()">×</span></div>
+    <div class="modal-b" style="max-height:70vh;overflow-y:auto">
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:10px">Rename, recolour, add or remove categories and their sub-categories. The dot marks the default for new tasks. Removing a category moves its tasks to the default; removing a sub-category makes its tasks plain (parent) category.</div>
+      ${html}
       <button type="button" class="btn btn-sm" onclick="planCatEditAdd()">＋ Add category</button>
     </div>
     <div class="modal-f"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn btn-gold" onclick="planSaveCatEditor()">Save</button></div></div>`);
@@ -13159,15 +13257,22 @@ function planCatEditAdd(){
   _planCatEdit.cats.push({id:uid('pcat'),name:'New category',color:'#0EA5E9'});
   planRenderCatEditor();
 }
+function planCatEditAddSub(pid){
+  const par=_planCatEdit.cats.find(c=>c.id===pid); if(!par) return;
+  _planCatEdit.cats.push({id:uid('psub'),name:'New sub-category',desc:'',color:par.color,parentId:pid});
+  planRenderCatEditor();
+}
 function planCatEditRemove(i){
-  const e=_planCatEdit; if(e.cats.length<2) return;
-  const gone=e.cats.splice(i,1)[0];
-  if(e.def===gone.id) e.def=e.cats[0].id;
+  const e=_planCatEdit; const gone=e.cats[i]; if(!gone) return;
+  if(gone.parentId){ e.cats.splice(i,1); planRenderCatEditor(); return; }
+  if(e.cats.filter(c=>!c.parentId).length<2) return;
+  e.cats=e.cats.filter(c=>c.id!==gone.id&&c.parentId!==gone.id);
+  if(e.def===gone.id) e.def=e.cats.find(c=>!c.parentId).id;
   planRenderCatEditor();
 }
 function planSaveCatEditor(){
   const e=_planCatEdit; if(!e) return;
-  e.cats.forEach(c=>{ c.name=(c.name||'').trim()||'Category'; });
+  e.cats.forEach(c=>{ c.name=(c.name||'').trim()||(c.parentId?'Sub-category':'Category'); });
   DB.planCategories=e.cats;
   DB.planDefaultCategoryId=e.def;
   planMigrateCategories(); // moves anything on a removed category to the default
@@ -13199,6 +13304,161 @@ function planSetBlockCat(blockId,catId){
   saveDB(); render();
 }
 
+
+/* ===== Recurring tasks (extends the existing recurring fields) =====
+   recurring (bool), recurringDays (weekly), recurringHour (slot time) stay as they were.
+   New: recurFreq none|daily|weekdays|weekly|monthly, recurStart/recurUntil (YYYY-MM-DD, '' = open),
+   recurExceptions {date:{skip:true} | {title,categoryId,subcategoryId,estMins,hour}} for "this one" edits. */
+let _planOccDate=''; // set when a task window is opened from a recurring block
+let _planUndoTimer=0;
+function planDayName(d){ return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()]; }
+function planRecurFreq(t){ return (t&&t.recurFreq)||((t&&t.recurring)?'weekly':'none'); }
+function planMigrateRecurring(){
+  (DB.tasks||[]).forEach(t=>{
+    if(t.recurring && t.recurFreq===undefined){
+      // old recurring tasks were "every week on recurringDays, forever" - that is exactly weekly, open-ended
+      t.recurFreq='weekly'; t.recurStart=t.recurStart||''; t.recurUntil=t.recurUntil||'';
+    }
+    if(t.recurring && !t.recurExceptions) t.recurExceptions={};
+  });
+}
+function planRecurBase(t,d){
+  if(!t||!t.recurring) return false;
+  if(t.recurStart && d<t.recurStart) return false;
+  if(t.recurUntil && d>t.recurUntil) return false;
+  const f=planRecurFreq(t), dn=planDayName(d);
+  if(f==='daily') return true;
+  if(f==='weekdays') return dn!=='Sat'&&dn!=='Sun';
+  if(f==='weekly') return (t.recurringDays||[]).includes(dn);
+  if(f==='monthly'){
+    const a=t.recurStart||t.due||d; const ad=Number(a.slice(8,10));
+    const dim=new Date(Number(d.slice(0,4)),Number(d.slice(5,7)),0).getDate();
+    return Number(d.slice(8,10))===Math.min(ad,dim);
+  }
+  return false;
+}
+function planRecurOccurrence(t,d){
+  if(!planRecurBase(t,d)) return null;
+  const ex=(t.recurExceptions||{})[d];
+  if(ex&&ex.skip) return null;
+  const o=ex||{};
+  return {t,date:d,title:o.title!=null?o.title:t.title,
+    categoryId:o.categoryId||t.categoryId,
+    subcategoryId:o.categoryId?o.subcategoryId:(o.subcategoryId!==undefined?o.subcategoryId:t.subcategoryId),
+    estMins:o.estMins!=null?o.estMins:t.estMins,
+    hour:o.hour!=null?o.hour:t.recurringHour};
+}
+function planRepeatChanged(id,val){
+  const on=val!=='none';
+  const tg=document.getElementById('tk_recur_toggle'); if(tg) tg.dataset.on=on?'1':'0';
+  const wrap=document.getElementById('tk_recur_wrap'); if(wrap) wrap.style.display=on?'':'none';
+  const dw=document.getElementById('tk_rdays_wrap'); if(dw) dw.style.display=(val==='weekly')?'':'none';
+  if(val==='weekly' && !document.querySelector('.tk-recur-day.btn-gold')){
+    const due=(document.getElementById('tk_due')||{}).value||today();
+    const b=document.querySelector('.tk-recur-day[data-day="'+planDayName(due)+'"]'); if(b) b.classList.add('btn-gold');
+  }
+}
+function planRepeatEndChanged(id,val){
+  const w=document.getElementById('tk_runtil_wrap'); if(w) w.style.display=(val==='date')?'':'none';
+}
+
+/* ===== Delete with undo ===== */
+function planUndoToast(msg,undo){
+  const old=document.getElementById('plan_undo_toast'); if(old) old.remove();
+  clearTimeout(_planUndoTimer);
+  const t=document.createElement('div'); t.className='toast'; t.id='plan_undo_toast';
+  t.style.cssText='display:flex;gap:14px;align-items:center';
+  t.innerHTML=`<span>${esc(msg)}</span><button type="button" style="color:var(--gold2);font-weight:700;text-decoration:underline;cursor:pointer">Undo</button>`;
+  t.querySelector('button').onclick=()=>{ t.remove(); clearTimeout(_planUndoTimer); undo(); };
+  document.body.appendChild(t);
+  _planUndoTimer=setTimeout(()=>t.remove(),5000);
+}
+// put a task back exactly as it was (same position in the list)
+function planRestoreTask(snap,idx){
+  const cur=DB.tasks.find(x=>x.id===snap.id);
+  if(cur){ Object.keys(cur).forEach(k=>delete cur[k]); Object.assign(cur,JSON.parse(JSON.stringify(snap))); }
+  else DB.tasks.splice(Math.min(idx,DB.tasks.length),0,JSON.parse(JSON.stringify(snap)));
+  queueSave(); render();
+}
+function planDeleteTask(id){
+  const idx=DB.tasks.findIndex(t=>t.id===id); if(idx<0) return;
+  const snap=JSON.parse(JSON.stringify(DB.tasks[idx]));
+  delTask(id); // the existing delete
+  planUndoToast(`Deleted "${snap.title}"`,()=>planRestoreTask(snap,idx));
+}
+function planDeleteTimeBlock(id){
+  const idx=(DB.planTimeBlocks||[]).findIndex(b=>b.id===id); if(idx<0) return;
+  const snap=JSON.parse(JSON.stringify(DB.planTimeBlocks[idx]));
+  DB.planTimeBlocks=DB.planTimeBlocks.filter(b=>b.id!==id);
+  saveDB(); render();
+  planUndoToast(`Deleted "${snap.label}"`,()=>{
+    if(DB.planTimeBlocks.some(b=>b.id===id)) return;
+    DB.planTimeBlocks.splice(Math.min(idx,DB.planTimeBlocks.length),0,snap); saveDB(); render();
+  });
+}
+
+/* ===== Recurring: "This one" / "All future" ===== */
+function planAskScope(title,cb){
+  const old=document.getElementById('plan_scope_pop'); if(old) old.remove();
+  const pop=document.createElement('div'); pop.id='plan_scope_pop';
+  pop.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:400;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:20px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,.55)';
+  pop.innerHTML=`<div style="font-weight:700;margin-bottom:6px">${esc(title)}</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:14px">This is a repeating task. Which ones?</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn btn-gold" id="plan_scope_this">This one</button>
+      <button type="button" class="btn" id="plan_scope_future">All future</button>
+      <button type="button" class="btn btn-ghost" id="plan_scope_cancel">Cancel</button>
+    </div>`;
+  document.body.appendChild(pop);
+  const done=sc=>{ pop.remove(); if(sc) cb(sc); };
+  pop.querySelector('#plan_scope_this').onclick=()=>done('this');
+  pop.querySelector('#plan_scope_future').onclick=()=>done('future');
+  pop.querySelector('#plan_scope_cancel').onclick=()=>done(null);
+}
+function planOpenOccurrence(id,date){ _planOccDate=date; openTask(id); }
+function planOccDelete(id,date){
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  planAskScope(`Delete "${t.title}" on ${planDayLabel(date)}`,scope=>{
+    const idx=DB.tasks.findIndex(x=>x.id===id); const snap=JSON.parse(JSON.stringify(t));
+    if(scope==='this'){
+      t.recurExceptions=t.recurExceptions||{}; t.recurExceptions[date]={skip:true};
+    }else if(t.recurStart && t.recurStart>=date){
+      delTask(id); // nothing earlier to keep: remove the whole series
+    }else{
+      const pe=planAddDays(date,-1);
+      t.recurUntil=(t.recurUntil&&t.recurUntil<pe)?t.recurUntil:pe; // end the series the day before; past stays
+    }
+    closeModal(); saveDB(); render();
+    planUndoToast(scope==='this'?`Deleted this one`:`Deleted this and all future`,()=>planRestoreTask(snap,idx));
+  });
+}
+function planOccSave(id,date){
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  planAskScope(`Apply changes to "${t.title}"`,scope=>planOccApplySave(id,date,scope));
+}
+function planOccApplySave(id,date,scope){
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  const snap=JSON.parse(JSON.stringify(t));
+  saveTask(id); // applies the form to the task, saves and closes the window
+  const t2=DB.tasks.find(x=>x.id===id); if(!t2) return;
+  if(scope==='this'){
+    const ov={title:t2.title,categoryId:t2.categoryId,estMins:t2.estMins,hour:t2.recurringHour};
+    if(t2.subcategoryId) ov.subcategoryId=t2.subcategoryId; else ov.subcategoryId='';
+    Object.keys(t2).forEach(k=>delete t2[k]); Object.assign(t2,JSON.parse(JSON.stringify(snap)));
+    t2.recurExceptions=Object.assign({},snap.recurExceptions||{}); t2.recurExceptions[date]=ov;
+  }else if(!(snap.recurStart && snap.recurStart>=date)){
+    // keep the past as its own (ended) series, and start the edited series from this date
+    const pe=planAddDays(date,-1);
+    const past=JSON.parse(JSON.stringify(snap)); past.id=uid('t');
+    past.recurUntil=(snap.recurUntil&&snap.recurUntil<pe)?snap.recurUntil:pe;
+    const ex=snap.recurExceptions||{}; past.recurExceptions={}; t2.recurExceptions={};
+    Object.keys(ex).forEach(k=>{ if(k<date) past.recurExceptions[k]=ex[k]; else t2.recurExceptions[k]=ex[k]; });
+    t2.recurStart=date;
+    DB.tasks.splice(DB.tasks.indexOf(t2)+1,0,past);
+  }
+  saveDB(); render();
+}
+
 function planDayLabel(d){ return new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); }
 function planAddDays(d,n){ const dt=new Date(d+'T12:00:00'); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); }
 function planWeekDays(d){ const dow=new Date(d+'T12:00:00').getDay(); const mon=planAddDays(d,-(dow===0?6:dow-1)); return Array.from({length:5},(_,i)=>planAddDays(mon,i)); }
@@ -13210,7 +13470,7 @@ function vPlanning(){
 
   // Unscheduled tasks — mine, not done, no scheduled date/time for these days
   const scheduled = new Set(DB.tasks.filter(t=>t.scheduledDate).map(t=>t.id));
-  const unscheduled = DB.tasks.filter(t=>!t.done && (t.assignedTo===myName||!t.assignedTo) && !t.scheduledDate && planPassesFilter(t.categoryId));
+  const unscheduled = DB.tasks.filter(t=>!t.done && (t.assignedTo===myName||!t.assignedTo) && !t.scheduledDate && !(t.recurring&&t.recurringHour!=null) && planPassesFilter(t.categoryId,t.subcategoryId));
 
   // Colour comes from the planner category (see taskColor above)
 
@@ -13221,11 +13481,12 @@ function vPlanning(){
           ondragstart="planDragTask='${t.id}';event.dataTransfer.effectAllowed='move'"
           ondragend="planDragTask=null"
           style="background:var(--panel);border:1px solid var(--line2);border-left:3px solid ${taskColor(t)};border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:grab">
-          <div style="font-size:13px;font-weight:600;color:var(--ink)">${esc(t.title)}</div>
+          <span class="plan-del" title="Delete task" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planDeleteTask('${t.id}')">🗑</span>
+          <div style="font-size:13px;font-weight:600;color:var(--ink);padding-right:22px">${esc(t.title)}</div>
           <div style="font-size:11px;color:var(--ink3);margin-top:3px;display:flex;gap:6px;align-items:center">
             ${t.estMins?`<span style="background:var(--bg2);border-radius:4px;padding:1px 6px">${planFmtEst(t.estMins)}</span>`:'<span style="color:var(--warn);font-size:10px">no estimate</span>'}
             ${t.dropId?`<span style="color:var(--gold2)">${esc((dropById(t.dropId)||{}).number||'')}</span>`:''}
-            ${planCatChip(planCatById(t.categoryId))}
+            ${planTaskChip(t)}
           </div>
         </div>`).join('')
     : '<div class="muted" style="font-size:12.5px;padding:8px 0">All tasks scheduled ✓</div>';
@@ -13250,10 +13511,10 @@ function vPlanning(){
       <div style="font-size:10px;color:var(--ink3);padding:4px 6px;text-align:right;border-right:1px solid var(--line2);${isNowHour?'color:var(--gold2);font-weight:700':''}">${timeLabel}</div>
       ${days.map(d=>{
         // Tasks scheduled in this hour
-        const slotTasks = DB.tasks.filter(t=>t.scheduledDate===d && t.scheduledHour===h && planPassesFilter(t.categoryId));
+        const slotTasks = DB.tasks.filter(t=>t.scheduledDate===d && t.scheduledHour===h && planPassesFilter(t.categoryId,t.subcategoryId));
         const slotH = Math.floor(h); const slotMin = h%1?30:0;
         const dayName=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()];
-        const recurTasks = (!isHalfHr)?(DB.tasks||[]).filter(t=>t.recurring&&t.recurringHour===Math.floor(h)&&(t.recurringDays||[]).includes(dayName)):[];
+        const recurTasks = (DB.tasks||[]).map(t=>planRecurOccurrence(t,d)).filter(o=>o&&o.hour!=null&&Number(o.hour)===h&&planPassesFilter(o.categoryId,o.subcategoryId));
         return `<div class="plan-slot" data-day="${d}" data-hour="${h}"
           style="border-right:1px solid var(--line2);padding:2px 4px;position:relative;min-height:${SLOT_H}px;background:${isNowHour&&d===today()?'rgba(201,162,75,.04)':'transparent'}"
           onmousedown="planDrawStart(event,'${d}',${h})"
@@ -13270,20 +13531,21 @@ function vPlanning(){
               onmousedown="event.stopPropagation()"
               ondragstart="planDragTask='${t.id}';event.dataTransfer.setData('text/plain','${t.id}');event.dataTransfer.effectAllowed='move'"
               ondragend="planDragTask=null"
-              title="${esc(planCatById(t.categoryId).name)}"
+              title="${esc(planCatById(t.categoryId).name)}${planSubOf(t)?' › '+esc(planSubOf(t).name):''}"
               style="background:${isDone?'var(--panel2)':taskColor(t)};color:${isDone?'var(--ink3)':planTextOn(taskColor(t))};${isDone?'border-left:4px solid '+taskColor(t)+';':''}
                 border-radius:6px;padding:4px 8px 12px;font-size:11px;font-weight:600;
                 position:absolute;top:2px;left:3px;right:3px;height:${bh}px;box-sizing:border-box;overflow:hidden;z-index:10;
                 cursor:grab;user-select:none;${isDone?'opacity:.6;text-decoration:line-through':''}">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
-                <span onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}</span>
+                <span onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}${planSubOf(t)?` <span style="opacity:.85;font-weight:500">· ${esc(planSubOf(t).name)}</span>`:''}</span>
                 <div style="display:flex;gap:3px;flex-shrink:0">
                   <span onclick="event.stopPropagation();planMarkDone('${t.id}')"
                     title="${isDone?'Mark undone':'Mark done'}"
                     style="cursor:pointer;font-size:11px;opacity:.8;background:rgba(0,0,0,.2);border-radius:3px;padding:0 4px;line-height:16px">
                     ${isDone?'↺':'✓'}
                   </span>
-                  <span onclick="event.stopPropagation();planUnschedule('${t.id}')" style="opacity:.7;cursor:pointer;font-size:13px;line-height:1">×</span>
+                  <span class="plan-del" title="Delete task" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planDeleteTask('${t.id}')">🗑</span>
+                  <span onclick="event.stopPropagation();planUnschedule('${t.id}')" title="Unschedule (back to the list)" style="opacity:.7;cursor:pointer;font-size:13px;line-height:1">×</span>
                 </div>
               </div>
               ${mins&&mins!==60?`<div style="font-size:9px;opacity:.7;margin-top:2px">${planFmtEst(mins)}</div>`:''}
@@ -13295,17 +13557,18 @@ function vPlanning(){
               </div>
             </div>`;
           }).join('')}
-          ${recurTasks.filter(t=>planPassesFilter(t.categoryId)).map(t=>{
-            const rc=taskColor(t);
+          ${recurTasks.map(o=>{
+            const t=o.t; const rc=taskColor(o); const sc=planSubOf(o);
             const rt=t.recurringType||'';
-            return `<div class="plan-recur" onclick="openTask('${t.id}')"
-              title="${esc(planCatById(t.categoryId).name)}"
-              style="background:${rc};color:${planTextOn(rc)};border-radius:5px;padding:4px 8px;font-size:11px;font-weight:700;
-                margin-bottom:2px;cursor:pointer;display:flex;align-items:center;gap:5px;
-                border-left:3px solid rgba(255,255,255,.4)">
-              <span style="opacity:.8;font-size:10px">↻</span>
-              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(t.title)}</span>
-              ${rt?`<span style="font-size:9px;opacity:.75;background:rgba(0,0,0,.2);border-radius:3px;padding:1px 4px">${esc(rt)}</span>`:''}
+            return `<div class="plan-recur" onclick="planOpenOccurrence('${t.id}','${o.date}')"
+              title="${esc(planCatById(o.categoryId).name)}${sc?' › '+esc(sc.name):''} — repeats; click to edit"
+              style="background:${rc}8C;color:var(--ink);border-left:4px solid ${rc};border-radius:5px;padding:4px 8px;font-size:11px;font-weight:700;
+                margin-bottom:2px;cursor:pointer;display:flex;align-items:center;gap:5px">
+              <span class="plan-recur-icon" style="font-size:11px;opacity:.9">↻</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(o.title)}${sc?` <span style="opacity:.8;font-weight:500">· ${esc(sc.name)}</span>`:''}</span>
+              ${o.estMins?`<span style="font-size:9px;opacity:.75">${planFmtEst(o.estMins)}</span>`:''}
+              ${rt?`<span style="font-size:9px;opacity:.8;background:rgba(127,127,127,.25);border-radius:3px;padding:1px 4px">${esc(rt)}</span>`:''}
+              <span class="plan-del" title="Delete" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planOccDelete('${t.id}','${o.date}')">🗑</span>
             </div>`;
           }).join('')}
           ${(DB.planTimeBlocks||[]).filter(b=>b.date===d&&b.startHour===h&&planPassesFilter(b.categoryId)).map(b=>{ const bc=planCatById(b.categoryId); return `
@@ -13313,7 +13576,7 @@ function vPlanning(){
               color:var(--ink);font-weight:600;display:flex;align-items:center;justify-content:space-between;cursor:pointer;
               height:${Math.max(28,(b.endHour-b.startHour+1)*SLOT_H-6)}px;box-sizing:border-box">
               <span>🚫 ${esc(b.label)} <span style="opacity:.75;font-weight:500">· ${esc(bc.name)}</span></span>
-              <span onclick="event.stopPropagation();DB.planTimeBlocks=DB.planTimeBlocks.filter(x=>x.id!=='${b.id}');saveDB();render()"
+              <span onclick="event.stopPropagation();planDeleteTimeBlock('${b.id}')"
                 style="cursor:pointer;opacity:.6;font-size:13px">×</span>
             </div>`;}).join('')}
         </div>`;
@@ -13497,6 +13760,7 @@ function planQuickAddClose(){
 }
 function _planQAKey(e){
   if(!_planQA) return;
+  if(document.getElementById('plan_scope_pop')) return;
   if(e.key==='Escape'){ e.preventDefault(); planQuickAddClose(); }
   else if(e.key==='Enter' && !(e.target.tagName==='BUTTON')){ e.preventDefault(); planQuickAddSave(); }
 }
@@ -13510,48 +13774,97 @@ function planQuickAddOpen(day, hour, durationMins, catId, timeOffMins){
   const cat=cats.some(c=>c.id===catId)?catId:(planCatFilter&&cats.some(c=>c.id===planCatFilter)?planCatFilter:planDefaultCatId());
   const opts=[15,30,45,60,90,120,180,240];
   const dur=opts.reduce((best,o)=>o<=durationMins&&Math.abs(o-durationMins)<=Math.abs(best-durationMins)?o:best,opts[0]);
-  _planQA={day,hour:Number(hour),cat,dur,timeOffMins:timeOffMins||60};
+  const sub=(!catId&&planSubFilter&&planSubOf({categoryId:cat,subcategoryId:planSubFilter}))?planSubFilter:'';
+  _planQA={day,hour:Number(hour),cat,sub,dur,timeOffMins:timeOffMins||60,rfreq:'none',rdays:[planDayName(day)],rend:'never'};
   const pop=document.createElement('div');
   pop.id='plan_quickadd';
-  pop.style.cssText='position:fixed;z-index:250;width:270px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.45);padding:12px';
+  pop.style.cssText='position:fixed;z-index:250;width:290px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.45);padding:12px;max-height:calc(100vh - 16px);overflow-y:auto';
+  const fld='background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:6px 8px';
   pop.innerHTML=`<div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Quick add · ${planDayLabel(day)}</div>
     <input id="pqa_title" type="text" placeholder="Task name" maxlength="120" autocomplete="off"
-      style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px;margin-bottom:10px">
-    <div id="pqa_cats" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">${planQACatChips()}</div>
+      style="width:100%;${fld};padding:8px 10px;margin-bottom:10px">
+    <div id="pqa_cats" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">${planQACatChips()}</div>
+    <div id="pqa_subs" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;padding-left:6px;border-left:3px solid var(--line2)">${planQASubChips()}</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <label for="pqa_time" style="font-size:12px;color:var(--ink3)">Start</label>
-      <select id="pqa_time" style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:6px 8px">
+      <select id="pqa_time" style="flex:1;${fld}">
         ${PLAN_HOURS.map(h=>`<option value="${h}" ${h===_planQA.hour?'selected':''}>${planHourLabel(h)}</option>`).join('')}
       </select>
     </div>
-    <div id="pqa_durs" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px">${planQADurChips()}</div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div id="pqa_durs" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">${planQADurChips()}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <label for="pqa_rfreq" style="font-size:12px;color:var(--ink3)">Repeats</label>
+      <select id="pqa_rfreq" onchange="planQARepeat()" style="flex:1;${fld}">
+        <option value="none">None</option><option value="daily">Daily</option><option value="weekdays">Weekdays (Mon–Fri)</option>
+        <option value="weekly">Weekly on chosen days</option><option value="monthly">Monthly (same date)</option>
+      </select>
+    </div>
+    <div id="pqa_rdays" style="display:none;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
+    <div id="pqa_rendrow" style="display:none;gap:8px;align-items:center;margin-bottom:8px">
+      <label for="pqa_rend" style="font-size:12px;color:var(--ink3)">Ends</label>
+      <select id="pqa_rend" onchange="planQARepeat()" style="${fld}"><option value="never">Never</option><option value="date">On date</option></select>
+      <input id="pqa_runtil" type="date" style="display:none;flex:1;${fld}">
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
       <button type="button" class="btn btn-gold btn-sm" onclick="planQuickAddSave()">Add</button>
       <button type="button" class="btn btn-sm" onclick="planQuickAddClose()">Cancel</button>
       <button type="button" class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="planQuickAddTimeOff()">🚫 Time off</button>
     </div>`;
   document.body.appendChild(pop);
-  // anchor at the slot
   const slot=document.querySelector(`.plan-slot[data-day="${day}"][data-hour="${hour}"]`);
   const r=slot?slot.getBoundingClientRect():{left:window.innerWidth/2-135,top:window.innerHeight/3,bottom:window.innerHeight/3+28};
-  const ph=pop.offsetHeight||260;
-  let left=Math.max(8,Math.min(r.left+8,window.innerWidth-pop.offsetWidth-8));
-  let top=r.bottom+4; if(top+ph>window.innerHeight-8) top=Math.max(8,r.top-ph-4);
-  pop.style.left=left+'px'; pop.style.top=top+'px';
+  _planQA.rect={left:r.left,top:r.top,bottom:r.bottom};
+  { const sb=document.getElementById('pqa_subs'); sb.style.display=sb.innerHTML?'flex':'none'; }
+  planQAReposition();
   document.addEventListener('keydown',_planQAKey,true);
   document.addEventListener('mousedown',_planQAOutside,true);
   document.getElementById('pqa_title').focus();
+}
+function planQAReposition(){
+  const pop=document.getElementById('plan_quickadd'); if(!pop||!_planQA) return;
+  const r=_planQA.rect, ph=pop.offsetHeight||260;
+  const left=Math.max(8,Math.min(r.left+8,window.innerWidth-pop.offsetWidth-8));
+  let top=r.bottom+4; if(top+ph>window.innerHeight-8) top=Math.max(8,r.top-ph-4);
+  pop.style.left=left+'px'; pop.style.top=top+'px';
 }
 function planQACatChips(){
   return planCats().map(c=>`<button type="button" onclick="planQASetCat('${c.id}')"
     style="background:${c.color};color:${planTextOn(c.color)};border-radius:12px;padding:3px 9px;font-size:11px;font-weight:700;${_planQA.cat===c.id?'outline:2px solid var(--ink);outline-offset:1px':'opacity:.75'}">${esc(c.name)}</button>`).join('');
 }
+function planQASubChips(){
+  return planSubCats(_planQA.cat).map(c=>`<button type="button" onclick="planQASetSub('${c.id}')" title="${esc(c.desc||c.name)}"
+    style="background:${c.color};color:${planTextOn(c.color)};border-radius:11px;padding:2px 8px;font-size:10.5px;font-weight:700;${_planQA.sub===c.id?'outline:2px solid var(--ink);outline-offset:1px':'opacity:.75'}">${esc(c.name)}</button>`).join('');
+}
 function planQADurChips(){
   return [15,30,45,60,90,120,180,240].map(m=>`<button type="button" onclick="planQASetDur(${m})"
     style="background:${_planQA.dur===m?'var(--gold)':'var(--bg2)'};color:${_planQA.dur===m?'#111827':'var(--ink2)'};border:1px solid var(--line2);border-radius:12px;padding:3px 9px;font-size:11px;font-weight:700">${planFmtEst(m)}</button>`).join('');
 }
-function planQASetCat(id){ if(!_planQA) return; _planQA.cat=id; document.getElementById('pqa_cats').innerHTML=planQACatChips(); }
+function planQASetCat(id){
+  if(!_planQA) return; if(_planQA.cat!==id) _planQA.sub=''; _planQA.cat=id;
+  document.getElementById('pqa_cats').innerHTML=planQACatChips();
+  const sb=document.getElementById('pqa_subs'); sb.innerHTML=planQASubChips(); sb.style.display=sb.innerHTML?'flex':'none';
+  planQAReposition();
+}
+function planQASetSub(id){
+  if(!_planQA) return; _planQA.sub=(_planQA.sub===id)?'':id; // click again to clear (sub-category is optional)
+  document.getElementById('pqa_subs').innerHTML=planQASubChips();
+}
 function planQASetDur(m){ if(!_planQA) return; _planQA.dur=m; document.getElementById('pqa_durs').innerHTML=planQADurChips(); }
+function planQAToggleDay(dn){
+  if(!_planQA) return; const a=_planQA.rdays; const i=a.indexOf(dn); if(i<0) a.push(dn); else a.splice(i,1); planQARepeat(true);
+}
+function planQARepeat(keep){
+  if(!_planQA) return;
+  const f=document.getElementById('pqa_rfreq').value; _planQA.rfreq=f;
+  _planQA.rend=document.getElementById('pqa_rend').value;
+  const dw=document.getElementById('pqa_rdays');
+  dw.style.display=(f==='weekly')?'flex':'none';
+  dw.innerHTML=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(dn=>`<button type="button" onclick="planQAToggleDay('${dn}')"
+    style="min-width:34px;border-radius:10px;padding:3px 6px;font-size:11px;font-weight:700;border:1px solid var(--line2);background:${_planQA.rdays.includes(dn)?'var(--gold)':'var(--bg2)'};color:${_planQA.rdays.includes(dn)?'#111827':'var(--ink2)'}">${dn}</button>`).join('');
+  document.getElementById('pqa_rendrow').style.display=(f==='none')?'none':'flex';
+  document.getElementById('pqa_runtil').style.display=(_planQA.rend==='date'&&f!=='none')?'':'none';
+  planQAReposition();
+}
 function planQuickAddTimeOff(){
   if(!_planQA) return;
   const q=_planQA; planQuickAddClose();
@@ -13565,16 +13878,35 @@ function planQuickAddSave(){
   const q=_planQA;
   const hour=Number(document.getElementById('pqa_time').value);
   const day=q.day;
+  const rf=q.rfreq||'none';
+  let until='';
+  if(rf!=='none'){
+    if(rf==='weekly'&&!q.rdays.length){ toast('Pick at least one day'); return; }
+    if(q.rend==='date'){
+      until=document.getElementById('pqa_runtil').value||'';
+      if(!until){ toast('Pick an end date, or choose Never'); return; }
+      if(until<day){ toast('The end date is before the start'); return; }
+    }
+  }
   const t={id:uid('t'),title,dropId:'',due:day,done:false,category:'Task',categoryId:q.cat,
     type:'Admin',projectId:'',assignedTo:getPresenceName()||teamList()[0],
     time:Math.floor(hour)+':'+(hour%1?'30':'00'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
     estMins:q.dur,scheduledDate:day,scheduledHour:hour,scheduledMin:hour%1?30:0,
     recurring:false,recurringDays:[],recurringTime:'',recurringHour:null,
     recurringType:'',recurringColor:'#CA8A04',created:now()};
+  if(q.sub&&planSubOf({categoryId:q.cat,subcategoryId:q.sub})) t.subcategoryId=q.sub;
+  if(rf!=='none'){
+    // a repeating task lives on the planner through its recurring fields, not a single scheduled slot
+    t.scheduledDate=''; t.scheduledHour=null; delete t.scheduledMin;
+    t.recurring=true; t.recurFreq=rf;
+    t.recurringDays=rf==='weekly'?q.rdays.slice():(rf==='weekdays'?['Mon','Tue','Wed','Thu','Fri']:[]);
+    t.recurringTime=String(Math.floor(hour)).padStart(2,'0')+':'+(hour%1?'30':'00');
+    t.recurringHour=hour; t.recurStart=day; t.recurUntil=until; t.recurExceptions={};
+  }
   DB.tasks.unshift(t);
   planQuickAddClose();
   saveDB(); render();
-  toast(`${title} → ${planDayLabel(day)} at ${planHourLabel(hour)}`);
+  toast(`${title} → ${planDayLabel(day)} at ${planHourLabel(hour)}${rf!=='none'?' (repeats)':''}`);
 }
 
 function planShowCreatePopup(x, y, day, hour, durationMins){
@@ -13647,9 +13979,9 @@ function planSaveTimeOff(day, hour, durationMins, label){
 function planDaySummaryView(day, name){
   const d=day||planDay;
   const nm=name||getPresenceName()||'Felix';
-  const dayTasks=DB.tasks.filter(t=>!t.done&&(t.due===d||(t.scheduledDate===d))&&(t.assignedTo===nm||!t.assignedTo)&&planPassesFilter(t.categoryId));
-  const done=DB.tasks.filter(t=>t.done&&t.scheduledDate===d&&(t.assignedTo===nm||!t.assignedTo)&&planPassesFilter(t.categoryId));
-  const recurring=(DB.tasks||[]).filter(t=>t.recurring&&(t.recurringDays||[]).includes(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T12:00:00').getDay()])&&planPassesFilter(t.categoryId));
+  const dayTasks=DB.tasks.filter(t=>!t.done&&(t.due===d||(t.scheduledDate===d))&&(t.assignedTo===nm||!t.assignedTo)&&planPassesFilter(t.categoryId,t.subcategoryId));
+  const done=DB.tasks.filter(t=>t.done&&t.scheduledDate===d&&(t.assignedTo===nm||!t.assignedTo)&&planPassesFilter(t.categoryId,t.subcategoryId));
+  const recurring=(DB.tasks||[]).map(t=>{ const o=planRecurOccurrence(t,d); return o?{...t,title:o.title,categoryId:o.categoryId,subcategoryId:o.subcategoryId,estMins:o.estMins,scheduledHour:o.hour}:null; }).filter(x=>x&&planPassesFilter(x.categoryId,x.subcategoryId));
   const sections=[
     {label:'🔁 Recurring today',items:recurring,color:'var(--gold2)'},
     {label:'📋 Tasks for today',items:dayTasks,color:'var(--blue)'},
@@ -13664,7 +13996,7 @@ function planDaySummaryView(day, name){
           <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);${t.done?'opacity:.5':''}">
             <div style="width:3px;height:32px;background:${taskColor(t)};border-radius:2px;flex-shrink:0"></div>
             <div style="flex:1;min-width:0">
-              <div style="font-size:13px;font-weight:600;${t.done?'text-decoration:line-through':''}">${esc(t.title)} ${planCatChip(planCatById(t.categoryId))}</div>
+              <div style="font-size:13px;font-weight:600;${t.done?'text-decoration:line-through':''}">${esc(t.title)} ${planTaskChip(t)}</div>
               <div style="font-size:11px;color:var(--ink3)">${t.scheduledHour!=null?planHourLabel(t.scheduledHour):''}${t.estMins?' · '+planFmtEst(t.estMins):''}${t.dropId?' · '+(dropById(t.dropId)||{}).number||'':''}</div>
             </div>
             <button onclick="planMarkDone('${t.id}')" style="background:${t.done?'var(--panel2)':'var(--live)'};border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700;flex-shrink:0">${t.done?'↺':'✓'}</button>
