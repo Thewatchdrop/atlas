@@ -13042,6 +13042,8 @@ const PLAN_EST_OPTIONS = [
 /* ===== Planner categories (colour coding) ===== */
 let planCatFilter=''; // '' = show all; otherwise a category id (this session only, not saved)
 let _planTbCat=''; // category chosen in the time-off picker ('' = automatic)
+let planDragCat=''; // category chip being dragged to a slot
+let _planQA=null; // quick-add popover state
 let _planCatEdit=null; // working copy while the editor is open
 function planDefaultCats(){
   return [
@@ -13126,7 +13128,7 @@ function planLegend(){
   if(planCatFilter&&!cats.some(c=>c.id===planCatFilter)) planCatFilter='';
   return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
     <button class="fbtn ${planCatFilter?'':'active'}" onclick="planSetCatFilter('${planCatFilter}')" ${planCatFilter?'':'disabled'}>All</button>
-    ${cats.map(c=>`<button type="button" onclick="planSetCatFilter('${c.id}')" title="Click to show only ${esc(c.name)}; click again to show all"
+    ${cats.map(c=>`<button type="button" draggable="true" ondragstart="planDragCat='${c.id}';event.dataTransfer.setData('text/plain','plancat:${c.id}');event.dataTransfer.effectAllowed='copyMove'" ondragend="planDragCat=''" onclick="planSetCatFilter('${c.id}')" title="Click to show only ${esc(c.name)}; click again to show all. Drag onto a time slot to add a new task."
       style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:600;color:var(--ink);background:var(--panel);
       border:1px solid ${planCatFilter===c.id?c.color:'var(--line2)'};${planCatFilter===c.id?'box-shadow:0 0 0 2px '+c.color+'55;':''}${planCatFilter&&planCatFilter!==c.id?'opacity:.5;':''}">
       <span style="width:10px;height:10px;border-radius:50%;background:${c.color};flex-shrink:0"></span>${esc(c.name)}</button>`).join('')}
@@ -13296,7 +13298,7 @@ function vPlanning(){
           ${recurTasks.filter(t=>planPassesFilter(t.categoryId)).map(t=>{
             const rc=taskColor(t);
             const rt=t.recurringType||'';
-            return `<div onclick="openTask('${t.id}')"
+            return `<div class="plan-recur" onclick="openTask('${t.id}')"
               title="${esc(planCatById(t.categoryId).name)}"
               style="background:${rc};color:${planTextOn(rc)};border-radius:5px;padding:4px 8px;font-size:11px;font-weight:700;
                 margin-bottom:2px;cursor:pointer;display:flex;align-items:center;gap:5px;
@@ -13307,7 +13309,7 @@ function vPlanning(){
             </div>`;
           }).join('')}
           ${(DB.planTimeBlocks||[]).filter(b=>b.date===d&&b.startHour===h&&planPassesFilter(b.categoryId)).map(b=>{ const bc=planCatById(b.categoryId); return `
-            <div title="${esc(bc.name)} — click to change category" onclick="planEditBlockCat('${b.id}')" style="background:${bc.color}2E;border:2px dashed ${bc.color};border-left:5px solid ${bc.color};border-radius:5px;padding:4px 8px;font-size:11px;
+            <div class="plan-tb" title="${esc(bc.name)} — click to change category" onclick="planEditBlockCat('${b.id}')" style="background:${bc.color}2E;border:2px dashed ${bc.color};border-left:5px solid ${bc.color};border-radius:5px;padding:4px 8px;font-size:11px;
               color:var(--ink);font-weight:600;display:flex;align-items:center;justify-content:space-between;cursor:pointer;
               height:${Math.max(28,(b.endHour-b.startHour+1)*SLOT_H-6)}px;box-sizing:border-box">
               <span>🚫 ${esc(b.label)} <span style="opacity:.75;font-weight:500">· ${esc(bc.name)}</span></span>
@@ -13360,6 +13362,11 @@ function planFmtEst(mins){
 
 function planDrop(event, day, hour){
   event.preventDefault();
+  if(planDragCat){ // a category chip was dropped: open quick add with that category
+    const cid=planDragCat; planDragCat='';
+    planQuickAddOpen(day,Number(hour),30,cid);
+    return;
+  }
   const taskId = planDragTask||event.dataTransfer.getData('text/plain');
   if(!taskId) return;
   const t=DB.tasks.find(x=>x.id===taskId); if(!t) return;
@@ -13425,7 +13432,7 @@ let _planDraw=null;
 
 function planDrawStart(e, day, hour){
   if(e.button!==0) return; // left click only
-  if(e.target.closest('.plan-block,.plan-resize-handle,.plan-done-btn')) return;
+  if(e.target.closest('.plan-block,.plan-resize-handle,.plan-done-btn,.plan-tb,.plan-recur,#plan_quickadd')) return;
   if(planDragTask) return; // don't draw while dragging a task
   e.preventDefault();
   e.stopPropagation();
@@ -13446,7 +13453,7 @@ function planDrawMove(e){
   const els=document.elementsFromPoint(e.clientX,e.clientY);
   const slot=els.find(el=>el.classList&&el.classList.contains('plan-slot'));
   if(slot){
-    const h=parseInt(slot.dataset.hour);
+    const h=parseFloat(slot.dataset.hour);
     if(!isNaN(h)) _planDraw.endHour=Math.max(_planDraw.startHour,h);
   }
   planDrawUpdateOverlay(e);
@@ -13477,7 +13484,97 @@ function planDrawEnd(e){
   _planDraw=null;
   const durationMins=(endHour-startHour+1)*60;
   // Show choice popup near mouse
-  planShowCreatePopup(e.clientX, e.clientY, day, startHour, durationMins);
+  planQuickAddOpen(day, startHour, (endHour-startHour)*60+30, '', durationMins);
+}
+
+
+/* ===== Quick add popover (click an empty slot, or drop a category chip on one) ===== */
+function planQuickAddClose(){
+  const pop=document.getElementById('plan_quickadd'); if(pop) pop.remove();
+  document.removeEventListener('keydown',_planQAKey,true);
+  document.removeEventListener('mousedown',_planQAOutside,true);
+  _planQA=null;
+}
+function _planQAKey(e){
+  if(!_planQA) return;
+  if(e.key==='Escape'){ e.preventDefault(); planQuickAddClose(); }
+  else if(e.key==='Enter' && !(e.target.tagName==='BUTTON')){ e.preventDefault(); planQuickAddSave(); }
+}
+function _planQAOutside(e){
+  const pop=document.getElementById('plan_quickadd');
+  if(pop && !pop.contains(e.target)) planQuickAddClose();
+}
+function planQuickAddOpen(day, hour, durationMins, catId, timeOffMins){
+  planQuickAddClose();
+  const cats=planCats();
+  const cat=cats.some(c=>c.id===catId)?catId:(planCatFilter&&cats.some(c=>c.id===planCatFilter)?planCatFilter:planDefaultCatId());
+  const opts=[15,30,45,60,90,120,180,240];
+  const dur=opts.reduce((best,o)=>o<=durationMins&&Math.abs(o-durationMins)<=Math.abs(best-durationMins)?o:best,opts[0]);
+  _planQA={day,hour:Number(hour),cat,dur,timeOffMins:timeOffMins||60};
+  const pop=document.createElement('div');
+  pop.id='plan_quickadd';
+  pop.style.cssText='position:fixed;z-index:250;width:270px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.45);padding:12px';
+  pop.innerHTML=`<div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Quick add · ${planDayLabel(day)}</div>
+    <input id="pqa_title" type="text" placeholder="Task name" maxlength="120" autocomplete="off"
+      style="width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px;margin-bottom:10px">
+    <div id="pqa_cats" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">${planQACatChips()}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <label for="pqa_time" style="font-size:12px;color:var(--ink3)">Start</label>
+      <select id="pqa_time" style="flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:6px 8px">
+        ${PLAN_HOURS.map(h=>`<option value="${h}" ${h===_planQA.hour?'selected':''}>${planHourLabel(h)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="pqa_durs" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px">${planQADurChips()}</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button type="button" class="btn btn-gold btn-sm" onclick="planQuickAddSave()">Add</button>
+      <button type="button" class="btn btn-sm" onclick="planQuickAddClose()">Cancel</button>
+      <button type="button" class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="planQuickAddTimeOff()">🚫 Time off</button>
+    </div>`;
+  document.body.appendChild(pop);
+  // anchor at the slot
+  const slot=document.querySelector(`.plan-slot[data-day="${day}"][data-hour="${hour}"]`);
+  const r=slot?slot.getBoundingClientRect():{left:window.innerWidth/2-135,top:window.innerHeight/3,bottom:window.innerHeight/3+28};
+  const ph=pop.offsetHeight||260;
+  let left=Math.max(8,Math.min(r.left+8,window.innerWidth-pop.offsetWidth-8));
+  let top=r.bottom+4; if(top+ph>window.innerHeight-8) top=Math.max(8,r.top-ph-4);
+  pop.style.left=left+'px'; pop.style.top=top+'px';
+  document.addEventListener('keydown',_planQAKey,true);
+  document.addEventListener('mousedown',_planQAOutside,true);
+  document.getElementById('pqa_title').focus();
+}
+function planQACatChips(){
+  return planCats().map(c=>`<button type="button" onclick="planQASetCat('${c.id}')"
+    style="background:${c.color};color:${planTextOn(c.color)};border-radius:12px;padding:3px 9px;font-size:11px;font-weight:700;${_planQA.cat===c.id?'outline:2px solid var(--ink);outline-offset:1px':'opacity:.75'}">${esc(c.name)}</button>`).join('');
+}
+function planQADurChips(){
+  return [15,30,45,60,90,120,180,240].map(m=>`<button type="button" onclick="planQASetDur(${m})"
+    style="background:${_planQA.dur===m?'var(--gold)':'var(--bg2)'};color:${_planQA.dur===m?'#111827':'var(--ink2)'};border:1px solid var(--line2);border-radius:12px;padding:3px 9px;font-size:11px;font-weight:700">${planFmtEst(m)}</button>`).join('');
+}
+function planQASetCat(id){ if(!_planQA) return; _planQA.cat=id; document.getElementById('pqa_cats').innerHTML=planQACatChips(); }
+function planQASetDur(m){ if(!_planQA) return; _planQA.dur=m; document.getElementById('pqa_durs').innerHTML=planQADurChips(); }
+function planQuickAddTimeOff(){
+  if(!_planQA) return;
+  const q=_planQA; planQuickAddClose();
+  planCreateTimeOff(q.day,q.hour,q.timeOffMins);
+}
+function planQuickAddSave(){
+  if(!_planQA) return;
+  const titleEl=document.getElementById('pqa_title');
+  const title=(titleEl&&titleEl.value||'').trim();
+  if(!title){ toast('Give it a name first'); if(titleEl) titleEl.focus(); return; }
+  const q=_planQA;
+  const hour=Number(document.getElementById('pqa_time').value);
+  const day=q.day;
+  const t={id:uid('t'),title,dropId:'',due:day,done:false,category:'Task',categoryId:q.cat,
+    type:'Admin',projectId:'',assignedTo:getPresenceName()||teamList()[0],
+    time:Math.floor(hour)+':'+(hour%1?'30':'00'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
+    estMins:q.dur,scheduledDate:day,scheduledHour:hour,scheduledMin:hour%1?30:0,
+    recurring:false,recurringDays:[],recurringTime:'',recurringHour:null,
+    recurringType:'',recurringColor:'#CA8A04',created:now()};
+  DB.tasks.unshift(t);
+  planQuickAddClose();
+  saveDB(); render();
+  toast(`${title} → ${planDayLabel(day)} at ${planHourLabel(hour)}`);
 }
 
 function planShowCreatePopup(x, y, day, hour, durationMins){
