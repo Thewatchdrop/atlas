@@ -13072,6 +13072,7 @@ const PLAN_EST_OPTIONS = [
 let planSubFilter=''; // sub-category filter (only while its category is the active filter)
 let planCatFilter=''; // '' = show all; otherwise a category id (this session only, not saved)
 let _planTbCat=''; // category chosen in the time-off picker ('' = automatic)
+let planDragOcc=null; // repeating block being dragged: {id,date}
 let planDragCat=''; // category chip being dragged to a slot
 let _planQA=null; // quick-add popover state
 let _planCatEdit=null; // working copy while the editor is open
@@ -13442,6 +13443,64 @@ function planAskScope(title,cb){
   pop.querySelector('#plan_scope_future').onclick=()=>done('future');
   pop.querySelector('#plan_scope_cancel').onclick=()=>done(null);
 }
+/* ===== Drag a repeating block to another time / day ===== */
+function planOccDropped(o,day,hour){
+  const t=DB.tasks.find(x=>x.id===o.id); if(!t) return;
+  const occ=planRecurOccurrence(t,o.date); if(!occ) return;
+  if(day===o.date && Number(occ.hour)===hour) return; // dropped where it already is
+  planAskScope(`Move "${occ.title}" to ${planDayLabel(day)} at ${planHourLabel(hour)}`,scope=>planOccMove(o.id,o.date,day,hour,scope));
+}
+function planOccMove(id,fromDate,day,hour,scope){
+  const idx=DB.tasks.findIndex(x=>x.id===id); if(idx<0) return;
+  const t=DB.tasks[idx]; const occ=planRecurOccurrence(t,fromDate); if(!occ) return;
+  const snap=JSON.parse(JSON.stringify(t));
+  const hhmm=String(Math.floor(hour)).padStart(2,'0')+':'+(hour%1?'30':'00');
+  const created=[]; let msg;
+  if(scope==='this'){
+    t.recurExceptions=t.recurExceptions||{};
+    if(day===fromDate){
+      // same day, new time: the same override the "edit this one" path uses
+      t.recurExceptions[fromDate]=Object.assign({},t.recurExceptions[fromDate]||{},{hour});
+    }else{
+      // different day: skip this date and make a one-off copy at the new day and time
+      t.recurExceptions[fromDate]={skip:true};
+      const c=JSON.parse(JSON.stringify(t));
+      ['recurStart','recurUntil','recurExceptions','recurFreq'].forEach(k=>delete c[k]);
+      Object.assign(c,{id:uid('t'),title:occ.title,categoryId:occ.categoryId,estMins:occ.estMins,due:day,done:false,
+        recurring:false,recurringDays:[],recurringTime:'',recurringHour:null,
+        scheduledDate:day,scheduledHour:hour,scheduledMin:hour%1?30:0,time:Math.floor(hour)+':'+(hour%1?'30':'00'),created:now()});
+      if(occ.subcategoryId) c.subcategoryId=occ.subcategoryId; else delete c.subcategoryId;
+      DB.tasks.splice(idx+1,0,c); created.push(c.id);
+    }
+    msg=`Moved this one to ${planDayLabel(day)} at ${planHourLabel(hour)}`;
+  }else{
+    // all future: change the series from this date on; the past stays as it was
+    const f=planRecurFreq(t);
+    let split=!(snap.recurStart && snap.recurStart>=fromDate);
+    if(split){
+      const pe=planAddDays(fromDate,-1);
+      const past=JSON.parse(JSON.stringify(snap)); past.id=uid('t');
+      past.recurUntil=(snap.recurUntil&&snap.recurUntil<pe)?snap.recurUntil:pe;
+      const ex=snap.recurExceptions||{}; past.recurExceptions={}; t.recurExceptions={};
+      Object.keys(ex).forEach(k=>{ if(k<fromDate) past.recurExceptions[k]=ex[k]; else t.recurExceptions[k]=ex[k]; });
+      t.recurStart=fromDate;
+      DB.tasks.splice(idx+1,0,past); created.push(past.id);
+    }
+    t.recurringHour=hour; t.recurringTime=hhmm;
+    if(f==='weekly' && day!==fromDate){
+      // the dragged weekday becomes the weekday it was dropped on
+      const w0=planDayName(fromDate), w1=planDayName(day);
+      const days=(t.recurringDays||[]).filter(d=>d!==w0); if(!days.includes(w1)) days.push(w1);
+      t.recurringDays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].filter(d=>days.includes(d));
+    }
+    msg=`Moved this and all future to ${planHourLabel(hour)}`+((day!==fromDate&&f!=='weekly')?' (this repeat keeps its days)':'');
+  }
+  saveDB(); render();
+  planUndoToast(msg,()=>{
+    DB.tasks=DB.tasks.filter(x=>!created.includes(x.id));
+    const i2=DB.tasks.findIndex(x=>x.id===snap.id); planRestoreTask(snap,i2<0?idx:i2);
+  });
+}
 function planOpenOccurrence(id,date){ _planOccDate=date; openTask(id); }
 function planOccDelete(id,date){
   const t=DB.tasks.find(x=>x.id===id); if(!t) return;
@@ -13589,7 +13648,7 @@ function vPlanning(){
           ${recurTasks.map(o=>{
             const t=o.t; const rc=taskColor(o); const sc=planSubOf(o);
             const rt=t.recurringType||'';
-            return `<div class="plan-recur" onclick="planOpenOccurrence('${t.id}','${o.date}')"
+            return `<div class="plan-recur" draggable="true" ondragstart="planDragOcc={id:'${t.id}',date:'${o.date}'};event.dataTransfer.setData('text/plain','planocc:${t.id}');event.dataTransfer.effectAllowed='move'" ondragend="planDragOcc=null" onclick="planOpenOccurrence('${t.id}','${o.date}')"
               title="${esc(planCatById(o.categoryId).name)}${sc?' › '+esc(sc.name):''} — repeats; click to edit"
               style="background:${rc}8C;color:var(--ink);border-left:4px solid ${rc};border-radius:5px;padding:4px 8px;font-size:11px;font-weight:700;
                 margin-bottom:2px;cursor:pointer;display:flex;align-items:center;gap:5px">
@@ -13658,6 +13717,7 @@ function planFmtEst(mins){
 
 function planDrop(event, day, hour){
   event.preventDefault();
+  if(planDragOcc){ const o=planDragOcc; planDragOcc=null; planOccDropped(o,day,Number(hour)); return; }
   if(planDragCat){ // a category chip was dropped: open quick add with that category
     const cid=planDragCat; planDragCat='';
     planQuickAddOpen(day,Number(hour),30,cid);
