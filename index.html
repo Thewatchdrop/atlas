@@ -332,6 +332,50 @@
   .plan-task:hover .plan-del,.plan-block:hover .plan-del,.plan-recur:hover .plan-del,.plan-del:focus{opacity:.9}
   .plan-task .plan-del{position:absolute;top:6px;right:6px;background:var(--bg2);color:var(--ink2)}
   @media (hover:none){.plan-del{opacity:.75}}
+  /* Planning page on phones (desktop is untouched: these defaults change nothing there) */
+  .plan-seg,.plan-nav{display:contents}
+  .plan-more,.plan-chev{display:none}
+  @media(max-width:700px){
+    .plan-head .desc{display:none}
+    .plan-head{margin-bottom:10px!important}
+    .plan-actions{flex-direction:column!important;align-items:stretch!important;gap:8px!important}
+    .plan-seg{display:flex;gap:6px}
+    .plan-seg .fbtn{flex:1;text-align:center;padding:9px 6px;white-space:nowrap}
+    .plan-divider{display:none}
+    .plan-nav{display:flex;align-items:center;gap:6px}
+    .plan-nav .btn{flex:0 0 auto!important;min-width:40px;min-height:36px;justify-content:center}
+    .plan-nav .plan-nav-label{flex:1;text-align:center;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .plan-legend,.plan-sublegend{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+    .plan-legend::-webkit-scrollbar,.plan-sublegend::-webkit-scrollbar{display:none}
+    .plan-legend>*,.plan-sublegend>*{flex-shrink:0;white-space:nowrap}
+    .plan-layout{flex-direction:column!important;height:auto!important;overflow:visible!important;gap:8px!important;min-width:0}
+    #plan_unsched_drop{width:100%!important}
+    .plan-unsched-head{margin-bottom:6px!important;padding-bottom:4px!important}
+    .plan-unsched-title{cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+    .plan-chev{display:inline;font-size:10px}
+    .plan-unsched-collapsed .plan-unsched-list{display:none!important}
+    .plan-unsched-collapsed .plan-chev{transform:rotate(-90deg)}
+    .plan-unsched-list{display:flex!important;overflow-x:auto!important;overflow-y:hidden!important;flex:none!important;gap:8px;padding:0 0 4px 0!important;-webkit-overflow-scrolling:touch}
+    .plan-unsched-list .plan-task{min-width:210px;max-width:240px;margin-bottom:0!important;flex-shrink:0}
+    .plan-unsched-list .muted{padding:2px 0!important}
+    .plan-task .plan-del{padding:8px 11px;font-size:14px;top:0;right:0}
+    #plan_grid{flex:none!important;overflow-x:auto!important;overflow-y:visible!important;min-width:0;max-width:100%;-webkit-overflow-scrolling:touch}
+    .plan-row-1{grid-template-columns:44px minmax(0,1fr)!important}
+    .plan-row-5{grid-template-columns:44px repeat(5,minmax(150px,1fr))!important;min-width:794px}
+    .plan-gutter{position:sticky;left:0;z-index:12;background:var(--bg2);padding:4px 3px!important;font-size:9px!important}
+    .plan-block{padding-bottom:0!important}
+    .plan-resize-handle{display:none!important}
+    .plan-btns{display:none!important}
+    .plan-more{display:inline-flex;align-items:center;justify-content:center;align-self:stretch;min-width:36px;padding:0 6px;font-size:16px;font-weight:800;cursor:pointer;flex-shrink:0;border-radius:4px;background:rgba(0,0,0,.2)}
+    .plan-block.plan-open .plan-btns{display:flex!important;flex:1;gap:4px;align-self:stretch}
+    .plan-block.plan-open .plan-btns>span{flex:1;display:inline-flex!important;align-items:center;justify-content:center;min-height:36px;font-size:14px!important;padding:0 4px!important;opacity:1!important;line-height:1!important}
+    .plan-block.plan-open .plan-title,.plan-block.plan-open .plan-len{display:none!important}
+    .plan-recur{min-height:36px}
+    .plan-recur .plan-del{padding:8px 12px;font-size:14px}
+    #plan_quickadd{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-height:82dvh!important;border-radius:16px 16px 0 0!important;padding:14px 14px calc(14px + env(safe-area-inset-bottom))!important;z-index:260}
+    #plan_quickadd input,#plan_quickadd select{font-size:16px!important}
+    #plan_quickadd button{min-height:32px}
+  }
 
   .cal-nav{display:flex;align-items:center;gap:14px;margin-bottom:14px}
   .cal-nav h3{font-size:16px;font-weight:800;flex:1}
@@ -13236,7 +13280,7 @@ function planLegend(){
   if(!planCatFilter) planSubFilter='';
   const subs=planCatFilter?planSubCats(planCatFilter):[];
   if(planSubFilter&&!subs.some(c=>c.id===planSubFilter)) planSubFilter='';
-  return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:${subs.length?'6':'12'}px">
+  return `<div class="plan-legend" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:${subs.length?'6':'12'}px">
     <button class="fbtn ${planCatFilter?'':'active'}" onclick="planSetCatFilter('${planCatFilter}')" ${planCatFilter?'':'disabled'}>All</button>
     ${cats.map(c=>`<button type="button" draggable="true" ondragstart="planDragCat='${c.id}';event.dataTransfer.setData('text/plain','plancat:${c.id}');event.dataTransfer.effectAllowed='copyMove'" ondragend="planDragCat=''" onclick="planSetCatFilter('${c.id}')" title="Click to show only ${esc(c.name)}; click again to show all. Drag onto a time slot to add a new task."
       style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:14px;font-size:12px;font-weight:600;color:var(--ink);background:var(--panel);
@@ -13579,7 +13623,7 @@ function vPlanning(){
 
   // Build time grid
   const gridCols = days.length===1?'1fr':`repeat(${days.length},minmax(0,1fr))`; // minmax(0,..) so a long title can't stretch one row's columns
-  const SLOT_H = 28; // px per 30-min slot
+  const SLOT_H = (window.matchMedia&&window.matchMedia('(max-width:700px)').matches)?40:28; // px per 30-min slot (taller on phones for bigger tap targets)
 
   const dayHeaders = days.map(d=>`
     <div style="text-align:center;padding:8px 4px;font-size:12px;font-weight:700;color:${d===today()?'var(--gold2)':'var(--ink)'};border-bottom:1px solid var(--line2);background:${d===today()?'rgba(201,162,75,.08)':'var(--bg2)'}">
@@ -13593,8 +13637,8 @@ function vPlanning(){
     const nowH=new Date().getHours()+(new Date().getMinutes()>=30?0.5:0);
     const isNowHour = Math.abs(nowH-h)<0.5 && days.includes(today());
     const isHalfHr = h%1!==0;
-    gridRows += `<div style="display:grid;grid-template-columns:52px ${gridCols};min-height:${SLOT_H}px;border-bottom:1px solid ${isHalfHr?'rgba(255,255,255,.04)':'var(--line)'}">
-      <div style="font-size:10px;color:var(--ink3);padding:4px 6px;text-align:right;border-right:1px solid var(--line2);${isNowHour?'color:var(--gold2);font-weight:700':''}">${timeLabel}</div>
+    gridRows += `<div class="plan-row-${days.length}" style="display:grid;grid-template-columns:52px ${gridCols};min-height:${SLOT_H}px;border-bottom:1px solid ${isHalfHr?'rgba(255,255,255,.04)':'var(--line)'}">
+      <div class="plan-gutter" style="font-size:10px;color:var(--ink3);padding:4px 6px;text-align:right;border-right:1px solid var(--line2);${isNowHour?'color:var(--gold2);font-weight:700':''}">${timeLabel}</div>
       ${days.map(d=>{
         // Tasks scheduled in this hour
         const slotTasks = DB.tasks.filter(t=>t.scheduledDate===d && t.scheduledHour===h && planPassesFilter(t.categoryId,t.subcategoryId));
@@ -13612,8 +13656,8 @@ function vPlanning(){
             const bh=Math.max(28,Math.round((mins/30)*SLOT_H));
             const isDone=t.done;
             const short=bh<48; // too short for two lines: title and duration share one line
-            const _titleSpan=`<span onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}${planSubOf(t)?` <span style="opacity:.85;font-weight:500">· ${esc(planSubOf(t).name)}</span>`:''}</span>`;
-            const _btns=`<div style="display:flex;gap:3px;flex-shrink:0">
+            const _titleSpan=`<span class="plan-title" onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}${planSubOf(t)?` <span style="opacity:.85;font-weight:500">· ${esc(planSubOf(t).name)}</span>`:''}</span>`;
+            const _btns=`<div class="plan-btns" style="display:flex;gap:3px;flex-shrink:0">
                   <span onclick="event.stopPropagation();planMarkDone('${t.id}')"
                     title="${isDone?'Mark undone':'Mark done'}"
                     style="cursor:pointer;font-size:11px;opacity:.8;background:rgba(0,0,0,.2);border-radius:3px;padding:0 4px;line-height:16px">
@@ -13623,7 +13667,7 @@ function vPlanning(){
                     style="cursor:pointer;font-size:10px;opacity:.85;background:rgba(0,0,0,.2);border-radius:3px;padding:0 4px;line-height:16px;white-space:nowrap">+1d</span>`}
                   <span class="plan-del" title="Delete task" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planDeleteTask('${t.id}')">🗑</span>
                   <span onclick="event.stopPropagation();planUnschedule('${t.id}')" title="Unschedule (back to the list)" style="opacity:.7;cursor:pointer;font-size:13px;line-height:1">×</span>
-                </div>`;
+                </div><span class="plan-more" title="Actions" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();this.closest('.plan-block').classList.toggle('plan-open')">⋯</span>`;
             return `<div
               class="plan-block" data-task-id="${t.id}"
               draggable="true"
@@ -13637,13 +13681,13 @@ function vPlanning(){
                 cursor:grab;user-select:none;${isDone?'opacity:.6;text-decoration:line-through':''}">
               ${short?`<div style="display:flex;align-items:center;gap:6px;height:100%">
                 ${_titleSpan.replace('flex:1;cursor:pointer','flex:1;min-width:0;cursor:pointer')}
-                <div style="font-size:9px;opacity:.85;white-space:nowrap;flex-shrink:0">${planFmtEst(mins)}</div>
+                <div class="plan-len" style="font-size:9px;opacity:.85;white-space:nowrap;flex-shrink:0">${planFmtEst(mins)}</div>
                 ${_btns}
               </div>`:`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
                 ${_titleSpan}
                 ${_btns}
               </div>
-              ${mins&&mins!==60?`<div style="font-size:9px;opacity:.7;margin-top:2px">${planFmtEst(mins)}</div>`:''}`}
+              ${mins&&mins!==60?`<div class="plan-len" style="font-size:9px;opacity:.7;margin-top:2px">${planFmtEst(mins)}</div>`:''}`}
               <div class="plan-resize-handle"
                 onmousedown="event.stopPropagation();planResizeStart(event,'${t.id}')"
                 style="position:absolute;bottom:0;left:0;right:0;height:12px;cursor:ns-resize;
@@ -13679,35 +13723,36 @@ function vPlanning(){
     </div>`;
   });
 
-  return `<div class="page-head"><div><h2>Planning</h2><div class="desc">Time block your day — drag tasks into slots.</div></div>
-    <div class="page-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="fbtn ${planView==='day'&&!planDaySummaryMode?'active':''}" onclick="planView='day';planDaySummaryMode=false;render()">Day</button>
+  return `<div class="page-head plan-head"><div><h2>Planning</h2><div class="desc">Time block your day — drag tasks into slots.</div></div>
+    <div class="page-actions plan-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="plan-seg"><button class="fbtn ${planView==='day'&&!planDaySummaryMode?'active':''}" onclick="planView='day';planDaySummaryMode=false;render()">Day</button>
       <button class="fbtn ${planView==='week'&&!planDaySummaryMode?'active':''}" onclick="planView='week';planDaySummaryMode=false;render()">Week</button>
-      <button class="fbtn ${planDaySummaryMode?'active':''}" onclick="planDaySummaryMode=!planDaySummaryMode;render()">📋 Summary</button>
-      <div style="width:1px;height:20px;background:var(--line2)"></div>
+      <button class="fbtn ${planDaySummaryMode?'active':''}" onclick="planDaySummaryMode=!planDaySummaryMode;render()">📋 Summary</button></div>
+      <div class="plan-divider" style="width:1px;height:20px;background:var(--line2)"></div>
+      <div class="plan-nav">
       <button class="btn btn-sm btn-ghost" onclick="planDay=planAddDays(planDay,-1);render()">‹</button>
-      <span style="font-size:13px;font-weight:600;color:var(--ink)">${planView==='day'?planDayLabel(planDay):'Week of '+planDayLabel(planWeekDays(planDay)[0])}</span>
+      <span class="plan-nav-label" style="font-size:13px;font-weight:600;color:var(--ink)">${planView==='day'?planDayLabel(planDay):'Week of '+planDayLabel(planWeekDays(planDay)[0])}</span>
       <button class="btn btn-sm btn-ghost" onclick="planDay=planAddDays(planDay,1);render()">›</button>
-      <button class="btn btn-sm btn-ghost" onclick="planDay=today();render()">Today</button>
+      <button class="btn btn-sm btn-ghost" onclick="planDay=today();render()">Today</button></div>
     </div></div>
   ${planLegend()}
   ${planDaySummaryMode ? planDaySummaryView(planDay, myName) : ''}
-  <div style="display:flex;gap:16px;height:calc(100vh - 200px);overflow:hidden;${planDaySummaryMode?'display:none':''}">
+  <div class="plan-layout" style="display:flex;gap:16px;height:calc(100vh - 200px);overflow:hidden;${planDaySummaryMode?'display:none':''}">
     <!-- Task list panel -->
-    <div id="plan_unsched_drop" style="width:240px;flex-shrink:0;display:flex;flex-direction:column;gap:0;border-radius:10px"
+    <div id="plan_unsched_drop" class="plan-unsched ${planUnschedCollapsed?'plan-unsched-collapsed':''}" style="width:240px;flex-shrink:0;display:flex;flex-direction:column;gap:0;border-radius:10px"
       ondragover="if(planDragTask&&!planDragCat&&planDragIsScheduled()){event.preventDefault();this.style.outline='2px dashed var(--gold)';this.style.background='var(--goldsoft)'}"
       ondragleave="if(!this.contains(event.relatedTarget)){this.style.outline='';this.style.background=''}"
       ondrop="this.style.outline='';this.style.background='';planDropToUnscheduled(event)">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span>Unscheduled (${unscheduled.length})</span>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between;gap:8px" class="plan-unsched-head">
+        <span class="plan-unsched-title" onclick="planToggleUnsched()">Unscheduled (${unscheduled.length})<span class="plan-chev">▾</span></span>
         <button type="button" id="plan_newtask_btn" class="btn btn-sm btn-gold" style="font-size:11px;padding:3px 9px;text-transform:none;letter-spacing:0" onclick="planNewTaskOpen(this)">＋ New task</button>
       </div>
-      <div style="overflow-y:auto;flex:1;padding-right:4px">${taskList}</div>
+      <div class="plan-unsched-list" style="overflow-y:auto;flex:1;padding-right:4px">${taskList}</div>
     </div>
     <!-- Time grid -->
     <div style="flex:1;overflow-y:auto;border:1px solid var(--line2);border-radius:12px;" id="plan_grid">
-      <div style="display:grid;grid-template-columns:52px ${gridCols};position:sticky;top:0;z-index:2">
-        <div style="background:var(--bg2);border-bottom:1px solid var(--line2);border-right:1px solid var(--line2)"></div>
+      <div class="plan-row-${days.length}" style="display:grid;grid-template-columns:52px ${gridCols};position:sticky;top:0;z-index:2">
+        <div class="plan-gutter" style="background:var(--bg2);border-bottom:1px solid var(--line2);border-right:1px solid var(--line2)"></div>
         ${dayHeaders}
       </div>
       ${gridRows}
@@ -13743,6 +13788,8 @@ function planDrop(event, day, hour){
 }
 
 // drag a scheduled block back onto the Unscheduled sidebar
+let planUnschedCollapsed=false; // phones: fold the Unscheduled section away
+function planToggleUnsched(){ planUnschedCollapsed=!planUnschedCollapsed; render(); }
 function planDragIsScheduled(){ const t=DB.tasks.find(x=>x.id===planDragTask); return !!(t&&t.scheduledDate); }
 function planDropToUnscheduled(event){
   if(planDragCat||!planDragTask) return;
