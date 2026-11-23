@@ -13083,6 +13083,7 @@ function planDefaultCats(){
     {id:'pcat_family',name:'Family',color:'#BE185D'},
     {id:'pcat_admin',name:'Admin',color:'#64748B'},
     {id:'pcat_personal',name:'Personal',color:'#0F766E'},
+    {id:'pcat_travel',name:'Travel',color:'#F59E0B'},
     {id:'pcat_rest',name:'Rest',color:'#15803D'}
   ];
 }
@@ -13133,6 +13134,17 @@ function planMigrateCategories(){
     if(!c.name) c.name='Category';
     if(!/^#[0-9a-fA-F]{6}$/.test(c.color||'')) c.color='#64748B';
   });
+  // Travel: added once for existing data (after Personal); the flag stops it coming back if removed
+  DB.planTravelSeeded=DB.planTravelSeeded||false;
+  if(!DB.planTravelSeeded){
+    if(!DB.planCategories.some(c=>c.id==='pcat_travel')){
+      const pi=DB.planCategories.findIndex(c=>c.id==='pcat_personal');
+      const ri=DB.planCategories.findIndex(c=>c.id==='pcat_rest');
+      const at=pi>=0?pi+1:(ri>=0?ri:DB.planCategories.length);
+      DB.planCategories.splice(at,0,{id:'pcat_travel',name:'Travel',color:'#F59E0B'});
+    }
+    DB.planTravelSeeded=true;
+  }
   const _tops=DB.planCategories.filter(c=>!c.parentId);
   if(!_tops.some(c=>c.id===DB.planDefaultCategoryId)){
     const biz=_tops.find(c=>c.id==='pcat_business');
@@ -13174,7 +13186,7 @@ function planGuessCatForRecurring(t){
   return '';
 }
 function planGuessCatForLabel(label){
-  const map={'Lunch':'pcat_rest','Break':'pcat_rest','School run':'pcat_family','Personal':'pcat_personal','Travel':'pcat_personal','Deep work':'pcat_deep'};
+  const map={'Lunch':'pcat_rest','Break':'pcat_rest','School run':'pcat_family','Personal':'pcat_personal','Travel':'pcat_travel','Deep work':'pcat_deep'};
   const id=map[label];
   return (id&&(DB.planCategories||[]).some(c=>c.id===id))?id:planDefaultCatId();
 }
