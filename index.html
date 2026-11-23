@@ -13612,8 +13612,9 @@ function vPlanning(){
   <div style="display:flex;gap:16px;height:calc(100vh - 200px);overflow:hidden;${planDaySummaryMode?'display:none':''}">
     <!-- Task list panel -->
     <div style="width:240px;flex-shrink:0;display:flex;flex-direction:column;gap:0">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line2)">
-        Unscheduled (${unscheduled.length})
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span>Unscheduled (${unscheduled.length})</span>
+        <button type="button" id="plan_newtask_btn" class="btn btn-sm btn-gold" style="font-size:11px;padding:3px 9px;text-transform:none;letter-spacing:0" onclick="planNewTaskOpen(this)">＋ New task</button>
       </div>
       <div style="overflow-y:auto;flex:1;padding-right:4px">${taskList}</div>
     </div>
@@ -13780,19 +13781,24 @@ function _planQAOutside(e){
   const pop=document.getElementById('plan_quickadd');
   if(pop && !pop.contains(e.target)) planQuickAddClose();
 }
-function planQuickAddOpen(day, hour, durationMins, catId, timeOffMins){
+// '＋ New task' button in the Unscheduled header: quick add with no time by default
+function planNewTaskOpen(btn){
+  const cur=document.getElementById('plan_quickadd');
+  planQuickAddOpen(planDay,null,30,'',60,{anchor:btn});
+}
+function planQuickAddOpen(day, hour, durationMins, catId, timeOffMins, opts2){
   planQuickAddClose();
   const cats=planCats();
   const cat=cats.some(c=>c.id===catId)?catId:(planCatFilter&&cats.some(c=>c.id===planCatFilter)?planCatFilter:planDefaultCatId());
   const opts=[15,30,45,60,90,120,180,240];
   const dur=opts.reduce((best,o)=>o<=durationMins&&Math.abs(o-durationMins)<=Math.abs(best-durationMins)?o:best,opts[0]);
   const sub=(!catId&&planSubFilter&&planSubOf({categoryId:cat,subcategoryId:planSubFilter}))?planSubFilter:'';
-  _planQA={day,hour:Number(hour),cat,sub,dur,timeOffMins:timeOffMins||60,rfreq:'none',rdays:[planDayName(day)],rend:'never'};
+  _planQA={day,hour:(hour===null?null:Number(hour)),unsched:(hour===null),cat,sub,dur,timeOffMins:timeOffMins||60,rfreq:'none',rdays:[planDayName(day)],rend:'never'};
   const pop=document.createElement('div');
   pop.id='plan_quickadd';
   pop.style.cssText='position:fixed;z-index:250;width:290px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.45);padding:12px;max-height:calc(100vh - 16px);overflow-y:auto';
   const fld='background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:6px 8px';
-  pop.innerHTML=`<div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Quick add · ${planDayLabel(day)}</div>
+  pop.innerHTML=`<div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">${_planQA.unsched?'New task':'Quick add · '+planDayLabel(day)}</div>
     <input id="pqa_title" type="text" placeholder="Task name" maxlength="120" autocomplete="off"
       style="width:100%;${fld};padding:8px 10px;margin-bottom:10px">
     <div id="pqa_cats" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">${planQACatChips()}</div>
@@ -13800,6 +13806,7 @@ function planQuickAddOpen(day, hour, durationMins, catId, timeOffMins){
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <label for="pqa_time" style="font-size:12px;color:var(--ink3)">Start</label>
       <select id="pqa_time" style="flex:1;${fld}">
+        ${_planQA.unsched?`<option value="" selected>No time (unscheduled)</option>`:''}
         ${PLAN_HOURS.map(h=>`<option value="${h}" ${h===_planQA.hour?'selected':''}>${planHourLabel(h)}</option>`).join('')}
       </select>
     </div>
@@ -13820,10 +13827,10 @@ function planQuickAddOpen(day, hour, durationMins, catId, timeOffMins){
     <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
       <button type="button" class="btn btn-gold btn-sm" onclick="planQuickAddSave()">Add</button>
       <button type="button" class="btn btn-sm" onclick="planQuickAddClose()">Cancel</button>
-      <button type="button" class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="planQuickAddTimeOff()">🚫 Time off</button>
+      ${_planQA.unsched?'':`<button type="button" class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="planQuickAddTimeOff()">🚫 Time off</button>`}
     </div>`;
   document.body.appendChild(pop);
-  const slot=document.querySelector(`.plan-slot[data-day="${day}"][data-hour="${hour}"]`);
+  const slot=(opts2&&opts2.anchor)||document.querySelector(`.plan-slot[data-day="${day}"][data-hour="${hour}"]`);
   const r=slot?slot.getBoundingClientRect():{left:window.innerWidth/2-135,top:window.innerHeight/3,bottom:window.innerHeight/3+28};
   _planQA.rect={left:r.left,top:r.top,bottom:r.bottom};
   { const sb=document.getElementById('pqa_subs'); sb.style.display=sb.innerHTML?'flex':'none'; }
@@ -13888,9 +13895,11 @@ function planQuickAddSave(){
   const title=(titleEl&&titleEl.value||'').trim();
   if(!title){ toast('Give it a name first'); if(titleEl) titleEl.focus(); return; }
   const q=_planQA;
-  const hour=Number(document.getElementById('pqa_time').value);
+  const _tv=document.getElementById('pqa_time').value;
+  const hour=(_tv==='')?null:Number(_tv); // null = no time: stays in the Unscheduled list
   const day=q.day;
   const rf=q.rfreq||'none';
+  if(hour===null && rf!=='none'){ toast('Pick a start time for a repeating task'); return; }
   let until='';
   if(rf!=='none'){
     if(rf==='weekly'&&!q.rdays.length){ toast('Pick at least one day'); return; }
@@ -13902,10 +13911,11 @@ function planQuickAddSave(){
   }
   const t={id:uid('t'),title,dropId:'',due:day,done:false,category:'Task',categoryId:q.cat,
     type:'Admin',projectId:'',assignedTo:getPresenceName()||teamList()[0],
-    time:Math.floor(hour)+':'+(hour%1?'30':'00'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
-    estMins:q.dur,scheduledDate:day,scheduledHour:hour,scheduledMin:hour%1?30:0,
+    time:hour===null?'':Math.floor(hour)+':'+(hour%1?'30':'00'),urgent:false,personRef:'',notes:'',file:'',repeat:'None',
+    estMins:q.dur,scheduledDate:hour===null?'':day,scheduledHour:hour,scheduledMin:hour===null?undefined:(hour%1?30:0),
     recurring:false,recurringDays:[],recurringTime:'',recurringHour:null,
     recurringType:'',recurringColor:'#CA8A04',created:now()};
+  if(hour===null) delete t.scheduledMin;
   if(q.sub&&planSubOf({categoryId:q.cat,subcategoryId:q.sub})) t.subcategoryId=q.sub;
   if(rf!=='none'){
     // a repeating task lives on the planner through its recurring fields, not a single scheduled slot
@@ -13918,7 +13928,7 @@ function planQuickAddSave(){
   DB.tasks.unshift(t);
   planQuickAddClose();
   saveDB(); render();
-  toast(`${title} → ${planDayLabel(day)} at ${planHourLabel(hour)}${rf!=='none'?' (repeats)':''}`);
+  toast(hour===null?`${title} added to Unscheduled`:`${title} → ${planDayLabel(day)} at ${planHourLabel(hour)}${rf!=='none'?' (repeats)':''}`);
 }
 
 function planShowCreatePopup(x, y, day, hour, durationMins){
