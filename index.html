@@ -13578,7 +13578,7 @@ function vPlanning(){
     : '<div class="muted" style="font-size:12.5px;padding:8px 0">All tasks scheduled ✓</div>';
 
   // Build time grid
-  const gridCols = days.length===1?'1fr':`repeat(${days.length},1fr)`;
+  const gridCols = days.length===1?'1fr':`repeat(${days.length},minmax(0,1fr))`; // minmax(0,..) so a long title can't stretch one row's columns
   const SLOT_H = 28; // px per 30-min slot
 
   const dayHeaders = days.map(d=>`
@@ -13611,20 +13611,9 @@ function vPlanning(){
             const mins=t.estMins||60;
             const bh=Math.max(28,Math.round((mins/30)*SLOT_H));
             const isDone=t.done;
-            return `<div
-              class="plan-block" data-task-id="${t.id}"
-              draggable="true"
-              onmousedown="event.stopPropagation()"
-              ondragstart="planDragTask='${t.id}';event.dataTransfer.setData('text/plain','${t.id}');event.dataTransfer.effectAllowed='move'"
-              ondragend="planDragTask=null"
-              title="${esc(planCatById(t.categoryId).name)}${planSubOf(t)?' › '+esc(planSubOf(t).name):''}"
-              style="background:${isDone?'var(--panel2)':taskColor(t)};color:${isDone?'var(--ink3)':planTextOn(taskColor(t))};${isDone?'border-left:4px solid '+taskColor(t)+';':''}
-                border-radius:6px;padding:4px 8px 12px;font-size:11px;font-weight:600;
-                position:absolute;top:2px;left:3px;right:3px;height:${bh}px;box-sizing:border-box;overflow:hidden;z-index:10;
-                cursor:grab;user-select:none;${isDone?'opacity:.6;text-decoration:line-through':''}">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
-                <span onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}${planSubOf(t)?` <span style="opacity:.85;font-weight:500">· ${esc(planSubOf(t).name)}</span>`:''}</span>
-                <div style="display:flex;gap:3px;flex-shrink:0">
+            const short=bh<48; // too short for two lines: title and duration share one line
+            const _titleSpan=`<span onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}${planSubOf(t)?` <span style="opacity:.85;font-weight:500">· ${esc(planSubOf(t).name)}</span>`:''}</span>`;
+            const _btns=`<div style="display:flex;gap:3px;flex-shrink:0">
                   <span onclick="event.stopPropagation();planMarkDone('${t.id}')"
                     title="${isDone?'Mark undone':'Mark done'}"
                     style="cursor:pointer;font-size:11px;opacity:.8;background:rgba(0,0,0,.2);border-radius:3px;padding:0 4px;line-height:16px">
@@ -13634,9 +13623,27 @@ function vPlanning(){
                     style="cursor:pointer;font-size:10px;opacity:.85;background:rgba(0,0,0,.2);border-radius:3px;padding:0 4px;line-height:16px;white-space:nowrap">+1d</span>`}
                   <span class="plan-del" title="Delete task" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planDeleteTask('${t.id}')">🗑</span>
                   <span onclick="event.stopPropagation();planUnschedule('${t.id}')" title="Unschedule (back to the list)" style="opacity:.7;cursor:pointer;font-size:13px;line-height:1">×</span>
-                </div>
+                </div>`;
+            return `<div
+              class="plan-block" data-task-id="${t.id}"
+              draggable="true"
+              onmousedown="event.stopPropagation()"
+              ondragstart="planDragTask='${t.id}';event.dataTransfer.setData('text/plain','${t.id}');event.dataTransfer.effectAllowed='move'"
+              ondragend="planDragTask=null"
+              title="${esc(planCatById(t.categoryId).name)}${planSubOf(t)?' › '+esc(planSubOf(t).name):''}"
+              style="background:${isDone?'var(--panel2)':taskColor(t)};color:${isDone?'var(--ink3)':planTextOn(taskColor(t))};${isDone?'border-left:4px solid '+taskColor(t)+';':''}
+                border-radius:6px;padding:${short?'0 8px 12px':'4px 8px 12px'};font-size:11px;font-weight:600;
+                position:absolute;top:2px;left:3px;right:3px;height:${bh}px;box-sizing:border-box;overflow:hidden;z-index:10;
+                cursor:grab;user-select:none;${isDone?'opacity:.6;text-decoration:line-through':''}">
+              ${short?`<div style="display:flex;align-items:center;gap:6px;height:100%">
+                ${_titleSpan.replace('flex:1;cursor:pointer','flex:1;min-width:0;cursor:pointer')}
+                <div style="font-size:9px;opacity:.85;white-space:nowrap;flex-shrink:0">${planFmtEst(mins)}</div>
+                ${_btns}
+              </div>`:`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
+                ${_titleSpan}
+                ${_btns}
               </div>
-              ${mins&&mins!==60?`<div style="font-size:9px;opacity:.7;margin-top:2px">${planFmtEst(mins)}</div>`:''}
+              ${mins&&mins!==60?`<div style="font-size:9px;opacity:.7;margin-top:2px">${planFmtEst(mins)}</div>`:''}`}
               <div class="plan-resize-handle"
                 onmousedown="event.stopPropagation();planResizeStart(event,'${t.id}')"
                 style="position:absolute;bottom:0;left:0;right:0;height:12px;cursor:ns-resize;
@@ -13654,8 +13661,8 @@ function vPlanning(){
                 margin-bottom:2px;cursor:pointer;display:flex;align-items:center;gap:5px">
               <span class="plan-recur-icon" style="font-size:11px;opacity:.9">↻</span>
               <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(o.title)}${sc?` <span style="opacity:.8;font-weight:500">· ${esc(sc.name)}</span>`:''}</span>
-              ${o.estMins?`<span style="font-size:9px;opacity:.75">${planFmtEst(o.estMins)}</span>`:''}
-              ${rt?`<span style="font-size:9px;opacity:.8;background:rgba(127,127,127,.25);border-radius:3px;padding:1px 4px">${esc(rt)}</span>`:''}
+              ${o.estMins?`<span style="font-size:9px;opacity:.75;white-space:nowrap;flex-shrink:0">${planFmtEst(o.estMins)}</span>`:''}
+              ${rt?`<span style="font-size:9px;opacity:.8;background:rgba(127,127,127,.25);border-radius:3px;padding:1px 4px;white-space:nowrap;flex-shrink:0">${esc(rt)}</span>`:''}
               <span class="plan-del" title="Delete" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planOccDelete('${t.id}','${o.date}')">🗑</span>
             </div>`;
           }).join('')}
