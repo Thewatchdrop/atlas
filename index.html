@@ -100,6 +100,28 @@
   .cost-breakdown{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
   .cb-row{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink3)}
   .cb-row span:last-child{color:var(--ink2);font-weight:600}
+  /* Manual cost entry rows (Costs to Date · Meta Ads — to date) */
+  .mc-row{align-items:center;gap:10px}
+  .mc-label{display:flex;flex-direction:column;min-width:0}
+  .mc-sub{font-size:10.5px;opacity:.8;margin-top:2px}
+  .mc-est{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.5px;padding:1px 5px;border-radius:4px;border:1px solid var(--warn);color:var(--warn);margin-right:4px;vertical-align:1px}
+  .mc-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .mc-inwrap{display:inline-flex;align-items:center;gap:3px}
+  .mc-input{width:96px;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:7px;padding:5px 8px;font-size:12.5px;font-weight:600;text-align:right}
+  .mc-input:focus{outline:none;border-color:var(--gold)}
+  .mc-input::-webkit-outer-spin-button,.mc-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .mc-input{-moz-appearance:textfield}
+  .mc-input::placeholder{color:var(--ink3);font-weight:400;font-size:11px}
+  .mc-amt{min-width:64px;text-align:right}
+  .mc-amt.is-est{opacity:.7;font-style:italic}
+  @media(max-width:700px){
+    .ctd-grid{grid-template-columns:1fr!important;gap:14px 0!important}
+    .mc-row{flex-wrap:wrap;padding-left:0!important}
+    .mc-label{flex:1 1 100%}
+    .mc-right{flex:1 1 100%;justify-content:space-between}
+    .mc-input{width:130px;font-size:16px;padding:8px 10px}
+    .mc-amt{font-size:13px}
+  }
   .bar-chart{display:flex;align-items:flex-end;gap:10px;height:150px;padding:10px 4px 0}
   .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
   .bar-fill{width:60%;background:linear-gradient(180deg,var(--gold),var(--gold2));border-radius:4px 4px 0 0;min-height:2px}
@@ -331,6 +353,9 @@
   .plan-del{opacity:0;cursor:pointer;font-size:11px;line-height:16px;padding:0 4px;border-radius:3px;background:rgba(0,0,0,.2);transition:opacity .12s;flex-shrink:0}
   .plan-task:hover .plan-del,.plan-block:hover .plan-del,.plan-recur:hover .plan-del,.plan-del:focus{opacity:.9}
   .plan-task .plan-del{position:absolute;top:6px;right:6px;background:var(--bg2);color:var(--ink2)}
+  .plan-task .plan-sched{right:30px;opacity:.7}
+  @media(min-width:701px){ .plan-block .plan-nudge,.plan-recur .plan-nudge{display:none} .plan-block:hover .plan-nudge,.plan-recur:hover .plan-nudge{display:inline-block} } /* desktop: -15/+15 appear on hover so titles keep their room */
+  .plan-recur,.plan-tb{z-index:5} /* tall repeating/time-off blocks sit above the rows they cover, so their lower half is clickable */
   @media (hover:none){.plan-del{opacity:.75}}
   /* Planning page on phones (desktop is untouched: these defaults change nothing there) */
   .plan-seg,.plan-nav{display:contents}
@@ -366,17 +391,27 @@
     .plan-row-1{grid-template-columns:44px minmax(0,1fr)!important}
     .plan-row-5{grid-template-columns:44px repeat(5,minmax(150px,1fr))!important;min-width:794px}
     .plan-gutter{position:sticky;left:0;z-index:12;background:var(--bg2);padding:4px 3px!important;font-size:9px!important}
-    .plan-block.plan-open{min-height:40px;z-index:30!important;overflow:visible!important}
+    .plan-block.plan-open{min-height:76px;z-index:30!important;overflow:visible!important}
     .plan-block.plan-open{padding-left:2px!important;padding-right:2px!important}
     .plan-block.plan-open .plan-more{min-width:24px;padding:0 2px}
     .plan-block.plan-open.plan-short{height:auto!important}
     .plan-resize-handle{display:none!important}
     .plan-btns{display:none!important}
     .plan-more{display:inline-flex;align-items:center;justify-content:center;align-self:stretch;min-width:36px;padding:0 6px;font-size:16px;font-weight:800;cursor:pointer;flex-shrink:0;border-radius:4px;background:rgba(0,0,0,.2)}
-    .plan-block.plan-open .plan-btns{display:flex!important;flex:1;gap:4px;align-self:stretch}
-    .plan-block.plan-open .plan-btns>span{flex:1;display:inline-flex!important;align-items:center;justify-content:center;min-height:36px;min-width:0;font-size:14px!important;padding:0 1px!important;opacity:1!important;line-height:1!important}
+    .plan-block.plan-open .plan-btns{display:flex!important;flex:1;flex-wrap:wrap;gap:4px;align-self:stretch;align-content:stretch}
+    .plan-block.plan-open .plan-btns>span{flex:1 1 28%;display:inline-flex!important;align-items:center;justify-content:center;min-height:34px;min-width:0;font-size:14px!important;padding:0 1px!important;opacity:1!important;line-height:1!important}
     .plan-block.plan-open .plan-title,.plan-block.plan-open .plan-len{display:none!important}
-    .plan-recur .plan-del{padding:8px 12px;font-size:14px}
+    .plan-recur .plan-rbtns{display:none!important}
+    .plan-recur.plan-open{height:auto!important;min-height:44px;z-index:30;overflow:visible!important;padding-left:4px!important;padding-right:2px!important}
+    .plan-recur.plan-open .plan-rbtns{display:flex!important;flex:1;gap:4px;align-self:stretch}
+    .plan-recur.plan-open>span:not(.plan-rbtns):not(.plan-more){display:none!important}
+    .plan-recur.plan-open .plan-rbtns>span{flex:1;display:inline-flex!important;align-items:center;justify-content:center;min-height:40px;min-width:0;font-size:13px!important;padding:0 1px!important;opacity:1!important;line-height:1!important}
+    .plan-recur.plan-open .plan-more{min-width:28px;padding:0 2px}
+    .plan-task .plan-sched{padding:8px 10px;font-size:14px;top:0;right:38px}
+    .plan-task .plan-ttl{padding-right:80px!important}
+    #plan_sched{left:0!important;right:0!important;bottom:0!important;top:auto!important;transform:none!important;width:auto!important;max-width:none!important;border-radius:16px 16px 0 0!important;padding-bottom:calc(16px + env(safe-area-inset-bottom))!important}
+    #plan_sched input,#plan_sched select{font-size:16px!important}
+    #plan_undo_toast button{padding:10px 8px;margin:-10px -8px}
     #plan_quickadd{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-height:82dvh!important;border-radius:16px 16px 0 0!important;padding:14px 14px calc(14px + env(safe-area-inset-bottom))!important;z-index:260}
     #plan_quickadd input,#plan_quickadd select{font-size:16px!important}
     #plan_quickadd button{min-height:32px}
@@ -1317,6 +1352,7 @@ function migrateDrop(d){
   t.instantWins=t.instantWins||0;
   t.paymentFeePct=t.paymentFeePct!==undefined?t.paymentFeePct:0.035;
   t.adsSpent=t.adsSpent||0;
+  if(!t.manualCosts||typeof t.manualCosts!=='object'||Array.isArray(t.manualCosts)) t.manualCosts={}; // manual 'spent to date' figures, e.g. {metaAds:{amount,updated}}
   t.dial=t.dial||''; t.setStraps=t.setStraps||''; t.closeNotes=t.closeNotes||''; t.drawNotes=t.drawNotes||'';
   t.ticketsSoldTotal=t.ticketsSoldTotal||0;
   t.launchTicketsSold=t.launchTicketsSold||0;
@@ -3080,13 +3116,17 @@ function vaultHubKpiRow(vaults){
     const drawDate=d.draw?new Date(d.draw):new Date(start.getTime()+90*86400000);
     const totalCompDays=Math.max(1,Math.round((drawDate-start)/(1000*60*60*24)));
     const totalCompMonths=totalCompDays/30;
-    const adsTotal=adsPerDay*totalCompDays; // full competition, not days elapsed
+    const adsEstimate=adsPerDay*totalCompDays; // old estimate: full competition, not days elapsed
+    const metaManual=manualCostEntry(d,'metaAds'); // Felix's typed "spent to date" figure, if any
+    const adsIsManual=!!metaManual;
+    const adsTotal=adsIsManual?Number(metaManual.amount):adsEstimate;
+    const adsUpdated=adsIsManual?(metaManual.updated||''):'';
     // Monthly share: configurable per vault (default £1,500 = £6,000 ÷ 4 vaults)
     const monthlyShare=Number(t.monthlyFixedShare)||1500;
     const companyShare=monthlyShare*totalCompMonths;
     totalAdsSpend+=adsTotal;
     totalCompanyShare+=companyShare;
-    vaultFixedRows.push({label:d.name||d.number,adsPerDay,daysLive:totalCompDays,daysLiveSoFar,adsTotal,companyShare,monthlyShare,totalCompMonths,totalCompDays,id:d.id});
+    vaultFixedRows.push({label:d.name||d.number,adsPerDay,daysLive:totalCompDays,daysLiveSoFar,adsTotal,adsEstimate,adsIsManual,adsUpdated,companyShare,monthlyShare,totalCompMonths,totalCompDays,id:d.id});
   });
 
   const totalPrizeCost=watchCost+cashPaid;
@@ -3110,6 +3150,20 @@ function vaultHubKpiRow(vaults){
   const groupHdr=(label,total)=>`<div style="display:flex;justify-content:space-between;padding:7px 0 3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3)"><span>${label}</span><span style="color:var(--danger)">-${gbp(total)}</span></div>`;
   const subRow=(label,val)=>`<div class="cb-row" style="font-size:12px;padding:4px 0 4px 12px"><span style="color:var(--ink3)">${label}</span><span style="color:var(--danger)">-${gbp(val)}</span></div>`;
 
+  const metaAdsRow=v=>{
+    const sub=v.adsIsManual
+      ?`Spent to date${v.adsUpdated?` · updated ${manualCostDate(v.adsUpdated)}`:''}`
+      :`<span class="mc-est">EST</span> No figure entered · £${v.adsPerDay}/day × ${v.totalCompDays}d (${v.daysLiveSoFar}d elapsed)`;
+    return `<div class="cb-row mc-row" style="font-size:12px;padding:5px 0 5px 12px">
+      <span class="mc-label" style="color:var(--ink3);font-weight:400">${esc(v.label)}<span class="mc-sub" style="color:var(--ink3);font-weight:400">${sub}</span></span>
+      <span class="mc-right" style="font-weight:400">
+        <span class="mc-inwrap" style="color:var(--ink3);font-weight:400">£<input class="mc-input" type="number" min="0" step="0.01" inputmode="decimal"
+          value="${v.adsIsManual?Number(v.adsTotal):''}" placeholder="Enter £" aria-label="Meta ads spent to date for ${esc(v.label)}"
+          onkeydown="if(event.key==='Enter')this.blur()" onchange="setManualCost('${v.id}','metaAds',this.value)"></span>
+        <span class="mc-amt${v.adsIsManual?'':' is-est'}" style="color:var(--danger);font-weight:600">-${gbp(v.adsTotal)}</span>
+      </span>
+    </div>`;
+  };
   const costRows=[
     // Per-ticket deductions
     deductions.length?groupHdr('Per-ticket deductions',totalDed):'',
@@ -3119,10 +3173,10 @@ function vaultHubKpiRow(vaults){
     (watchCost+cashPaid)>0?groupHdr('Prize costs',watchCost+cashPaid):'',
     watchCost>0?subRow(`Watch purchases (${watchCount})`,watchCost):'',
     cashPaid>0?subRow(`Cash prizes paid (${cashCount})`,cashPaid):'',
-    // Ads
-    totalAdsSpend>0?sep:'',
-    totalAdsSpend>0?groupHdr('Meta Ads — full run',totalAdsSpend):'',
-    ...vaultFixedRows.filter(v=>v.adsTotal>0).map(v=>subRow(`${esc(v.label)} · £${v.adsPerDay}/day × ${v.totalCompDays}d (${v.daysLiveSoFar}d elapsed)`,v.adsTotal)),
+    // Ads — manual "spent to date" per vault; blank falls back to the old estimate (clearly labelled)
+    vaultFixedRows.length?sep:'',
+    vaultFixedRows.length?groupHdr('Meta Ads — to date',totalAdsSpend):'',
+    ...vaultFixedRows.map(metaAdsRow),
     // Fixed running costs
     totalCompanyShare>0?sep:'',
     totalCompanyShare>0?groupHdr('Company running costs — full run',totalCompanyShare):'',
@@ -3160,7 +3214,7 @@ function vaultHubKpiRow(vaults){
   <div class="card" style="margin-bottom:16px">
     <div class="card-h"><h3>📊 Costs to Date</h3><span class="muted" style="font-size:11.5px">All deductions and costs against gross revenue</span></div>
     <div style="padding:14px 18px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 32px">
+      <div class="ctd-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0 32px">
         <div>
           <div style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--ink3);font-weight:600;margin-bottom:8px">Revenue</div>
           <div class="cb-row"><span>Gross Revenue</span><span style="color:var(--gold2)">${gbp(grossRev)}</span></div>
@@ -6965,6 +7019,29 @@ function updTracker(dropId,field,val){
   d.tracker=d.tracker||{};
   d.tracker[field] = numFields.includes(field) ? (Number(val)||0) : val;
   queueSave(); render();
+}
+// Manual "spent to date" costs — one entry per cost type per vault, stored on d.tracker.manualCosts[key] = {amount, updated}.
+// Built so other costs (e.g. 'companyRunning') can reuse it later. A blank box means "no figure" -> the old estimate is used.
+function manualCostEntry(d,key){
+  const m=((d&&d.tracker)||{}).manualCosts||{}; const e=m[key];
+  return (e&&e.amount!==null&&e.amount!==undefined&&e.amount!==''&&isFinite(Number(e.amount)))?e:null;
+}
+function setManualCost(dropId,key,raw){
+  const d=dropById(dropId); if(!d) return;
+  d.tracker=d.tracker||{};
+  if(!d.tracker.manualCosts||typeof d.tracker.manualCosts!=='object') d.tracker.manualCosts={};
+  const s=String(raw==null?'':raw).replace(/[£,\s]/g,'');
+  if(s===''){ delete d.tracker.manualCosts[key]; }
+  else{
+    const n=Number(s);
+    if(!isFinite(n)||n<0){ toast('Please enter a £ amount of 0 or more'); render(); return; }
+    d.tracker.manualCosts[key]={amount:Math.round(n*100)/100,updated:new Date().toISOString()};
+  }
+  queueSave(); render();
+}
+function manualCostDate(iso){
+  if(!iso) return ''; const dt=new Date(iso); if(isNaN(dt)) return '';
+  return dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
 }
 function updTrackerPct(dropId,field,val){
   const d=dropById(dropId); if(!d) return;
@@ -13538,6 +13615,8 @@ function planOccMove(id,fromDate,day,hour,scope){
       DB.tasks.splice(idx+1,0,past); created.push(past.id);
     }
     t.recurringHour=hour; t.recurringTime=hhmm;
+    { const ex0=t.recurExceptions&&t.recurExceptions[fromDate]; // a one-off time on this very day would override the new series time
+      if(ex0&&!ex0.skip&&ex0.hour!==undefined){ delete ex0.hour; if(!Object.keys(ex0).length) delete t.recurExceptions[fromDate]; } }
     if(f==='weekly' && day!==fromDate){
       // the dragged weekday becomes the weekday it was dropped on
       const w0=planDayName(fromDate), w1=planDayName(day);
@@ -13619,7 +13698,8 @@ function vPlanning(){
           ondragend="planDragTask=null"
           style="background:var(--panel);border:1px solid var(--line2);border-left:3px solid ${taskColor(t)};border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:grab">
           <span class="plan-del" title="Delete task" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planDeleteTask('${t.id}')">🗑</span>
-          <div style="font-size:13px;font-weight:600;color:var(--ink);padding-right:22px">${esc(t.title)}</div>
+          <span class="plan-del plan-sched" title="Schedule (pick a day and time)" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planScheduleOpen('${t.id}')">📅</span>
+          <div class="plan-ttl" style="font-size:13px;font-weight:600;color:var(--ink);padding-right:52px">${esc(t.title)}</div>
           <div style="font-size:11px;color:var(--ink3);margin-top:3px;display:flex;gap:6px;align-items:center">
             ${t.estMins?`<span style="background:var(--bg2);border-radius:4px;padding:1px 6px">${planFmtEst(t.estMins)}</span>`:'<span style="color:var(--warn);font-size:10px">no estimate</span>'}
             ${t.dropId?`<span style="color:var(--gold2)">${esc((dropById(t.dropId)||{}).number||'')}</span>`:''}
@@ -13664,7 +13744,10 @@ function vPlanning(){
             const isDone=t.done;
             const short=mins<=30; // too short for two lines: title and duration share one line
             const _titleSpan=`<span class="plan-title" onclick="openTask('${t.id}')" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;cursor:pointer">${esc(t.title)}${planSubOf(t)?` <span style="opacity:.85;font-weight:500">· ${esc(planSubOf(t).name)}</span>`:''}</span>`;
-            const _btns=`<div class="plan-btns" style="display:flex;gap:3px;flex-shrink:0">
+            const _nudge=isDone?'':`<span class="plan-nudge" title="Move up 15 min" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planNudge('${t.id}',-15)"
+                    style="cursor:pointer;font-size:9px;opacity:.85;background:rgba(0,0,0,.2);border-radius:3px;padding:0 3px;line-height:16px;white-space:nowrap">−15</span><span class="plan-nudge" title="Move down 15 min" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planNudge('${t.id}',15)"
+                    style="cursor:pointer;font-size:9px;opacity:.85;background:rgba(0,0,0,.2);border-radius:3px;padding:0 3px;line-height:16px;white-space:nowrap">+15</span>`;
+            const _btns=`<div class="plan-btns" style="display:flex;gap:3px;flex-shrink:0">${_nudge}
                   <span onclick="event.stopPropagation();planMarkDone('${t.id}')"
                     title="${isDone?'Mark undone':'Mark done'}"
                     style="cursor:pointer;font-size:11px;opacity:.8;background:rgba(0,0,0,.2);border-radius:3px;padding:0 4px;line-height:16px">
@@ -13690,8 +13773,8 @@ function vPlanning(){
                 ${_titleSpan.replace('flex:1;cursor:pointer','flex:1;min-width:0;cursor:pointer')}
                 <div class="plan-len" style="font-size:9px;opacity:.85;white-space:nowrap;flex-shrink:0">${planFmtEst(mins)}</div>
                 ${_btns}
-              </div>`:`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
-                ${_titleSpan}
+              </div>`:`<div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:2px 4px">
+                ${_titleSpan.replace('flex:1;cursor:pointer','flex:1 1 70px;min-width:0;cursor:pointer')}
                 ${_btns}
               </div>
               ${mins&&mins!==60?`<div class="plan-len" style="font-size:9px;opacity:.7;margin-top:2px">${planFmtEst(mins)}</div>`:''}`}
@@ -13716,7 +13799,12 @@ function vPlanning(){
               <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(o.title)}${sc?` <span style="opacity:.8;font-weight:500">· ${esc(sc.name)}</span>`:''}</span>
               ${o.estMins?`<span style="font-size:9px;opacity:.75;white-space:nowrap;flex-shrink:0">${planFmtEst(o.estMins)}</span>`:''}
               ${rt?`<span style="font-size:9px;opacity:.8;background:rgba(127,127,127,.25);border-radius:3px;padding:1px 4px;white-space:nowrap;flex-shrink:0">${esc(rt)}</span>`:''}
-              <span class="plan-del" title="Delete" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planOccDelete('${t.id}','${o.date}')">🗑</span>
+              <span class="plan-rbtns" style="display:flex;gap:3px;flex-shrink:0;align-items:center">
+                <span class="plan-nudge" title="Move up 15 min" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planOccNudge('${t.id}','${o.date}',-15)" style="cursor:pointer;font-size:9px;opacity:.85;background:rgba(127,127,127,.25);border-radius:3px;padding:0 3px;line-height:16px;white-space:nowrap">−15</span>
+                <span class="plan-nudge" title="Move down 15 min" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planOccNudge('${t.id}','${o.date}',15)" style="cursor:pointer;font-size:9px;opacity:.85;background:rgba(127,127,127,.25);border-radius:3px;padding:0 3px;line-height:16px;white-space:nowrap">+15</span>
+                <span class="plan-del" title="Delete" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();planOccDelete('${t.id}','${o.date}')">🗑</span>
+              </span>
+              <span class="plan-more" title="Actions" onmousedown="event.stopPropagation()" onclick="event.stopPropagation();this.closest('.plan-recur').classList.toggle('plan-open')">⋯</span>
             </div>`;
           }).join('')}
           ${(DB.planTimeBlocks||[]).filter(b=>b.date===d&&b.startHour===h&&planPassesFilter(b.categoryId)).map(b=>{ const bc=planCatById(b.categoryId); return `
@@ -13855,6 +13943,85 @@ function planPushDay(id){
   t.due=t.scheduledDate; // same as dragging into a slot
   saveDB(); render();
   planUndoToast(`"${t.title}" → ${planDayLabel(t.scheduledDate)}`,()=>planRestoreTask(snap,idx));
+}
+/* ===== +15 / -15 nudge ===== */
+function planNudgeHour(h,mins){ // keeps to 15-minute steps and inside the day (5:00am .. last 15-min slot)
+  const n=Math.round(Number(h)*4)*15+mins;
+  return Math.max(PLAN_HOURS[0]*60,Math.min(PLAN_HOURS[PLAN_HOURS.length-1]*60,n))/60;
+}
+function planNudge(id,mins){
+  const idx=DB.tasks.findIndex(x=>x.id===id); if(idx<0) return;
+  const t=DB.tasks[idx]; if(!t.scheduledDate||t.scheduledHour==null) return;
+  const nh=planNudgeHour(t.scheduledHour,mins);
+  if(Math.abs(nh-Number(t.scheduledHour))<1e-9){ toast(mins<0?'Already at the start of the day':'Already at the end of the day'); return; }
+  const snap=JSON.parse(JSON.stringify(t));
+  t.scheduledHour=nh; t.scheduledMin=planMinOf(nh);
+  saveDB(); render();
+  planUndoToast(`"${t.title}" → ${planHourLabel(nh)}`,()=>planRestoreTask(snap,idx));
+}
+function planOccNudge(id,date,mins){ // repeating task: same "This one / All future" question as dragging
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  const occ=planRecurOccurrence(t,date); if(!occ||occ.hour==null) return;
+  const nh=planNudgeHour(occ.hour,mins);
+  if(Math.abs(nh-Number(occ.hour))<1e-9){ toast(mins<0?'Already at the start of the day':'Already at the end of the day'); return; }
+  planAskScope(`Move "${occ.title}" to ${planHourLabel(nh)}`,scope=>planOccMove(id,date,date,nh,scope));
+}
+
+/* ===== Schedule an Unscheduled card by tapping (no drag needed) ===== */
+let _planSched=null;
+function planFreeSlot(day,mins,id){ // first 15-min start from 9:00am where the task fits without overlapping anything
+  const busy=new Set();
+  const add=(h,m)=>{ if(h==null||h==='') return; const n=Math.max(1,Math.round((m||60)/15)); const st=Math.round(Number(h)*4); for(let i=0;i<n;i++) busy.add(st+i); };
+  DB.tasks.forEach(t=>{
+    if(t.id===id) return;
+    if(t.scheduledDate===day&&t.scheduledHour!=null&&!t.done) add(t.scheduledHour,t.estMins);
+    const o=planRecurOccurrence(t,day); if(o&&o.hour!=null) add(o.hour,o.estMins||30);
+  });
+  (DB.planTimeBlocks||[]).forEach(b=>{ if(b.date===day) add(b.startHour,b.mins||((b.endHour-b.startHour+1)*30)); });
+  const need=Math.max(1,Math.round((mins||60)/15));
+  for(let st=36;st<=PLAN_HOURS[PLAN_HOURS.length-1]*4;st++){ let ok=true; for(let i=0;i<need;i++){ if(busy.has(st+i)){ ok=false; break; } } if(ok) return st/4; }
+  return 9;
+}
+function planScheduleClose(){ ['plan_sched','plan_sched_bk'].forEach(i=>{ const e=document.getElementById(i); if(e) e.remove(); }); _planSched=null; }
+function planScheduleOpen(id){
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  planScheduleClose();
+  const day=planDay||today();
+  _planSched={id,day,hour:planFreeSlot(day,t.estMins,id),picked:false};
+  const bk=document.createElement('div'); bk.id='plan_sched_bk'; bk.style.cssText='position:fixed;inset:0;z-index:299;background:rgba(0,0,0,.35)'; bk.onclick=planScheduleClose;
+  const pop=document.createElement('div'); pop.id='plan_sched';
+  pop.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:300;width:320px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 16px);overflow-y:auto;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,.55)';
+  const fld='background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:8px 10px;width:100%';
+  const chip='background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:14px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer';
+  pop.innerHTML=`<div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Schedule</div>
+    <div style="font-size:14px;font-weight:700;margin-bottom:12px">${esc(t.title)}${t.estMins?` <span style="font-weight:500;color:var(--ink3);font-size:12px">· ${planFmtEst(t.estMins)}</span>`:''}</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button type="button" style="${chip}" onclick="planSchedDay(today())">Today</button>
+      <button type="button" style="${chip}" onclick="planSchedDay(planAddDays(today(),1))">Tomorrow</button>
+    </div>
+    <input id="ps_date" type="date" value="${day}" onchange="planSchedDay(this.value)" style="${fld};margin-bottom:8px">
+    <label for="ps_time" style="font-size:12px;color:var(--ink3)">Start</label>
+    <select id="ps_time" onchange="_planSched.picked=true;_planSched.hour=Number(this.value)" style="${fld};margin:4px 0 14px">
+      ${PLAN_HOURS.map(h=>`<option value="${h}" ${h===_planSched.hour?'selected':''}>${planHourLabel(h)}</option>`).join('')}
+    </select>
+    <div style="display:flex;gap:8px"><button type="button" class="btn btn-gold" style="flex:1;justify-content:center;min-height:40px" onclick="planScheduleSave()">Schedule</button>
+    <button type="button" class="btn btn-ghost" style="min-height:40px" onclick="planScheduleClose()">Cancel</button></div>`;
+  document.body.appendChild(bk); document.body.appendChild(pop);
+}
+function planSchedDay(d){
+  if(!_planSched||!d) return; _planSched.day=d;
+  const di=document.getElementById('ps_date'); if(di) di.value=d;
+  if(!_planSched.picked){ const t=DB.tasks.find(x=>x.id===_planSched.id); _planSched.hour=planFreeSlot(d,t&&t.estMins,_planSched.id); const sel=document.getElementById('ps_time'); if(sel) sel.value=String(_planSched.hour); }
+}
+function planScheduleSave(){
+  if(!_planSched) return;
+  const idx=DB.tasks.findIndex(x=>x.id===_planSched.id); if(idx<0){ planScheduleClose(); return; }
+  const day=(document.getElementById('ps_date')||{}).value||_planSched.day; const hour=Number((document.getElementById('ps_time')||{}).value);
+  if(!day||!Number.isFinite(hour)) return;
+  const t=DB.tasks[idx]; const snap=JSON.parse(JSON.stringify(t));
+  t.scheduledDate=day; t.scheduledHour=hour; t.scheduledMin=planMinOf(hour); t.due=day; // same fields as dropping it on a slot
+  planScheduleClose(); saveDB(); render();
+  planUndoToast(`"${t.title}" → ${planDayLabel(day)} at ${planHourLabel(hour)}`,()=>planRestoreTask(snap,idx));
 }
 function planUnschedule(taskId){
   const t=DB.tasks.find(x=>x.id===taskId); if(!t) return;
