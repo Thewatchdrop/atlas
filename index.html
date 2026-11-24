@@ -100,6 +100,11 @@
   .cost-breakdown{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
   .cb-row{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink3)}
   .cb-row span:last-child{color:var(--ink2);font-weight:600}
+  /* Sell-through scenarios (Route to Profitability) */
+  .scn-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .scn-note{font-size:10.5px;color:var(--ink3);margin-top:3px}
+  .scn-src{font-size:10.5px;color:var(--ink3);margin-top:10px;line-height:1.5}
+  @media(max-width:700px){ .scn-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px} }
   /* Manual cost entry rows (Costs to Date · Meta Ads — to date) */
   .mc-row{align-items:center;gap:10px}
   .mc-label{display:flex;flex-direction:column;min-width:0}
@@ -3092,6 +3097,26 @@ function vaultPerTicketDeductions(vaults){
   return {totalEntries,grossRev,deductions,totalDed,netRev,watchCost,cashPaid,watchCount,cashCount};
 }
 
+// Forecast watch value per vault (Felix, 24 Nov: "at 25% we need to assume that 25% of watch value is sold").
+// Source order: tracker.watchValue (if ever set) -> set-up watchCount x avgWatchValue -> VAULT_PRESETS watchValue matched by name.
+function vaultForecastWatchValue(d){
+  const t=(d&&d.tracker)||{};
+  if(Number(t.watchValue)>0) return {value:Number(t.watchValue),source:'set-up'};
+  const n=Number(t.watchCount)||0, avg=Number(t.avgWatchValue)||0;
+  if(n>0&&avg>0) return {value:n*avg,source:`set-up: ${n} × ${gbp(avg)}`};
+  const nm=String((d&&d.name)||'').toLowerCase();
+  const key=nm.includes('rolex')?'rolex':nm.includes('tudor')?'tudor':(nm.includes('omega')||nm.includes('cartier'))?'omega':nm.includes('tag')?'tag':null;
+  const p=key&&typeof VAULT_PRESETS!=='undefined'?VAULT_PRESETS[key]:null;
+  if(p&&Number(p.watchValue)>0) return {value:Number(p.watchValue),source:'preset'};
+  return {value:0,source:'not set'};
+}
+function vaultForecastWatchTotals(vaults){
+  const per=(vaults||[]).map(d=>Object.assign({label:d.name||d.number||'Vault'},vaultForecastWatchValue(d)));
+  const total=per.reduce((a,v)=>a+v.value,0);
+  const pool=(vaults||[]).reduce((a,d)=>a+(Number((d.tracker||{}).maxTickets)||99999),0);
+  return {per,total,pool,any:total>0,missing:per.filter(v=>!(v.value>0)).map(v=>v.label)};
+}
+
 function vaultHubKpiRow(vaults){
   const {totalEntries,grossRev,deductions,totalDed,netRev,watchCost,cashPaid,watchCount,cashCount}=vaultPerTicketDeductions(vaults);
   const hasDeductions=totalDed>0.01;
@@ -3244,7 +3269,8 @@ function vaultHubKpiRow(vaults){
     // Variable cost per ticket already baked into per-ticket deductions
     // Break-even: need enough tickets so that netRev covers fixed + prize costs
     // We approximate: at current prize cost per ticket rate...
-    const prizeCostPpt=totalEntries>0?(totalPrizeCost/totalEntries):0;
+    const fcW=vaultForecastWatchTotals(vaults); // watch value x % sold (falls back to old prizes-so-far scaling if no watch value)
+    const prizeCostPpt=fcW.any&&fcW.pool>0?(fcW.total/fcW.pool):(totalEntries>0?(totalPrizeCost/totalEntries):0);
     const profitPerTicket=netPptAvg-prizeCostPpt;
     // Tickets needed to break even: fixedCostBase / profitPerTicket
     const beTickets=profitPerTicket>0?Math.ceil(fixedCostBase/profitPerTicket):null;
@@ -3306,22 +3332,25 @@ function vaultHubKpiRow(vaults){
         <!-- Scenario forecasts -->
         ${totalEntries>0?`<div style="border-top:1px solid var(--line);padding-top:12px">
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:10px;font-weight:600">Sell-through scenarios — net profit forecast</div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+          <div class="scn-grid">
             ${[25,50,75,100].map(pct=>{
               const tickets=Math.round(totalPool*pct/100);
               const gr=totalEntries>0?grossRev*(tickets/totalEntries):0;
               const ded=totalEntries>0?totalDed*(tickets/totalEntries):0;
-              const prizes=totalEntries>0?totalPrizeCost*(tickets/totalEntries):0;
+              const prizes=fcW.any?fcW.total*pct/100:(totalEntries>0?totalPrizeCost*(tickets/totalEntries):0);
+              const prizeNote=fcW.any?`after ${gbp(prizes)} watch value (${pct}%)`:`after ${gbp(prizes)} prizes (so far, scaled — no watch value set)`;
               const net=gr-ded-prizes-fixedCostBase;
               const daysNeeded=runRate>0?Math.ceil(Math.max(0,tickets-totalEntries)/runRate):null;
               const fcastDate=daysNeeded!=null?new Date(Date.now()+daysNeeded*86400000).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):null;
               return `<div style="background:var(--bg2);border:1px solid ${net>=0?'var(--live)':'var(--line)'};border-radius:10px;padding:11px 13px">
                 <div style="font-size:11px;font-weight:700;color:var(--ink3);margin-bottom:4px">${pct}% sold (${tickets.toLocaleString()} tickets)</div>
                 <div style="font-size:18px;font-weight:800;color:${net>=0?'var(--live)':'var(--danger)'}">${gbp(net)}</div>
+                <div class="scn-note">${prizeNote}</div>
                 ${fcastDate?`<div style="font-size:10px;color:var(--ink3);margin-top:3px">~${fcastDate} at run rate</div>`:''}
               </div>`;
             }).join('')}
           </div>
+          <div class="scn-src">${fcW.any?`Watch value used: ${fcW.per.map(v=>`${esc(v.label)} ${v.value>0?gbp(v.value):'—'} <span style="opacity:.7">(${esc(v.source)})</span>`).join(' · ')} · <strong>Total ${gbp(fcW.total)}</strong>`:'No watch value set on these vaults — prizes are scaled from prizes so far.'}</div>
         </div>`:''}
       </div>
     </div>`;
